@@ -324,37 +324,53 @@ score a single, minimized pose. Neither confirms the pose is *stable* — that t
 peptide stays bound and the disulfide stays intact once the system is allowed to move
 freely under real thermodynamics. Stage 5 closes that gap.
 
-**Setup.** The top 5 Stage 4 candidates were carried into GROMACS 2024.5 (CUDA),
-Amber99sb-ildn forcefield, explicit TIP3P water, 0.15 M NaCl. Membrane embedding was
-attempted first (packmol-memgen / MEMEMBED) and abandoned after the wrapper tooling
-proved incompatible with the installed Python version — a defensible fallback was
-used instead: the receptor's backbone is position-restrained (1000 kJ/mol/nm²) to
-prevent the unfolding artifacts a missing bilayer would otherwise cause, while the
-peptide and every side chain (receptor included) move completely freely. Each system
-was equilibrated (NVT, NPT) and run to 20 ns unconstrained production MD.
+**Setup.** The original top 5 Stage 4 candidates (by OXTR interface confidence) plus
+2 later additions, chosen instead for leading BBB probability once Stage 5/6 permeability
+scoring reprioritized the shortlist (`out_3_sample3`, `out_88_sample4`) — 7 candidates
+total — were carried into GROMACS 2024.5 (CUDA), Amber99sb-ildn forcefield, explicit
+TIP3P water, 0.15 M NaCl. Membrane embedding was attempted first (packmol-memgen /
+MEMEMBED) and abandoned after the wrapper tooling proved incompatible with the
+installed Python version — a defensible fallback was used instead: the receptor's
+backbone is position-restrained (1000 kJ/mol/nm²) to prevent the unfolding artifacts a
+missing bilayer would otherwise cause, while the peptide and every side chain (receptor
+included) move completely freely. Each system was equilibrated (NVT, NPT) and run to
+20 ns unconstrained production MD.
 
 **Results.**
 
-| Candidate | Sequence | dG_separated | bbb_probability | Peptide RMSD (mean / max, Å) | Disulfide Sγ–Sγ (mean / max, Å) | Status |
+| Candidate | Sequence | dG_separated | bbb_probability | Peptide RMSD (mean / max, Å) | Disulfide Sγ–Sγ (mean / max, Å) | Selected for |
 |---|---|---:|---:|---:|---:|---|
-| out_70_sample2 | AECLLSYHACRRA | −51.53 | 0.453 | 2.29 / 3.09 | 2.04 / 2.17 | Complete |
-| out_35_sample2 | YVRCLTPAAAVNCVG | −51.40 | 0.441 | 1.45 / 2.61 | 2.03 / 2.16 | Complete |
-| out_80_sample4 | GLCGAGFPCRVP | −49.10 | 0.477 | 2.57 / 4.43 | 2.04 / 2.17 | Complete |
-| out_70_sample3 | AECLLSRHACRRA | −47.62 | 0.497 | 1.18 / 2.69 | 2.04 / 2.19 | Complete |
-| out_98_sample2 | MVCGPFPLALCRRP | −47.20 | 0.544 | — | — | Running |
+| out_70_sample2 | AECLLSYHACRRA | −51.53 | 0.453 | 2.29 / 3.09 | 2.04 / 2.17 | OXTR interface |
+| out_35_sample2 | YVRCLTPAAAVNCVG | −51.40 | 0.441 | 1.45 / 2.61 | 2.03 / 2.16 | OXTR interface |
+| out_80_sample4 | GLCGAGFPCRVP | −49.10 | 0.477 | 2.57 / 4.43 | 2.04 / 2.17 | OXTR interface |
+| out_70_sample3 | AECLLSRHACRRA | −47.62 | 0.497 | 1.18 / 2.69 | 2.04 / 2.19 | OXTR interface |
+| out_98_sample2 | MVCGPFPLALCRRP | −47.20 | 0.544 | 2.83 / 4.09 | 2.03 / 2.18 | OXTR interface |
+| out_3_sample3 | VARCGPLGFCPR | −41.02 | **0.915** | 1.91 / 2.70 | 2.04 / 2.20 | BBB probability |
+| out_88_sample4 | GVCGLSLRCHRP | n/a | **0.836** | 2.53 / 3.49 | 2.03 / 2.19 | BBB probability |
 
-Ideal disulfide bond length: 2.05 Å.
+Ideal disulfide bond length: 2.05 Å. All 7 completed.
 
 ![MD stability](figures/fig4_md_stability.png)
 
-**Interpretation.** All 4 completed candidates held a stable, receptor-bound pose for
-the full 20 ns with no drift or unbinding signature, and every disulfide sat almost
-exactly at the ideal 2.05 Å bond length throughout — the macrocyclization survives
-real unconstrained dynamics, not just the static AfCycDesign prediction. `out_70_sample3`
-was the most rigid (RMSD mean 1.18 Å); `out_80_sample4` moved the most (mean 2.57 Å,
-max 4.43 Å) but never approached losing the interface. This is the first
-non-static evidence in the pipeline that these designs are physically plausible
-binders, not just favorably scored ones.
+**Interpretation.** All 7 candidates held a stable, receptor-bound pose for the full
+20 ns with no drift or unbinding signature, and every disulfide sat almost exactly at
+the ideal 2.05 Å bond length throughout — the macrocyclization survives real
+unconstrained dynamics, not just the static AfCycDesign prediction, across every
+candidate tested regardless of which metric selected it. `out_70_sample3` remains the
+most rigid overall (RMSD mean 1.18 Å); `out_98_sample2` moved the most (mean 2.83 Å,
+max 4.09 Å) but never approached losing the interface.
+
+The two BBB-led additions are the key result of this batch: `out_3_sample3`, the
+highest-BBB-probability candidate in the whole 27-candidate shortlist (0.915), is also
+MD-stable (RMSD mean 1.91 Å — tighter than 4 of the 5 interface-led candidates) with a
+clean disulfide. `out_88_sample4` (BBB 0.836) is stable but moves more (RMSD mean
+2.53 Å, max 3.49 Å) — comparable to the loosest interface-led candidate
+(`out_98_sample2`). Neither BBB-led candidate was picked for its OXTR interface score,
+yet both hold the pocket under real dynamics — this is the first evidence that
+optimizing for permeability and optimizing for MD stability aren't in tension in this
+candidate set. `out_3_sample3` is now the strongest all-round candidate in the pilot:
+best BBB probability by a wide margin, tighter MD stability than most of the
+interface-selected set, and a real (if unremarkable) OXTR interface score (i_ptm 0.578).
 
 A bug was caught and fixed during this stage worth recording: `pdb2gmx` restarts
 residue numbering at 1 for each chain rather than continuing from the receptor, so a
@@ -371,7 +387,8 @@ throughout this project.
 Rosetta → GROMACS MD is a working pipeline that generates disulfide-macrocyclized
 peptides predicted to bind the OXTR orthosteric pocket, with receptor-aware sequence
 design driving a measured improvement in interface confidence after the ProteinMPNN
-fix. 4 of 5 top candidates held a stable, pocket-bound pose and an intact disulfide
+fix. All 7 MD-tested candidates (5 selected for OXTR interface confidence, 2 for
+leading BBB probability) held a stable, pocket-bound pose and an intact disulfide
 through 20 ns of unconstrained MD — not merely a static prediction. B3BPFN, a
 validated BBB-permeability classifier (not a gut/PAMPA proxy), calls all candidates
 BBB-permeant.

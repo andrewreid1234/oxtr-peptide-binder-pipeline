@@ -26,7 +26,7 @@ scoring stages to a final shortlist. Target structures:
 | 3 (backup) | `stage_3a_boltz2` | Boltz2 co-fold — secondary/cross-check only | ✅ **done** |
 | **4** | `stage_4_rosetta` | Rosetta energy/interface scoring | ✅ **done** (27/27 shortlist) |
 | **5** | `stage_5_permeability` | Blood-brain barrier permeability (B3BPFN) | ✅ **done** (see below) |
-| **5 (ext)** | `stage_5_md_water` | GROMACS MD, 20 ns, top 5 candidates, explicit solvent, position-restrained receptor | ✅ **done** (5/5) |
+| **5 (ext)** | `stage_5_md_water` | GROMACS MD, 20 ns, 7 candidates (5 interface-led + 2 BBB-led), explicit solvent, position-restrained receptor | ✅ **done** (7/7) |
 | **6** | `stage_6_nmethyl` | N-methylation site scan (structure-based H-bond exposure) | ✅ **done** (27/27 shortlist) |
 | **7** | `stage_7_selectivity` | Selectivity vs. AVPR1A/1B/2 (AfCycDesign cofold) | ✅ **done** (27×3 = 81/81) |
 | 8 | `stage_8_shortlist` | Final shortlist | not started |
@@ -595,12 +595,16 @@ D_s(T)), maximizing the product under B×S=40,000.
 ## Stage 5 (extended) — GROMACS MD validation
 
 See `PIPELINE_VALIDATION.md` section 10 for the full write-up with data. Summary:
-top 5 Stage 4 candidates run to 20 ns unconstrained production MD (GROMACS 2024.5,
-CUDA, Amber99sb-ildn, explicit TIP3P, 0.15 M NaCl, receptor backbone
-position-restrained in lieu of a membrane — see that section for why membrane
-embedding was abandoned). All 5 completed; 4/5 held a stable bound pose with the
-disulfide intact at ~2.05 Å throughout. Scripts: `/tmp/run_md_pipeline.sh`
-(reusable, one candidate + GPU id as args).
+7 candidates run to 20 ns unconstrained production MD (GROMACS 2024.5, CUDA,
+Amber99sb-ildn, explicit TIP3P, 0.15 M NaCl, receptor backbone position-restrained
+in lieu of a membrane — see that section for why membrane embedding was abandoned):
+the original top 5 by OXTR interface confidence, plus 2 added later
+(`out_3_sample3`, `out_88_sample4`) specifically because they led the shortlist on
+BBB probability rather than interface score, once Stage 6 reprioritized the
+shortlist toward permeability. All 7 completed and held a stable bound pose with
+the disulfide intact at ~2.05 Å throughout — including both BBB-led additions,
+which is the notable result: optimizing for permeability didn't cost MD stability
+here. Scripts: `/tmp/run_md_pipeline.sh` (reusable, one candidate + GPU id as args).
 
 ## Stage 6 — N-methylation site scan
 
