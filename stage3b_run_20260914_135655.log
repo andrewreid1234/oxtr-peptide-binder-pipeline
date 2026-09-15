@@ -1,0 +1,67 @@
+==================================================
+OXTR Pilot: Stage 3 (PRIMARY) - AfCycDesign Docking
+Started: 2026-09-14_13:56:55
+==================================================
+Running AfCycDesign on 39 BBB+ candidates
+  [1/39] OK rfd_out_57_sample2 i_ptm=0.136 (27.9s)
+  [2/39] OK rfd_out_28_sample2 i_ptm=0.230 (26.3s)
+  [3/39] OK rfd_out_29_sample3 i_ptm=0.210 (26.4s)
+  [4/39] OK rfd_out_82_sample3 i_ptm=0.170 (26.6s)
+  [5/39] OK rfd_out_82_sample2 i_ptm=0.104 (26.5s)
+  [6/39] OK rfd_out_49_sample4 i_ptm=0.386 (26.3s)
+  [7/39] OK rfd_out_63_sample1 i_ptm=0.147 (26.2s)
+  [8/39] OK rfd_out_63_sample4 i_ptm=0.147 (26.6s)
+  [9/39] OK rfd_out_35_sample3 i_ptm=0.408 (27.4s)
+  [10/39] OK rfd_out_19_sample4 i_ptm=0.231 (27.2s)
+  [11/39] OK rfd_out_6_sample3 i_ptm=0.149 (27.4s)
+  [12/39] OK rfd_out_63_sample3 i_ptm=0.243 (26.7s)
+  [13/39] OK rfd_out_63_sample2 i_ptm=0.159 (27.0s)
+  [14/39] OK rfd_out_83_sample4 i_ptm=0.120 (26.8s)
+  [15/39] OK rfd_out_83_sample1 i_ptm=0.129 (26.8s)
+  [16/39] OK rfd_out_84_sample2 i_ptm=0.167 (27.8s)
+  [17/39] OK rfd_out_83_sample3 i_ptm=0.129 (26.7s)
+  [18/39] OK rfd_out_47_sample1 i_ptm=0.131 (28.7s)
+  [19/39] OK rfd_out_50_sample1 i_ptm=0.174 (27.1s)
+  [20/39] OK rfd_out_16_sample4 i_ptm=0.233 (28.6s)
+  [21/39] OK rfd_out_23_sample1 i_ptm=0.140 (28.7s)
+  [22/39] OK rfd_out_90_sample1 i_ptm=0.118 (29.1s)
+  [23/39] OK rfd_out_23_sample2 i_ptm=0.180 (28.5s)
+  [24/39] OK rfd_out_1_sample1 i_ptm=0.115 (28.7s)
+  [25/39] OK rfd_out_1_sample2 i_ptm=0.115 (28.9s)
+  [26/39] OK rfd_out_86_sample1 i_ptm=0.115 (27.4s)
+  [27/39] OK rfd_out_16_sample1 i_ptm=0.180 (29.0s)
+  [28/39] OK rfd_out_38_sample2 i_ptm=0.378 (27.7s)
+  [29/39] OK rfd_out_79_sample1 i_ptm=0.310 (29.3s)
+  [30/39] OK rfd_out_86_sample3 i_ptm=0.132 (27.4s)
+  [31/39] OK rfd_out_79_sample2 i_ptm=0.431 (29.2s)
+  [32/39] OK rfd_out_96_sample1 i_ptm=0.315 (27.1s)
+  [33/39] OK rfd_out_3_sample3 i_ptm=0.471 (28.2s)
+  [34/39] OK rfd_out_30_sample4 i_ptm=0.136 (28.2s)
+  [35/39] OK rfd_out_34_sample4 i_ptm=0.360 (28.6s)
+  [36/39] OK rfd_out_3_sample4 i_ptm=0.126 (28.3s)
+  [37/39] OK rfd_out_38_sample4 i_ptm=0.395 (28.5s)
+  [38/39] OK rfd_out_79_sample3 i_ptm=0.462 (29.8s)
+  [39/39] OK rfd_out_30_sample2 i_ptm=0.167 (28.1s)
+
+Ranked 39 structures -> /scratch/drewdog/denovo_binder_100_pilot/stage_3b_afcyc/afcyc_ranked_iptm.csv
+       sequence_id        sequence    plddt      ptm    i_ptm
+ rfd_out_3_sample3   LRAINRGASPNPL 0.466455 0.856192 0.470513
+rfd_out_79_sample3     GIGRGLRAGAG 0.413747 0.863134 0.462343
+rfd_out_79_sample2     GIGEGLRLGGR 0.431997 0.862618 0.431202
+rfd_out_35_sample3  DAERSLKIYGVARE 0.391251 0.855671 0.407896
+rfd_out_38_sample4       GLGAAGSAA 0.370451 0.862698 0.394527
+rfd_out_49_sample4    VAEPELSKILGV 0.430034 0.857933 0.386215
+rfd_out_38_sample2       GLGKNYSKG 0.381792 0.862174 0.378491
+rfd_out_34_sample4      ALKNRNAIGG 0.362983 0.858424 0.359504
+rfd_out_96_sample1    PLNAINATPNGL 0.334240 0.853817 0.315129
+rfd_out_79_sample1     GIGEGLRLGER 0.374610 0.857452 0.310480
+rfd_out_63_sample3    ANLALGKNTKTT 0.329984 0.852370 0.243296
+rfd_out_16_sample4     INGSEELASLG 0.512072 0.857130 0.232889
+rfd_out_19_sample4   YNVETRTTATTPG 0.342949 0.852558 0.231266
+rfd_out_28_sample2 GVSEEEAKKNRYYLT 0.510566 0.847558 0.230343
+rfd_out_29_sample3       KKNLKEKKE 0.473565 0.861101 0.210458
+
+==================================================
+STAGE 3 (PRIMARY) COMPLETE
+==================================================
+Completed: 2026-09-14_14:14:59

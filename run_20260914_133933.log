@@ -1,0 +1,36 @@
+==================================================
+OXTR 100-Run Pilot: Stage 1 Verification + Stage 2 + Stage 5 Early
+Started: 2026-09-14_13:39:33
+==================================================
+
+=== STAGE 1 VERIFICATION ===
+✓ Backbones generated: 100 / 100
+✓ Output size: 29M
+
+=== STAGE 2: ProteinMPNN Sequence Design ===
+Input: 100 backbones
+Target: 4 sequences/backbone (~400 total)
+Found 100 backbones
+  [10/100] ✓ rfd_out_17
+  [20/100] ✓ rfd_out_26
+  [30/100] ✓ rfd_out_35
+  [40/100] ✓ rfd_out_44
+  [50/100] ✓ rfd_out_53
+  [60/100] ✓ rfd_out_62
+  [70/100] ✓ rfd_out_71
+  [80/100] ✓ rfd_out_80
+  [90/100] ✓ rfd_out_9
+  [100/100] ✓ rfd_out_99
+
+Stage 2 complete: 100 FASTA files generated
+✓ Total sequences: 500
+
+=== STAGE 5 (EARLY): Blood-Brain Barrier Permeability (B3BPFN) ===
+Model: B3BPFN (ESM2 + iFeatureOmega + TabPFN), threshold 0.215
+Env: /scratch/drewdog/b3bpfn/env (pins: /scratch/drewdog/b3bpfn/env_pins.txt)
+Wrote 400 designed sequences to /scratch/drewdog/denovo_binder_100_pilot/stage_5_permeability/oxtr_designs.fasta
+============================================================
+Predicting BBB Permeability for peptides in: /scratch/drewdog/denovo_binder_100_pilot/stage_5_permeability/oxtr_designs.fasta
+============================================================
+Error: Model directory 'models' not found.
+Please run train_peptide_final.py first to generate the models.

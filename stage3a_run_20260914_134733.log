@@ -1,0 +1,55 @@
+==================================================
+OXTR Pilot: Stage 3a - Boltz2 Docking (BBB+ candidates)
+Started: 2026-09-14_13:47:33
+==================================================
+
+=== Building Boltz2 configs for BBB+ candidates ===
+Found 39 BBB+ candidates
+Wrote 39 YAML configs to /scratch/drewdog/denovo_binder_100_pilot/stage_3a_boltz2/yaml
+
+=== Running Boltz2 co-fold predictions ===
+  [1] ✓ rfd_out_16_sample1
+  [2] ✓ rfd_out_16_sample4
+  [3] ✓ rfd_out_19_sample4
+  [4] ✓ rfd_out_1_sample1
+  [5] ✓ rfd_out_1_sample2
+  [6] ✓ rfd_out_23_sample1
+  [7] ✓ rfd_out_23_sample2
+  [8] ✓ rfd_out_28_sample2
+  [9] ✓ rfd_out_29_sample3
+  [10] ✓ rfd_out_30_sample2
+  [11] ✓ rfd_out_30_sample4
+  [12] ✓ rfd_out_34_sample4
+  [13] ✓ rfd_out_35_sample3
+  [14] ✓ rfd_out_38_sample2
+  [15] ✓ rfd_out_38_sample4
+  [16] ✓ rfd_out_3_sample3
+  [17] ✓ rfd_out_3_sample4
+  [18] ✓ rfd_out_47_sample1
+  [19] ✓ rfd_out_49_sample4
+  [20] ✓ rfd_out_50_sample1
+  [21] ✓ rfd_out_57_sample2
+  [22] ✓ rfd_out_63_sample1
+  [23] ✓ rfd_out_63_sample2
+  [24] ✓ rfd_out_63_sample3
+  [25] ✓ rfd_out_63_sample4
+  [26] ✓ rfd_out_6_sample3
+  [27] ✓ rfd_out_79_sample1
+  [28] ✓ rfd_out_79_sample2
+  [29] ✓ rfd_out_79_sample3
+  [30] ✓ rfd_out_82_sample2
+  [31] ✓ rfd_out_82_sample3
+  [32] ✓ rfd_out_83_sample1
+  [33] ✓ rfd_out_83_sample3
+  [34] ✓ rfd_out_83_sample4
+  [35] ✓ rfd_out_84_sample2
+  [36] ✓ rfd_out_86_sample1
+  [37] ✓ rfd_out_86_sample3
+  [38] ✓ rfd_out_90_sample1
+  [39] ✓ rfd_out_96_sample1
+✓ Boltz2 predictions complete: 39/39 succeeded
+
+=== Collecting confidence scores ===
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+ModuleNotFoundError: No module named 'pandas'

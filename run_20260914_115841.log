@@ -1,0 +1,54 @@
+==================================================
+OXTR 100-Run Pilot: Stage 1 Verification + Stage 2 + Stage 5 Early
+Started: 2026-09-14_11:58:41
+==================================================
+
+=== STAGE 1 VERIFICATION ===
+✓ Backbones generated: 100 / 100
+✓ Output size: 29M
+
+=== STAGE 2: ProteinMPNN Sequence Design ===
+Input: 100 backbones
+Target: 4 sequences/backbone (~400 total)
+Found 100 backbones
+  [10/100] ✓ rfd_out_17
+  [20/100] ✓ rfd_out_26
+  [30/100] ✓ rfd_out_35
+  [40/100] ✓ rfd_out_44
+  [50/100] ✓ rfd_out_53
+  [60/100] ✓ rfd_out_62
+  [70/100] ✓ rfd_out_71
+  [80/100] ✓ rfd_out_80
+  [90/100] ✓ rfd_out_9
+  [100/100] ✓ rfd_out_99
+
+Stage 2 complete: 100 FASTA files generated
+✓ Total sequences: 500
+
+=== STAGE 5 (EARLY): Permeability Ranking ===
+Scoring permeability...
+✓ Ranked 500 sequences by permeability
+✓ Saved to: /scratch/drewdog/denovo_binder_100_pilot/stage_5_permeability/sequences_ranked_permeability.csv
+
+Top 10 by permeability:
+sequence_id  length  n_methyl_sites  permeability_score
+     T=0.1,      14              10               10.00
+     T=0.1,      14              10               10.00
+     T=0.1,      15              10               10.00
+     T=0.1,      15              10               10.00
+     T=0.1,      15              10               10.00
+     T=0.1,      15              10               10.00
+     T=0.1,      15              10                9.85
+     T=0.1,      15               9                9.65
+     T=0.1,      15               9                9.65
+     T=0.1,      15               9                9.65
+
+==================================================
+STAGES 1-2-5(early) COMPLETE
+==================================================
+✓ Stage 1: 100 cyclic backbones (9-15 residues)
+✓ Stage 2: 500 sequences generated
+✓ Stage 5 early: Permeability ranked
+
+Next: Stage 3a (Boltz-2 co-fold)
+Completed: 2026-09-14_12:02:38

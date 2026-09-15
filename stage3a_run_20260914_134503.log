@@ -1,0 +1,11 @@
+==================================================
+OXTR Pilot: Stage 3a - Boltz2 Docking (BBB+ candidates)
+Started: 2026-09-14_13:45:03
+==================================================
+
+=== Building Boltz2 configs for BBB+ candidates ===
+Found 39 BBB+ candidates
+Wrote 39 YAML configs to /scratch/drewdog/denovo_binder_100_pilot/stage_3a_boltz2/yaml
+
+=== Running Boltz2 co-fold predictions ===
+  [1] ⚠ rfd_out_16_sample1 FAILED (see out/rfd_out_16_sample1.log)
