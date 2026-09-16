@@ -682,6 +682,54 @@ forced): `out_70_sample3` (−1.05), `out_88_sample2` (−1.00), `out_39_sample1
 (−0.97), `out_37_sample3` (−0.95), `out_70_sample2` (−0.93) — reassuringly, this
 includes both of the pipeline's headline MD-validated leads.
 
+### 16.4 Cross-validation — do AfCycDesign and Boltz2 agree on the binding pose?
+
+Every candidate has independent structure predictions from both tools, but until
+now only their *confidence scores* had been compared, never whether they actually
+predict the peptide sitting in the same place. If two independently-trained models
+land on the same pose despite scoring it differently, that's real corroborating
+evidence; disagreement flags exactly the kind of unreliable prediction the oxytocin
+control (16.1) showed is possible.
+
+**Method:** superpose each candidate's AfCycDesign- and Boltz2-predicted receptor
+chains (Kabsch fit on backbone atoms — no sequence alignment needed since both
+predict from the identical extracted 7RYC receptor sequence), apply that same
+transform to each structure's peptide chain, then measure peptide backbone RMSD
+between the two now-aligned poses. Full data:
+`analysis/stage_0_controls/afcyc_vs_boltz2_pose_rmsd.csv`.
+
+**Caveat:** the receptor-chain fit residual itself was ~3.0–3.6 Å across every
+candidate, uniformly — meaning AfCycDesign and Boltz2 don't fully agree on the
+receptor's predicted conformation either, so part of the peptide RMSD reflects that
+baseline disagreement, not purely peptide-placement disagreement. The metric is
+still informative on a *relative* basis (that baseline is roughly constant across
+candidates) but shouldn't be read as a clean, isolated peptide-only measurement.
+
+**Results:** mean peptide-pose RMSD 6.9 Å, median 6.6 Å, across all 27 — overall
+agreement between the two tools is modest. Best: `out_70_sample3` (2.60 Å) — one of
+the pipeline's MD-validated leads. **Worst, by a wide margin: the entire
+`out_39` design family** — `out_39_sample3` (15.51 Å), `out_39_sample1` (13.65 Å),
+`out_39_sample2` (13.40 Å), all clustered far below every other candidate.
+
+**This corroborates the negative control (16.2) in a way MD alone could not.**
+`out_39_sample3` is the same candidate used as the negative control — MD *failed* to
+distinguish it from the good candidates (it looked equally stable), but this
+cross-validation check flags it, and its two sibling designs, as clear outliers.
+That makes pose-agreement RMSD a better-demonstrated discriminator between
+already-Stage-4-passing candidates than MD stability, for close to zero additional
+compute cost (both structures already existed).
+
+**One nuance worth flagging:** `out_39_sample1` scored *favorably* on the
+disulfide-forcing check (16.3: −0.97, one of the best) despite the worst pose
+agreement here — the two checks aren't redundant. Disulfide-forcing tests whether
+the backbone can support the intended bond; pose-agreement tests whether the overall
+binding mode is one both tools independently converge on. A candidate can pass one
+and fail the other, and Stage 8 should weigh both rather than either alone.
+
+**Recommendation:** pose-agreement RMSD should become a standard per-candidate
+metric going forward, computed automatically once both Stage 3 predictions exist —
+it's nearly free and has already demonstrated real discriminating power this run.
+
 ## 17. Known limitations and open items
 
 - This is a 100-backbone pilot batch — small enough that further scaling (discussed
