@@ -487,7 +487,81 @@ MD-tested top 5 — are now the strongest candidates by combined OXTR-confidence
 and selectivity margin, and are reasonable candidates for the next round of MD
 validation.
 
-## 14. Known limitations and open items
+## 14. Synthetic candidate selection — how many compounds to synthesize
+
+High-throughput solid-phase synthesis of a disulfide-cyclized 11–15mer is not the
+bottleneck at this scale — dozens to hundreds of compounds are synthesizable without
+strain. The real constraint is **assay throughput**: real binding/permeability
+assays (SPR, ITC, PAMPA-BBB, MDCK-MDR1) run at a fraction of synthesis capacity, and
+every compound tested has a real cost in time and reagent. So "how many candidates
+go to synthesis" is a statistical decision problem, not a synthesis-capacity one, and
+picking a number without justifying it would repeat the exact mistake this project
+has deliberately avoided at every other stage (Stage 1 backbone count, Stage 3
+sampling temperature — see `sampling_parameter_derivation.md`).
+
+**The actual unknown.** We have 27 computationally-ranked candidates and *zero*
+wet-lab ground truth connecting that ranking to real binding. Any fixed "test N
+compounds" number is only as good as the assumed relationship between computational
+score and true hit probability — which we cannot verify without wet-lab data. This
+argues for a staged design over a single large batch.
+
+**Framework 1 — confidence of finding at least one true binder.** If p is the
+per-candidate probability that a top-ranked candidate is a genuine OXTR binder
+(published de novo binder campaigns of comparable design — RFdiffusion/AfCycDesign-
+class pipelines — report experimental hit rates roughly in the 10–40% range among
+top-ranked designs), the number of candidates N needed for confidence C of finding at
+least one real hit is the standard binomial coverage bound:
+
+N = ln(1 − C) / ln(1 − p)
+
+| p (assumed hit rate) | N for 80% confidence | N for 90% confidence | N for 95% confidence |
+|---:|---:|---:|---:|
+| 0.10 | 16 | 22 | 29 |
+| 0.15 | 10 | 15 | 19 |
+| 0.20 | 8 | 11 | 14 |
+| 0.30 | 5 | 7 | 9 |
+| 0.40 | 4 | 5 | 6 |
+
+Our candidates have already passed four independent computational filters beyond
+what a typical published campaign screens before synthesis (AfCycDesign interface
+confidence, Rosetta interface energetics, disulfide-geometry checking, and 20 ns MD
+stability) — which plausibly shifts the true hit rate toward the higher end of that
+range, but this is an assumption, not a measurement.
+
+**Framework 2 — calibration, not just confirmation.** A batch of only top-ranked
+candidates cannot answer the more important question: *does our computational score
+actually predict real binding at all?* A single point of "yes/no, did the top
+candidates bind" is not a calibration curve. The statistically correct design spans
+the score range — some top candidates, some deliberately mid/lower-ranked — so that,
+once real affinity data comes back, a rank-correlation (Spearman) between predicted
+score and measured Kd can be computed. Without that spread, a good result is
+uninterpretable (lucky vs. predictive) and a bad result gives no diagnostic
+information about *why*.
+
+**Recommendation — Wave 1 = 12 compounds, not chosen as a flat top-12.**
+- **8 top-ranked** by combined evidence (OXTR interface score, BBB probability, MD
+  stability, selectivity margin) — at p≈0.15–0.30 this alone gives 80–90%+
+  confidence of at least one real hit per Framework 1.
+- **4 calibration spread** — candidates with decent-but-not-top scores, including at
+  least one with a known weak point already surfaced by this pipeline (e.g. a
+  selectivity risk from Stage 7), specifically so the resulting affinity data can be
+  correlated against score rather than just confirming the top of the list.
+
+**Decision rule for Wave 2.** Once Wave 1 binding data returns, compute the
+score-vs-affinity rank correlation across all 12:
+- **Correlates** → the ranking is predictive; Wave 2 proceeds straight down the
+  remaining shortlist, sized to whatever the real assay throughput (still being
+  confirmed) allows.
+- **Doesn't correlate** → stop before committing more synthesis/assay budget and
+  re-examine the computational scoring — a non-predictive ranking is a bigger problem
+  than needing more compounds, and no batch size fixes it.
+
+This mirrors the "validate small before scaling" pattern used throughout the
+computational side of this pipeline (the ProteinMPNN receptor-context fix, the
+disulfide pre-filter false-negative check, the MD stability check before trusting
+static structure predictions) — applied here to the wet-lab handoff instead.
+
+## 15. Known limitations and open items
 
 - This is a 100-backbone pilot batch — small enough that further scaling (discussed
   separately, mathematically, via a coupon-collector diversity model) may still shift
@@ -499,6 +573,9 @@ validation.
   complexes yet, unlike the on-target OXTR shortlist.
 - The 27-candidate shortlist has not yet been cross-checked against the antagonist
   structure (`6TPK`, downloaded but unused so far).
+- The Wave-1 synthesis batch size (section 14) rests on a literature-derived hit-rate
+  assumption (10–40%), not a measured one — this pipeline has no wet-lab calibration
+  data yet. Real assay throughput/capacity is also still unconfirmed.
 - N-methylation site selection (section 12) identifies structurally plausible
   positions only — no permeability magnitude estimate exists without a tool that
   can represent the modification, or a wet-lab assay.
