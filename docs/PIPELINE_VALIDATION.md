@@ -561,18 +561,145 @@ computational side of this pipeline (the ProteinMPNN receptor-context fix, the
 disulfide pre-filter false-negative check, the MD stability check before trusting
 static structure predictions) — applied here to the wet-lab handoff instead.
 
-## 15. Known limitations and open items
+## 16. Stage 0 — Controls: is any of this actually calibrated?
+
+Every result up to this point was self-consistent (the pipeline scoring its own
+outputs) but never checked against an external, independently-known answer. This
+stage runs a small set of controls — a real binder, a real non-binder-by-proxy, and
+a stricter re-test of the disulfide-formation check across the whole shortlist — to
+find out where the pipeline's numbers can and can't be trusted.
+
+### 16.1 Positive control — oxytocin
+
+Oxytocin (`CYIQNCPLG`, real Cys1–Cys6 disulfide) is the literal endogenous OXTR
+ligand — nature's answer key. Run through the exact same Stage 3/5 steps as every
+designed candidate:
+
+| Metric | Oxytocin | Our 27-candidate shortlist |
+|---|---|---|
+| AfCycDesign i_ptm (blind prediction, no ligand template) | 0.368 | 0.30–0.58, mean ~0.44 |
+| B3BPFN BBB probability | 0.340 → **BBB+** (borderline; threshold 0.215) | 0.30–0.92 |
+| AfCycDesign unconstrained Cys1–Cys6 distance | **9.2 Å** | 1.3–26 Å (this range spans accepted and rejected candidates) |
+| Boltz2 `iptm` (explicit-bond-constrained) | 0.959 | 0.88–0.98 (same tool, all prior candidates) |
+
+**Result 1 — BBB call is wrong, marginally.** Oxytocin is well-established as poorly
+BBB-permeable when peripherally administered; B3BPFN called it BBB+ at 34%, just over
+the 21.5% threshold — a real but not confident miss.
+
+**Result 2 — i_ptm doesn't single out the true binder.** Oxytocin's confidence score
+sits below the shortlist's own average. Consistent with the already-documented
+caveat that AF2-family confidence is weakly discriminating for small-peptide-vs-GPCR
+interfaces — now backed by a concrete case rather than just a citation.
+
+**Result 3 — Boltz2's compression is total, not just typical.** `iptm = 0.959` for a
+known-true perfect binder sits in the exact same 0.88–0.98 band Boltz2 reports for
+essentially every candidate regardless of quality. This settles a real question:
+Boltz2's `iptm` cannot distinguish a genuine high-affinity binder from an arbitrary
+candidate — it isn't "usually right but occasionally saturated," it's simply not a
+usable discriminator here.
+
+**Result 4 — the raw 9.2 Å disulfide number initially looked like a serious problem,
+but the follow-up (16.3) shows it's a structure-prediction issue specific to this
+blind, no-template case, not evidence the pipeline's logic is broken.** 7RYC (the
+receptor structure this whole pipeline docks against) already contains the real,
+cryo-EM-solved oxytocin pose as chain L — unused in this control's first pass. Pulling
+the true Cys1–Cys6 distance directly from that experimental structure (no prediction
+involved) gives **2.029 Å** — essentially ideal. Oxytocin's real bond is exactly as
+clean as expected; AfCycDesign's blind re-prediction of the bound pose (i_ptm 0.368,
+already a mediocre-confidence result) simply landed on the wrong backbone
+conformation. That's a real, now precisely characterized limitation of blind
+structure prediction for this tiny hormone-GPCR case — not proof the bond itself, or
+the pipeline's disulfide logic in general, is unreliable.
+
+### 16.2 Negative control — weakest shortlisted candidate through MD
+
+`out_39_sample3` (`SRPCYTGAVPCP`) — lowest AfCycDesign i_ptm (0.303) and among the
+weakest Rosetta binding energy (dG −29.4) of the full 27-candidate shortlist — was
+run through the identical 20 ns MD protocol as the other 7 MD-tested candidates, as
+a check that MD isn't just confirming whatever we feed it.
+
+**Result: it passed, indistinguishably from the "good" candidates** — RMSD mean
+2.31 Å (max 3.21 Å), disulfide held at 2.04 Å throughout. Squarely inside the range
+of every other MD-tested candidate (RMSD means 1.18–2.83 Å across all 8 now tested).
+
+**This is a real, useful negative result, precisely because it wasn't negative.** It
+shows 20 ns MD in this position-restrained-receptor setup has limited power to
+discriminate candidates that have already cleared Stage 4's filters — once a
+candidate passes interface confidence + disulfide geometry + Rosetta relax, staying
+bound for 20 ns appears close to guaranteed regardless of how much better or worse
+its other scores are. MD should be read here as a coarse plausibility check ("does
+this fall apart"), not a fine-grained ranking signal between already-passing
+candidates — a real limitation of how MD has been used in this pipeline so far, now
+documented rather than assumed away.
+
+### 16.3 Disulfide-forcing validation across the full 27-candidate shortlist
+
+Motivated by the oxytocin result: does Rosetta's *automatic* disulfide detection
+(the method used for every Stage 4 score in this document) fail to recognize bonds
+it should? Every one of the 27 shortlisted candidates was run through **two**
+matched relaxation passes — both using PyRosetta's `FastRelax` mover (standardized
+on this over the command-line `relax.default` app going forward, per direct
+instruction — the two aren't guaranteed equivalent protocols, and an earlier
+same-conversation spot-check that mixed them produced a misleading result, corrected
+here): once with Rosetta's normal auto-detection, and once with the Cys–Cys bond
+**explicitly patched in** (`form_disulfide`) before relaxing, so the backbone and
+side chains relax around a real constraint rather than Rosetta needing to notice the
+bond on its own.
+
+Forcing a bond is only legitimate as a test if the *cost* of accommodating it is also
+checked — a backbone that can't really support the bond should show it as steric
+strain, not just a falsely clean-looking geometry. Both `dslf_fa13` (disulfide
+energy — negative is favorable) and `fa_rep` (steric clash) were tracked for exactly
+this reason.
+
+**Results, full 27-candidate table:** `stage_0_1_benchmark/fastrelax_disulfide_check_combined.csv`.
+
+| Metric | Result |
+|---|---|
+| Candidates with favorable forced-bond energy (`dslf_fa13` < 0) | 15 / 27 (56%) |
+| Mean `fa_rep` change from forcing (steric cost) | −2.6 (near zero; range −22.5 to +19.0) |
+| Candidates with a *worse* forced-bond energy than oxytocin's (+1.317) | **2 / 27** — `out_21_sample1` (+1.460), `out_17_sample3` (+2.684) |
+
+**Headline result: 25 of 27 shortlisted candidates support their intended disulfide
+better than AfCycDesign's blind prediction supported oxytocin's real one.** The
+steric cost of forcing is small and roughly centered on zero across the whole set —
+consistent with the earlier finding (16.1) that this is a structure-*prediction*
+weakness for a specific hard case (a tiny, independently-evolved natural peptide with
+no template), not a general flaw in how these designed macrocycles' backbones
+support their own designed bonds.
+
+**One real outlier worth acting on: `out_17_sample3`.** Forced-bond energy +2.684 —
+worse than every other candidate *and* worse than oxytocin — plus the largest
+residual forced Sγ–Sγ distance in the set (2.325 Å vs. 2.02–2.11 Å for everyone
+else), meaning even an explicit constraint couldn't fully close the bond without
+leaving real residual strain. This candidate passed every earlier filter but this
+stricter check says its backbone likely doesn't actually support its designed
+disulfide well. **Recommend deprioritizing `out_17_sample3` for Stage 8.**
+
+**Candidates most strongly validated by this check** (favorable under both unforced
+and forced conditions, i.e. the bond forms with no help and stays comfortable once
+forced): `out_70_sample3` (−1.05), `out_88_sample2` (−1.00), `out_39_sample1`
+(−0.97), `out_37_sample3` (−0.95), `out_70_sample2` (−0.93) — reassuringly, this
+includes both of the pipeline's headline MD-validated leads.
+
+## 17. Known limitations and open items
 
 - This is a 100-backbone pilot batch — small enough that further scaling (discussed
   separately, mathematically, via a coupon-collector diversity model) may still shift
   the results meaningfully.
-- Stage 0 (benchmarking) is the only pipeline stage not yet run.
-- No wet-lab validation yet — every result in this document is computational.
+- Section 16 ran the first real external controls on this pipeline. It surfaced two
+  genuine weaknesses (B3BPFN's BBB threshold sensitivity; AfCycDesign's blind
+  structure prediction failing on a hard no-template case) rather than a clean pass —
+  worth treating as the start of ongoing calibration work, not a closed question.
+- No wet-lab validation yet — every result in this document, controls included, is
+  still computational.
 - Selectivity (section 13) is scored by AfCycDesign confidence only — no
   physics-based (Rosetta) or MD validation has been run on the off-target
   complexes yet, unlike the on-target OXTR shortlist.
 - The 27-candidate shortlist has not yet been cross-checked against the antagonist
   structure (`6TPK`, downloaded but unused so far).
+- MD (section 16.2) is now documented as a coarse pass/fail plausibility check, not
+  a fine-grained ranking signal between candidates that already cleared Stage 4.
 - The Wave-1 synthesis batch size (section 14) rests on a literature-derived hit-rate
   assumption (10–40%), not a measured one — this pipeline has no wet-lab calibration
   data yet. Real assay throughput/capacity is also still unconfirmed.

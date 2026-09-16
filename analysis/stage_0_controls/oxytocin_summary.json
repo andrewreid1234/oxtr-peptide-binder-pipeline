@@ -1,0 +1,15 @@
+{
+  "sequence": "CYIQNCPLG",
+  "afcyc_iptm": 0.368,
+  "afcyc_unconstrained_ss_dist_A": 9.2,
+  "afcyc_post_relax_ss_dist_A": 13.4,
+  "afcyc_post_relax_dslf_fa13": 0.404,
+  "afcyc_forced_bond_ss_dist_A": 2.039,
+  "afcyc_forced_bond_dslf_fa13": 1.317,
+  "afcyc_forced_bond_fa_rep": 395.48,
+  "real_crystal_ss_dist_A_from_7RYC_chainL": 2.029,
+  "b3bpfn_bbb_probability": 0.33968255,
+  "b3bpfn_prediction": "BBB+",
+  "boltz2_iptm_explicit_constraint": 0.9589197039604187,
+  "note": "Real crystal distance pulled directly from 7RYC chain L (experimental cryo-EM structure), not a prediction. All other fields are pipeline tool outputs run identically to shortlist candidates."
+}

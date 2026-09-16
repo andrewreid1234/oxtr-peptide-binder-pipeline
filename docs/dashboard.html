@@ -90,6 +90,7 @@ footer{ margin-top:8px; padding-top:14px; border-top:1px solid var(--line); font
   </div>
 
   <div class="stagebar">
+    <span class="stagepill done">0.1 &middot; Controls (+/&minus;, disulfide-forcing)</span>
     <span class="stagepill done">1 &middot; RFdiffusion backbones</span>
     <span class="stagepill done">2 &middot; ProteinMPNN sequences</span>
     <span class="stagepill done">3 &middot; AfCycDesign / Boltz2 cofold</span>
@@ -179,12 +180,20 @@ footer{ margin-top:8px; padding-top:14px; border-top:1px solid var(--line); font
         <div class="todo">
           <div class="item"><span class="n">1</span>Decide Wave-1 synthesis batch (math derived; ~12 compounds, 8 top + 4 calibration spread).</div>
           <div class="item"><span class="n">2</span>Resolve selectivity risk on candidates preferring AVPR2 before Stage 8.</div>
-          <div class="item"><span class="n">3</span>Stage 8 &mdash; final shortlist, weighting OXTR / BBB / MD / selectivity.</div>
+          <div class="item"><span class="n">3</span>Stage 8 &mdash; final shortlist, weighting OXTR / BBB / MD / selectivity. Deprioritize out_17_sample3 (failed disulfide-forcing check).</div>
           <div class="item"><span class="n">4</span>Check shortlist against 6TPK (antagonist-bound OXTR) &mdash; downloaded, unused.</div>
           <div class="item"><span class="n">5</span>Back up raw /scratch data (5.3&thinsp;GB) &mdash; docs are git-tracked, structures aren't.</div>
+          <div class="item"><span class="n">6</span>BBB predictor retraining/augmentation &mdash; in progress in a separate session.</div>
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="panel">
+    <h2>Stage 0.1 &mdash; controls (new)</h2>
+    <p><b>Positive control (oxytocin):</b> AfCycDesign i_ptm 0.368 (mediocre), B3BPFN BBB probability 0.340 (borderline, technically a miss &mdash; oxytocin is known poorly BBB-permeable), Boltz2 iptm 0.959 (confirms its compression problem is total). Its blind unconstrained disulfide prediction was badly wrong (9.2&thinsp;&Aring;) &mdash; but the real crystallographic distance, pulled directly from 7RYC chain L (the actual solved pose, unused until now), is 2.029&thinsp;&Aring;. A structure-prediction failure for a hard no-template case, not evidence the pipeline's disulfide logic is broken.</p>
+    <p><b>Negative control</b> (weakest shortlisted candidate, out_39_sample3): passed 20&thinsp;ns MD indistinguishably from the "good" candidates. Real finding: MD here is a coarse pass/fail check, not a fine-grained ranking signal between candidates that already cleared Stage 4.</p>
+    <p><b>Disulfide-forcing check, all 27 shortlisted candidates</b> (PyRosetta FastRelax, matched protocol): 25/27 support their designed bond better than AfCycDesign's blind prediction supported oxytocin's real one. One outlier: <b>out_17_sample3</b> (forced-bond energy +2.684, worse than oxytocin) &mdash; recommend deprioritizing.</p>
   </div>
 
   <footer>Data: <code>github.com/andrewreid1234/oxtr-peptide-binder-pipeline</code> &middot; full detail in <code>docs/SOP.md</code> and <code>docs/PIPELINE_VALIDATION.md</code></footer>

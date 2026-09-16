@@ -18,7 +18,7 @@ scoring stages to a final shortlist. Target structures:
 
 | # | Directory | Purpose | Status |
 |---|---|---|---|
-| 0.1 | `stage_0_1_benchmark` | Benchmark/sanity prep | not started |
+| **0.1** | `stage_0_1_benchmark` | Controls: oxytocin (+ control), weakest-candidate MD (− control), 27-candidate disulfide-forcing check | ✅ **done** |
 | 0.3 | `stage_0_3_selectivity` | Selectivity prep | not started |
 | **1** | `stage_1_backbones` | RFdiffusion backbone generation (disulfide, 100 backbones) | ✅ **done** |
 | **2** | `stage_2_sequences` | ProteinMPNN sequence design (receptor-aware fix applied) | ✅ **done** |
@@ -632,6 +632,41 @@ here. Scripts: `/tmp/run_md_pipeline.sh` (reusable, one candidate + GPU id as ar
   *how much* it will improve permeability — that would need either a tool that
   can represent the modification (e.g. Rosetta with a methylated-residue patch)
   or a wet-lab permeability assay on the synthesized methylated variant.
+
+## Stage 0.1 — Controls: is the pipeline actually calibrated?
+
+See `PIPELINE_VALIDATION.md` section 16 for the full write-up with data and
+interpretation. Summary:
+
+- **Positive control (oxytocin):** run through identical Stage 3/5 steps. AfCycDesign
+  i_ptm 0.368 (mediocre, below shortlist average), B3BPFN BBB probability 0.340
+  (borderline BBB+ — a real miss, since oxytocin is known poorly BBB-permeable),
+  Boltz2 `iptm` 0.959 (confirms its known compression problem is total, not just
+  typical). AfCycDesign's blind (no-template) unconstrained disulfide prediction was
+  badly wrong (9.2 Å) — but the *real* crystallographic Cys1–Cys6 distance, pulled
+  directly from 7RYC chain L (the actual solved oxytocin pose, present in our own
+  receptor reference file and never previously used), is 2.029 Å. This is a
+  structure-prediction failure for a hard no-template case, not evidence the bond
+  itself or the pipeline's disulfide logic is unreliable.
+- **Negative control (`out_39_sample3`, weakest shortlisted candidate):** run through
+  the same 20 ns MD protocol as the other 7 MD-tested candidates. Passed
+  indistinguishably from the "good" candidates (RMSD mean 2.31 Å, disulfide clean at
+  2.04 Å). Real finding: MD in this setup has limited power to discriminate
+  candidates that already cleared Stage 4 — read it as a coarse pass/fail check, not
+  a fine-grained ranking signal.
+- **Disulfide-forcing validation, full 27-candidate shortlist:** each candidate
+  relaxed twice via PyRosetta `FastRelax` (standardized on this over
+  `relax.default` going forward — the two aren't a guaranteed-equivalent protocol,
+  and mixing them produced a misleading result earlier in this same investigation,
+  corrected here) — once with normal auto-detection, once with the bond explicitly
+  patched in (`form_disulfide`) before relaxing. 25/27 candidates support their
+  designed bond better than AfCycDesign's blind prediction supported oxytocin's real
+  one. One real outlier: `out_17_sample3` (forced-bond energy +2.684, worse than
+  every other candidate and than oxytocin; largest residual bond distance in the set,
+  2.325 Å) — **recommend deprioritizing for Stage 8.**
+- **Scripts:** `/tmp/forced_disulfide.py` (single-candidate, used for the oxytocin/
+  spot-check runs), `/tmp/fastrelax_batch.py` (full-shortlist batch, matched-protocol
+  unforced + forced comparison). **Data:** `analysis/stage_0_controls/` in this repo.
 
 ## Stage 7 — Selectivity vs. related receptors
 
