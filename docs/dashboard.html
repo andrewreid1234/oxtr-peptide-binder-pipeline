@@ -1,0 +1,191 @@
+<title>OXTR Binder Pipeline</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Archivo+Expanded:wght@600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#F5F3EE; --surface:#FFFFFF; --surface-2:#EFEDE6; --ink:#1C2321; --muted:#66716C;
+  --line:#DEDACE; --accent:#35578C; --accent-soft:#E7ECF3; --binder:#1F8A70; --binder-soft:#E4F2EE;
+  --sulfur:#B8842A; --sulfur-soft:#F6EBD4; --bad:#B4544B; --bad-soft:#F7E7E5;
+  --shadow: 0 1px 2px rgba(28,35,33,0.06), 0 8px 24px -12px rgba(28,35,33,0.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12171A; --surface:#1A2124; --surface-2:#202A2D; --ink:#ECEEEA; --muted:#93A19C;
+    --line:#2B3639; --accent:#7FA2E0; --accent-soft:#20304A; --binder:#49C4A4; --binder-soft:#173B33;
+    --sulfur:#E8BD63; --sulfur-soft:#3A2E15; --bad:#E38B82; --bad-soft:#3A2020;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12171A; --surface:#1A2124; --surface-2:#202A2D; --ink:#ECEEEA; --muted:#93A19C;
+  --line:#2B3639; --accent:#7FA2E0; --accent-soft:#20304A; --binder:#49C4A4; --binder-soft:#173B33;
+  --sulfur:#E8BD63; --sulfur-soft:#3A2E15; --bad:#E38B82; --bad-soft:#3A2020;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+}
+*{box-sizing:border-box}
+body{ margin:0; background:var(--bg); color:var(--ink); font-family:'Public Sans', system-ui, sans-serif; padding-inline:20px; padding-block:24px; }
+.wrap{ max-width:1280px; margin:0 auto; }
+
+.masthead{ margin-bottom:20px; }
+.masthead h1{ font-family:'Archivo Expanded','Archivo',sans-serif; font-weight:700; font-size:1.7rem; margin:0 0 4px; letter-spacing:-0.01em; text-wrap:balance; }
+.masthead .sub{ font-size:0.95rem; color:var(--muted); }
+
+.stagebar{ display:flex; gap:6px; flex-wrap:wrap; margin:16px 0 24px; }
+.stagepill{ font-family:'IBM Plex Mono',monospace; font-size:0.72rem; border-radius:999px; padding:5px 12px; border:1px solid var(--line); background:var(--surface); color:var(--muted); white-space:nowrap; }
+.stagepill.done{ background:var(--binder-soft); color:var(--binder); border-color:transparent; }
+.stagepill.pending{ background:var(--surface-2); color:var(--muted); }
+
+.grid{ display:grid; grid-template-columns: 1fr 320px; gap:20px; align-items:start; }
+@media (max-width:900px){ .grid{ grid-template-columns:1fr; } }
+
+.panel{ background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); padding:18px; margin-bottom:18px; }
+.panel h2{ font-family:'Archivo',sans-serif; font-weight:600; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin:0 0 14px; }
+.panel h3{ font-family:'Archivo',sans-serif; font-weight:600; font-size:1rem; margin:0 0 8px; color:var(--ink); }
+.panel p{ font-size:0.88rem; line-height:1.6; color:var(--muted); margin:0 0 8px; }
+.panel p:last-child{ margin-bottom:0; }
+.panel p b{ color:var(--ink); }
+.panel img{ width:100%; border-radius:6px; border:1px solid var(--line); display:block; }
+
+.fig-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:640px){ .fig-grid{ grid-template-columns:1fr; } }
+.fig-cap{ font-size:0.76rem; color:var(--muted); margin-top:6px; }
+
+.tablewrap{ overflow-x:auto; }
+table{ width:100%; border-collapse:collapse; font-size:0.82rem; }
+th{ font-family:'Archivo',sans-serif; font-weight:600; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); text-align:right; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+th:first-child, th:nth-child(2){ text-align:left; }
+td{ padding:8px 10px; text-align:right; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
+td:first-child{ text-align:left; font-family:'IBM Plex Mono',monospace; font-weight:600; }
+td:nth-child(2){ text-align:left; font-family:'IBM Plex Mono',monospace; color:var(--muted); font-size:0.78rem; }
+tr:last-child td{ border-bottom:none; }
+tr.lead td:first-child{ color:var(--binder); }
+.pill{ display:inline-block; font-family:'Archivo',sans-serif; font-weight:600; font-size:0.68rem; border-radius:5px; padding:2px 7px; }
+.pill.interface{ background:var(--accent-soft); color:var(--accent); }
+.pill.bbb{ background:var(--binder-soft); color:var(--binder); }
+.warn-val{ color:var(--bad); }
+.good-val{ color:var(--binder); }
+
+.stat-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:6px; }
+.stat{ background:var(--surface-2); border-radius:8px; padding:10px 12px; }
+.stat .k{ font-family:'Archivo',sans-serif; font-size:0.66rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); }
+.stat .v{ font-family:'IBM Plex Mono', monospace; font-size:1.1rem; font-weight:600; margin-top:2px; }
+.stat.lead{ background:var(--binder-soft); } .stat.lead .v{ color:var(--binder); }
+
+.linklist{ display:flex; flex-direction:column; gap:8px; }
+.linkbtn{ display:flex; align-items:center; justify-content:space-between; gap:10px; text-decoration:none; background:var(--surface-2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:0.85rem; font-weight:600; }
+.linkbtn:hover{ border-color:var(--accent); }
+.linkbtn .tag{ font-family:'IBM Plex Mono', monospace; font-size:0.68rem; color:var(--muted); font-weight:500; }
+
+.todo{ display:flex; flex-direction:column; gap:9px; font-size:0.85rem; }
+.todo .item{ display:flex; gap:8px; align-items:flex-start; }
+.todo .n{ font-family:'IBM Plex Mono',monospace; font-size:0.72rem; color:var(--muted); background:var(--surface-2); border-radius:4px; padding:1px 6px; margin-top:1px; flex-shrink:0; }
+
+footer{ margin-top:8px; padding-top:14px; border-top:1px solid var(--line); font-size:0.76rem; color:var(--muted); }
+</style>
+
+<div class="wrap">
+  <div class="masthead">
+    <h1>OXTR Disulfide-Cyclized Peptide Binder Pipeline</h1>
+    <div class="sub">De novo macrocyclic peptide binders against the oxytocin receptor, screened for BBB permeability &middot; 100-backbone pilot</div>
+  </div>
+
+  <div class="stagebar">
+    <span class="stagepill done">1 &middot; RFdiffusion backbones</span>
+    <span class="stagepill done">2 &middot; ProteinMPNN sequences</span>
+    <span class="stagepill done">3 &middot; AfCycDesign / Boltz2 cofold</span>
+    <span class="stagepill done">4 &middot; Rosetta scoring</span>
+    <span class="stagepill done">5 &middot; BBB permeability (B3BPFN)</span>
+    <span class="stagepill done">5ext &middot; GROMACS MD (7/7)</span>
+    <span class="stagepill done">6 &middot; N-methyl site scan</span>
+    <span class="stagepill done">7 &middot; Selectivity vs. AVPR1A/1B/2</span>
+    <span class="stagepill pending">8 &middot; Final shortlist</span>
+  </div>
+
+  <div class="grid">
+    <div class="main">
+
+      <div class="panel">
+        <h2>MD validation &mdash; all 7 tested candidates</h2>
+        <img src="figures/fig4_md_stability.png" alt="Peptide RMSD and disulfide distance over 20 ns for 7 candidates">
+        <p class="fig-cap">20&thinsp;ns unconstrained GROMACS MD, receptor backbone position-restrained, explicit TIP3P solvent. 5 candidates selected for OXTR interface confidence, 2 added later for leading BBB probability once Stage 6 reprioritized the shortlist toward permeability.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Candidate comparison</h2>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr><th>Candidate</th><th>Sequence</th><th>Selected for</th><th>BBB prob.</th><th>OXTR i_ptm</th><th>dG_sep</th><th>MD RMSD mean/max (&Aring;)</th><th>MD S&ndash;S mean/max (&Aring;)</th><th>Selectivity margin</th></tr>
+            </thead>
+            <tbody>
+              <tr class="lead"><td>out_3_sample3</td><td>VARCGPLGFCPR</td><td><span class="pill bbb">BBB</span></td><td class="good-val">0.915</td><td>0.578</td><td>&minus;41.0</td><td class="good-val">1.91 / 2.70</td><td>2.04 / 2.20</td><td>+0.009</td></tr>
+              <tr><td>out_88_sample4</td><td>GVCGLSLRCHRP</td><td><span class="pill bbb">BBB</span></td><td class="good-val">0.836</td><td>0.393</td><td>&minus;42.3</td><td>2.53 / 3.49</td><td>2.03 / 2.19</td><td class="warn-val">&minus;0.048</td></tr>
+              <tr><td>out_98_sample2</td><td>MVCGPFPLALCRRP</td><td><span class="pill interface">Interface</span></td><td>0.544</td><td>0.401</td><td>&minus;47.2</td><td>2.83 / 4.09</td><td>2.03 / 2.18</td><td class="warn-val">&minus;0.095</td></tr>
+              <tr><td>out_70_sample3</td><td>AECLLSRHACRRA</td><td><span class="pill interface">Interface</span></td><td>0.497</td><td>0.475</td><td>&minus;47.6</td><td class="good-val">1.18 / 2.69</td><td>2.04 / 2.19</td><td class="warn-val">&minus;0.066</td></tr>
+              <tr><td>out_80_sample4</td><td>GLCGAGFPCRVP</td><td><span class="pill interface">Interface</span></td><td>0.477</td><td>0.442</td><td>&minus;49.1</td><td>2.57 / 4.43</td><td>2.04 / 2.17</td><td class="warn-val">&minus;0.126</td></tr>
+              <tr><td>out_70_sample2</td><td>AECLLSYHACRRA</td><td><span class="pill interface">Interface</span></td><td>0.453</td><td>0.574</td><td>&minus;51.5</td><td>2.29 / 3.09</td><td>2.04 / 2.17</td><td class="good-val">+0.059</td></tr>
+              <tr><td>out_35_sample2</td><td>YVRCLTPAAAVNCVG</td><td><span class="pill interface">Interface</span></td><td>0.441</td><td>0.403</td><td>&minus;51.4</td><td>1.45 / 2.61</td><td>2.03 / 2.16</td><td class="warn-val">&minus;0.245</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin-top:12px;">Selectivity margin = i_ptm(OXTR) &minus; max(i_ptm vs. AVPR1A/1B/2). Sorted by BBB probability. <b>out_3_sample3</b> now leads on BBB probability, MD stability, and OXTR score simultaneously &mdash; the strongest all-round candidate so far, though its selectivity margin is thin (+0.009).</p>
+      </div>
+
+      <div class="fig-grid">
+        <div class="panel">
+          <h3>i_ptm distribution shift</h3>
+          <img src="figures/fig1_iptm_distribution.png" alt="i_ptm distribution before and after the ProteinMPNN receptor-context fix">
+          <p class="fig-cap">Before/after the ProteinMPNN receptor-blindness fix (Stage 2).</p>
+        </div>
+        <div class="panel">
+          <h3>Pipeline funnel</h3>
+          <img src="figures/fig2_pipeline_funnel.png" alt="Candidate counts surviving each pipeline stage">
+          <p class="fig-cap">100 backbones &rarr; 400 sequences &rarr; 27 defensible shortlist candidates.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Selectivity vs. related receptors (Stage 7)</h2>
+        <p>27 shortlisted candidates cofolded against AVPR1A, AVPR1B, and AVPR2 (81 runs, AfCycDesign). <b>AVPR2</b> (renal, antidiuretic) is the most repeated off-target hit &mdash; <b>out_35_sample2</b> and <b>out_88_sample2</b> both show AfCycDesign preferring AVPR2 over OXTR outright (margins &minus;0.245 and &minus;0.292). Best clean margins in the full 27: <b>out_5_sample4</b> (+0.129), <b>out_30_sample4</b> (+0.087), <b>out_22_sample4</b> (+0.086) &mdash; none yet MD-tested.</p>
+      </div>
+
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>Leading candidate</h2>
+        <h3>out_3_sample3</h3>
+        <div class="stat-row">
+          <div class="stat lead"><div class="k">BBB probability</div><div class="v">0.915</div></div>
+          <div class="stat lead"><div class="k">MD RMSD mean</div><div class="v">1.91&thinsp;&Aring;</div></div>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><div class="k">OXTR i_ptm</div><div class="v">0.578</div></div>
+          <div class="stat"><div class="k">Selectivity margin</div><div class="v">+0.009</div></div>
+        </div>
+        <p style="margin-top:10px;">Best BBB probability in the 27-candidate shortlist, tighter MD stability than 4 of the 5 interface-selected candidates, real OXTR interface score &mdash; but selectivity margin is thin, not yet a clean separation from AVPR2.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Interactive structures</h2>
+        <div class="linklist">
+          <a class="linkbtn" href="https://claude.ai/artifact/WGde4AQ7MYN2d6y1xu9Zix" target="_blank" rel="noopener">out_3_sample3 &times; OXTR <span class="tag">cofold</span></a>
+          <a class="linkbtn" href="https://claude.ai/artifact/D6SozNPgCCG7XML5YNd1eq" target="_blank" rel="noopener">MD trajectories (6) <span class="tag">animated</span></a>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Open items</h2>
+        <div class="todo">
+          <div class="item"><span class="n">1</span>Decide Wave-1 synthesis batch (math derived; ~12 compounds, 8 top + 4 calibration spread).</div>
+          <div class="item"><span class="n">2</span>Resolve selectivity risk on candidates preferring AVPR2 before Stage 8.</div>
+          <div class="item"><span class="n">3</span>Stage 8 &mdash; final shortlist, weighting OXTR / BBB / MD / selectivity.</div>
+          <div class="item"><span class="n">4</span>Check shortlist against 6TPK (antagonist-bound OXTR) &mdash; downloaded, unused.</div>
+          <div class="item"><span class="n">5</span>Back up raw /scratch data (5.3&thinsp;GB) &mdash; docs are git-tracked, structures aren't.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Data: <code>github.com/andrewreid1234/oxtr-peptide-binder-pipeline</code> &middot; full detail in <code>docs/SOP.md</code> and <code>docs/PIPELINE_VALIDATION.md</code></footer>
+</div>

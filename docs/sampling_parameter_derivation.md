@@ -1,4 +1,19 @@
-# Sampling Parameter Derivation — RFdiffusion → ProteinMPNN Pipeline
+# Mathematical Derivations — OXTR Pipeline Design Decisions
+
+This document is the canonical reference for every non-arbitrary numerical decision
+in the OXTR binder pipeline — every parameter here is derived from an explicit model
+and stated assumptions, not picked by feel. Two parts so far:
+
+- **Part I (sections 0–8):** how many RFdiffusion backbones (B) and ProteinMPNN
+  sequences per backbone (S), and what sampling temperature (T), maximize genuinely
+  distinct output for a fixed compute budget.
+- **Part II (sections 9–16):** how many computationally-ranked candidates should go
+  to physical synthesis and wet-lab assay, given assay throughput — not synthesis
+  capacity — is the real constraint.
+
+---
+
+# Part I — Backbone / sequence sampling allocation
 
 **Goal:** rigorously derive the number of backbones (B), sequences per backbone (S), and ProteinMPNN sampling temperature (T) that maximize the number of genuinely distinct, still-good-quality structures entering downstream filtering, subject to B·S = 40,000.
 
@@ -258,3 +273,113 @@ More importantly, **$F^*$ is even less sensitive than the argmax location** — 
 1. **Independence across backbones:** the product model assumes D_s(T) is the same for every backbone. The multi-backbone design in Section 3.3 tests this rather than assuming it.
 2. **Product-of-saturating-curves as the joint model:** assumes no backbone-quality × sequence-designability interaction beyond what D_s(T) captures. Plausible but untested.
 3. **Continuous relaxation validity:** the closed form assumes B\*, S\* land comfortably in the interior (not near 1 or K). Current example numbers are fine; would need rechecking if D_s(T) comes back very small or very large at the eventually-chosen T.
+
+---
+
+# Part II — Synthetic candidate selection
+
+**Goal:** rigorously derive how many of a computationally-ranked shortlist of $M$ candidates should go to physical synthesis and wet-lab assay, given that high-throughput synthesis is not the constraint — assay throughput is. This is deliberately kept general in $M$: the pipeline's shortlist size will grow as it scales (27 at the time of writing, from a 100-backbone pilot batch — used below purely as a worked example, not a fixed input to the model). Superficially similar to Part I (both are "how many samples" problems) but the objective is fundamentally different: Part I maximizes *diversity entering a filter*; Part II maximizes *information gained per assay slot*, under a resource that is expensive per unit rather than cheap and parallel.
+
+**Context:** this pipeline has zero wet-lab ground truth connecting its computational score to real OXTR binding. That single fact drives everything below — any answer has to serve two goals at once, not one: (a) a reasonable chance of finding a real binder in the first wave, and (b) enough spread in the tested set to tell, afterward, whether the computational ranking means anything at all.
+
+## 9. Notation and goal
+
+| Symbol | Meaning | Units / range |
+|---|---|---|
+| $M$ | Size of the computationally-ranked shortlist to select from (grows as the pipeline scales) | count, integer $\geq 1$; 27 at time of writing |
+| $N$ | Number of candidates selected for synthesis + assay, $N \leq M$ | count, integer $\geq 1$ |
+| $p$ | True (unknown) probability that a top-ranked candidate is a genuine OXTR binder | probability, assumed 0.10–0.40 from literature |
+| $C$ | Target confidence of finding at least one true hit among $N$ tested | probability, $0<C<1$ |
+| $X$ | Number of true hits among $N$ tested candidates (random variable) | count, $X \sim \text{Binomial}(N, p)$ |
+| $\rho$ | True Spearman rank correlation between predicted computational score and measured binding affinity | dimensionless, $-1 \leq \rho \leq 1$ |
+| $\alpha$ | Significance level for detecting $\rho \neq 0$ (two-sided) | probability, conventionally 0.05 |
+| $1-\beta$ | Statistical power to detect $\rho$ if it is truly nonzero | probability, conventionally 0.80 |
+| $z_{1-\alpha/2}$, $z_{1-\beta}$ | Standard normal quantiles for the chosen $\alpha$, $\beta$ | dimensionless |
+| $n_{\text{cal}}$ | Minimum sample size to detect correlation $\rho$ at power $1-\beta$ | count |
+| $\text{arctanh}(\rho)$ | Fisher $z$-transform of the correlation, $\frac{1}{2}\ln\frac{1+\rho}{1-\rho}$ | dimensionless |
+
+## 10. Model 1 — probability of finding true hits (binomial)
+
+**Assumption:** each of the $N$ tested candidates is an independent Bernoulli trial with success probability $p$ (a true OXTR binder). Independence is an approximation — candidates sharing a similar sequence motif (several shortlist candidates are near-duplicates, e.g. `out_37_sample1/3/4` are identical) are not truly independent draws, so this should be read as an upper bound on how much information $N$ independent-*looking* candidates actually provide.
+
+Then $X \sim \text{Binomial}(N, p)$, and:
+
+$$
+P(X \geq 1) = 1 - (1-p)^N \qquad \Longrightarrow \qquad N = \frac{\ln(1-C)}{\ln(1-p)}
+$$
+
+*where:* solving $P(X\geq 1) = C$ for $N$ and taking the ceiling gives the minimum batch size for confidence $C$ of at least one hit.
+
+**Why "at least one" isn't enough on its own — the ≥2 case.** A single confirmed hit in an early wave is hard to trust: it could be an assay artifact (aggregation, nonspecific binding, a false positive from the assay's own noise floor). The probability of at least **two** independent hits — enough to have a backup and smell-test the finding — is:
+
+$$
+P(X \geq 2) = 1 - (1-p)^N - Np(1-p)^{N-1}
+$$
+
+**Expected value:** $E[X] = Np$ — trivial, but worth stating because it shows the "confidence of ≥1" framing and the "expected count" framing don't peak at the same priority. Early-stage screening cares more about *not striking out entirely* (the $P(X\geq1)$ framing) than about the expected count, which is why Model 1 uses the confidence bound, not $E[X]$, as the primary criterion.
+
+## 11. Model 2 — statistical power to calibrate score against real affinity
+
+This is the piece Model 1 alone misses, and the more mathematically substantial half of this section. A batch chosen purely to maximize $P(X\geq1)$ is *by construction* all high-score candidates — restricting the score range tested is exactly what destroys your ability to later ask "does the score predict affinity at all?" (restriction of range is a classical confound in correlation estimation). Answering that question requires spread across the score range and a properly powered sample size for detecting a correlation.
+
+**Standard method (Fisher $z$-transform, Bonett–Wright correction for Spearman):** for a true population correlation $\rho$, the Fisher transform $z_r = \text{arctanh}(\rho)$ is approximately normally distributed with variance $\frac{1.06}{n-3}$ for Spearman's $\rho$ (the $1.06$ factor, vs. $1.0$ for Pearson's $r$, is the Bonett–Wright 2000 correction for the extra sampling variability of rank correlation). The minimum sample size to detect a true correlation $\rho$ as significantly different from zero, at significance $\alpha$ (two-sided) and power $1-\beta$, is:
+
+$$
+n_{\text{cal}} \;=\; 1.06\left(\frac{z_{1-\alpha/2} + z_{1-\beta}}{\text{arctanh}(\rho)}\right)^{2} + 3
+$$
+
+**Worked table** ($\alpha=0.05$ two-sided):
+
+| True $\rho$ | $n$ for 70% power | $n$ for 80% power | $n$ for 90% power |
+|---:|---:|---:|---:|
+| 0.3 (weak) | 72 | 90 | 120 |
+| 0.4 | 40 | 50 | 66 |
+| 0.5 (moderate) | 25 | 31 | 40 |
+| 0.6 | 17 | 21 | 27 |
+| 0.7 (strong) | 12 | 15 | 18 |
+| 0.8 (very strong) | 9 | 10 | 13 |
+
+**Reading this:** properly powering a correlation test at conventional thresholds (80% power) needs **15–90 compounds** depending on how strong the true score–affinity relationship turns out to be — an order of magnitude more than Model 1's hit-confidence answer in the weak-to-moderate correlation range. This is real information, not a rounding difference: it says a single 12-compound wave *cannot* rigorously confirm or reject that the computational score is predictive unless the true correlation happens to be strong ($\rho \gtrsim 0.7$). Given four independent computational filters already applied before this stage (interface confidence, Rosetta energetics, disulfide geometry, MD stability), a stronger-than-typical correlation is a reasonable hope, not a safe assumption.
+
+## 12. Combining the two objectives
+
+Models 1 and 2 want different things from a small $N$: Model 1 wants score concentrated at the top (maximize each candidate's individual $p$); Model 2 wants score spread across the range (maximize variance in the predictor to power the correlation test). Both cannot be fully satisfied at once under a small assay budget — this is a genuine, irreducible tension, not a modeling artifact.
+
+**Resolution adopted here: treat Wave 1 as a two-part allocation**, not a single optimization:
+
+$$
+N = N_{\text{hit}} + N_{\text{cal}}^{\text{partial}}
+$$
+
+- $N_{\text{hit}}$ candidates chosen purely top-ranked, sized by Model 1 for a chosen $(p, C)$ — this guarantees the wave isn't wasted if the ranking is only weakly predictive.
+- $N_{\text{cal}}^{\text{partial}}$ candidates chosen to spread the tested score range, undersized relative to Model 2's full power requirement (a full 80%-power calibration batch, 15–90 compounds, is disproportionate for a first wave) — this is explicitly **a first data point toward calibration, not a definitive test of it.** A real calibration verdict may require pooling Wave 1 and Wave 2 data together before Model 2's power threshold is met.
+
+This reframes the "12 compounds" figure honestly: it satisfies Model 1 comfortably, gives a first (underpowered) look at Model 2, and defers a statistically definitive calibration verdict to combined Wave 1 + Wave 2 data — rather than presenting 12 as sufficient for both jobs, which Section 11 shows it is not.
+
+## 13. Plugging in real numbers
+
+Using $p \in [0.15, 0.30]$ (literature range for de novo binder campaigns, plausibly shifted upward here by the pipeline's extra filtering — see `PIPELINE_VALIDATION.md` section 14) and targeting $C = 0.85$:
+
+- $N_{\text{hit}}$ at $p=0.15$: $\lceil \ln(0.15)/\ln(0.85) \rceil = 12$
+- $N_{\text{hit}}$ at $p=0.30$: $\lceil \ln(0.15)/\ln(0.70) \rceil = 6$
+
+Taking the conservative (lower-$p$) end: **$N_{\text{hit}} = 8$** (slightly below the 12 needed for $C=0.85$ at $p=0.15$, accepting $C\approx0.74$ at $p=0.15$ — see Section 10's table — as a defensible trade against reserving assay slots for calibration) plus **$N_{\text{cal}}^{\text{partial}} = 4$**, giving $N=12$ total, matching the recommendation already adopted in `PIPELINE_VALIDATION.md` section 14. Section 11 makes explicit what that document did not: this 12-compound wave is powered for $P(X\geq1)\approx 0.74$–$0.86$ (Model 1), but only a partial, underpowered first look at the score–affinity correlation (Model 2) — full calibration power at plausible $\rho$ (0.5–0.7) needs 15–31 compounds, achievable once Wave 1 and Wave 2 are pooled.
+
+## 14. Sensitivity analysis
+
+From Section 10, $N_{\text{hit}}$'s sensitivity to $p$ is steep in the low-$p$ region (where the shortlist plausibly sits) — $dN/dp$ is large near $p=0.10$–$0.15$ (compare $N=29$ at $p=0.10$, $C=0.95$ vs. $N=19$ at $p=0.15$: a 50% relative change in $p$ moves $N$ by more than 30%). This is the opposite of Part I's flat, forgiving sensitivity (Section 6) — here, getting $p$ wrong by a factor of 2 meaningfully changes the batch size needed, which is exactly why Section 11's calibration argument matters beyond academic interest: a mis-estimated $p$ compounds into future waves if never corrected against real data.
+
+From Section 11, $n_{\text{cal}}$'s sensitivity to $\rho$ is even steeper — roughly $n_{\text{cal}} \propto 1/\text{arctanh}(\rho)^2$, so a true $\rho$ of 0.3 instead of a hoped-for 0.6 costs **more than 4× the sample size** to detect at the same power. This is the single most important number in Part II for planning purposes: if Wave 1 + Wave 2 data suggests only a weak correlation, achieving real statistical confidence in that finding requires substantially more compounds than the hit-confidence framework alone would suggest — a resourcing conversation worth having explicitly rather than discovering it mid-campaign.
+
+## 15. Recommendation
+
+- **Wave 1 = 12 compounds** (8 top-ranked for hit confidence + 4 score-spread for a first calibration look), per Section 13 — unchanged from `PIPELINE_VALIDATION.md` section 14, now with the power tradeoff made explicit rather than implicit.
+- **Do not treat a "no correlation" result from Wave 1 alone as definitive** — Section 11 shows 12 compounds is underpowered for that verdict at plausible $\rho$. A real correlation verdict needs Wave 1 + Wave 2 pooled (targeting 15–31 total, depending on the true $\rho$ once some signal exists to estimate it from).
+- **If assay throughput (still unconfirmed as of this writing) comfortably exceeds 12 per wave**, prefer growing $N_{\text{cal}}^{\text{partial}}$ over $N_{\text{hit}}$ first — Section 10 shows $N_{\text{hit}}=8$ already gives $C\gtrsim0.74$ at a conservative $p$, while Section 11 shows the calibration side is the one still meaningfully underpowered.
+
+## 16. Open assumptions still worth testing
+
+1. **Independence across candidates (Section 10):** several shortlist candidates are near-identical (e.g. `out_37_sample1/3/4`, all `MPCLGLGTCPRP`) — treating them as independent Bernoulli trials overstates the effective $N$. Wave selection should deliberately avoid picking near-duplicates into the same wave, or the true confidence achieved is lower than the binomial formula suggests.
+2. **$p \in [0.10, 0.40]$ is a literature-transferred prior, not measured on this pipeline.** It is the single biggest unvalidated assumption in this whole document, and the entire point of Wave 1 is to start replacing it with real data.
+3. **Spearman-appropriateness:** assumes affinity and score have a monotonic, not necessarily linear, relationship — reasonable given both are model-confidence-like scores rather than physical quantities, but untested until real Kd data exists to check.
+4. **The Bonett–Wright variance correction (1.06 factor, Section 11)** is itself an approximation valid for moderate sample sizes and away from $\rho=\pm1$; adequate for planning purposes here, not for the eventual confirmatory analysis once real data exists.
