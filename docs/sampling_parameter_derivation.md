@@ -256,15 +256,56 @@ More importantly, **$F^*$ is even less sensitive than the argmax location** — 
 
 ---
 
-## 7. Recommendation
+## 7. Recommendation — FINAL, validated against the Section 3 experiment (2026-09-22)
 
-**Interim values, pending the Section 3 validation experiment:**
+**The Section 3 validation experiment has been run**: 8 backbones (`out_0, 12, 25,
+37, 50, 62, 75, 87`) × T ∈ {0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0} × 300 sequences
+each, no new RFdiffusion cost. Quality threshold fixed per-backbone at the T=0.1
+median score (an absolute, non-circular bar applied identically across all T for
+that backbone), then exact distinct-sequence count taken among quality-passing
+survivors at each (backbone, T). Full data:
+`analysis/stage_0_controls/ds_t_experiment_results.csv`.
 
-- **B ≈ 2,000–2,500** (down from 10,000)
-- **S ≈ 16–20 per backbone** (up from 4)
-- **T: raise from 0.1 to 0.2–0.3** as the next data point, not as a final answer
+**Result 1 — T=0.1 (the existing production value) is at or very near the true
+peak, not too conservative.** Mean distinct-and-good count across the 8 backbones:
+T=0.05→48.6, **T=0.1→58.8**, T=0.2→36.6, T=0.3→12.8, T≥0.5→~0. Raising T to
+0.2–0.3, as this document's earlier interim recommendation suggested, would have
+made things *worse*: raw sequence diversity does keep rising with T (expected),
+but the fraction clearing a fixed quality bar collapses much faster than
+diversity grows, so distinct-and-good count falls past T≈0.1. **T=0.1 stays as
+the production temperature — no change from current practice.**
 
-**Highest-leverage next step:** run the cheap D_s(T) rarefaction experiment (5–10 backbones × T grid × 200–500 sequences each, all reusing existing backbones, no new RFdiffusion cost). It directly resolves the two biggest remaining uncertainties — D_s(0.1)'s true value and where the quality/diversity peak in T sits — before committing the full 40,000-structure production run. The ~1.3–2.8× yield difference shown in Section 5.2 (from reallocation alone, before even touching T) makes this validation run cheap relative to what's at stake in the production budget.
+**Result 2 — D_s(0.1), fit via the saturation curve (not just the raw count) at
+N=300 draws:** per-backbone estimates ranged **5.0 to 114.3** (real, substantial
+backbone-to-backbone designability variance — confirms the "designability varies
+by backbone" assumption flagged in Section 3.3 as worth testing, not asserting).
+Median **D_s(0.1) ≈ 73.2**, used below as the point estimate (more robust to the
+two low outliers, `out_37` and `out_75`, than the mean).
+
+**Result 3 — final (B, S) allocation, solving Section 4's formula with
+D_b=1,000 (Section 2 point estimate) and this measured D_s(0.1)=73.2:**
+
+$$B^{*} = \sqrt{K D_b/D_s} \approx 739, \qquad S^{*} = \sqrt{K D_s/D_b} \approx 54$$
+
+**Recommended: B = 750 backbones, S = 53 sequences/backbone** (B·S ≈ 39,750 ≈
+K=40,000), **T = 0.1 (unchanged)**.
+
+Expected yield: F* ≈ 19,987 distinct-and-good structures entering downstream
+filtering — versus F(10,000×4) ≈ 3,893 under the original production defaults
+at this same D_s. **A ~5.1× improvement in useful output for the identical total
+compute budget.**
+
+**Sensitivity range** (using the full per-backbone D_s spread, 17–114, not just
+the median): B* ranges 592–1,534, S* ranges 26–68. The *direction* — far fewer
+backbones, far more sequences per backbone than 10,000×4 — is robust across this
+entire range; only the precise split moves. If hedging against per-backbone
+designability variance is preferred over the point estimate, **B=1,000, S=40**
+is a reasonable, still dramatically-improved, more conservative alternative.
+
+**This supersedes the earlier interim recommendation (B≈2,000–2,500, S≈16–20,
+T→0.2–0.3) — that guidance was explicitly provisional pending this experiment,
+and the experiment moved the numbers substantially, including reversing the
+direction on T.**
 
 ---
 

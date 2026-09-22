@@ -3,7 +3,25 @@
 **Project root (compute):** `/scratch/drewdog/denovo_binder_100_pilot`
 **Automation scripts:** `/home/drewdog/projects/OXTR_peptides/`
 **Host:** Woody (`drewdog@sn4622111116`)
-**Last updated:** 2026-09-15
+**Last updated:** 2026-09-22
+**Pipeline version:** v2.0.0 (see Versioning and Version History below)
+
+## Versioning
+
+Semantic versioning on the **pipeline methodology** (not datasets/shortlists —
+those are labeled by which pipeline version produced them):
+- **MAJOR** — any change to what gates candidate advancement, or a threshold
+  change.
+- **MINOR** — new informational checks added that don't change gating.
+- **PATCH** — script bugfixes that don't change methodology.
+
+### Version history
+
+| Version | Date | Summary |
+|---|---|---|
+| v1.0.0 | 2026-09-15 | 100-backbone pilot methodology, Stages 1–8, as run to produce the 27-candidate shortlist. |
+| v1.1.0 | 2026-09-16 | Stage 0.1 controls added (oxytocin +control, negative-control MD, disulfide-forcing check, AfCycDesign-vs-Boltz2 pose agreement) — informational, non-breaking. |
+| **v2.0.0** | 2026-09-22 | Full pipeline restructuring (this document). Boltz2 `iptm` dropped as a signal (structure kept for pose-agreement only); i_ptm demoted from gate to prior; disulfide-forcing and pose-agreement checks promoted to standard per-candidate; MD protocol corrected (`DispCorr`, `refcoord_scaling`) and moved to membrane + physiological mini-G/Gβ complex (replacing the position-restraint workaround), confirmation-only for a small post-filter set, with replicates; B/S/T sampling parameters validated empirically (B=750, S=53, T=0.1) — see `sampling_parameter_derivation.md` Section 7; job queue infrastructure added for scale-up orchestration. |
 
 ## Goal
 
@@ -30,6 +48,115 @@ scoring stages to a final shortlist. Target structures:
 | **6** | `stage_6_nmethyl` | N-methylation site scan (structure-based H-bond exposure) | ✅ **done** (27/27 shortlist) |
 | **7** | `stage_7_selectivity` | Selectivity vs. AVPR1A/1B/2 (AfCycDesign cofold) | ✅ **done** (27×3 = 81/81) |
 | 8 | `stage_8_shortlist` | Final shortlist | not started |
+
+The table above documents what was actually run for the 100-backbone pilot / 27-
+candidate shortlist (v1.0.0/v1.1.0 methodology). **Pipeline v2.0.0, below, is what
+runs for the scale-up going forward** — it changes which checks gate advancement
+and restructures the MD stage significantly; it does not retroactively rerun the
+pilot.
+
+## Pipeline v2.0.0 — scale-up methodology
+
+Full derivation and reasoning: `PIPELINE_VALIDATION.md` (control experiments) and
+the planning record at `.claude/plans/cozy-wandering-treehouse.md`. Summary of
+what changed and why:
+
+**Per-candidate checks, universal (cheap, run on every candidate before anything
+expensive):**
+1. AfCycDesign cofold — **demoted from gate to prior**. The oxytocin positive
+   control scored i_ptm 0.368 (below the pilot shortlist's own average) for a
+   *known-true* binder — i_ptm alone is not reliable enough to gate on.
+2. Boltz2 cofold — **kept for structure only; its `iptm` score is dropped
+   entirely.** Confirmed uninformative twice: compressed 0.88–0.98 for
+   essentially every candidate ever run, oxytocin included (0.959).
+3. Rosetta relax + **disulfide-forcing check** (`FastRelax`, forced + unforced,
+   matched protocol — standardized on `FastRelax` over `relax.default` this
+   version) — **promoted to standard**. Caught a real outlier (`out_17_sample3`)
+   the v1 pipeline missed; 25/27 pilot candidates support their designed bond
+   better than AfCycDesign's blind prediction supported oxytocin's real one.
+4. **AfCycDesign-vs-Boltz2 pose-agreement RMSD** (Kabsch-fit receptor chains,
+   measure peptide pose RMSD between the two independent predictions) —
+   **promoted to standard**, near-zero extra cost (reuses structures from 1/2).
+   Caught the negative-control candidate and its whole design family when MD
+   alone could not.
+5. B3BPFN BBB permeability — unchanged pending the parallel retraining effort.
+
+**Deferred, not gating v2.0.0:** Stage 7 selectivity (AVPR1A/1B/2) — flagged as
+built on the same AF2-confidence-score type shown unreliable above, never run
+through its own control. Keep recording results; don't weight in Stage 8 yet.
+
+**Expensive, confirmation-only (not run on the full shortlist):** MD (below) and
+MM/GBSA, reserved for whoever survives checks 1–5, sized to a small fixed set
+per batch (pilot precedent: 5–10 candidates).
+
+### MD protocol v2.0.0
+
+Replaces the position-restrained-receptor/explicit-solvent-only approach.
+
+- **`.mdp` fixes for the water-only variant** (still used for quick/cheap runs):
+  `DispCorr = EnerPres`, `refcoord_scaling = com` — both absent in v1, both
+  standard/recommended for this forcefield + restraint + pressure-coupling
+  combination. Templates: `scripts/md/mdp_v2_water/`.
+- **Membrane + physiological complex** (the real v2.0.0 system, replacing
+  restraints entirely where used): 7RYC chains `O` (receptor) + `D` (engineered
+  mini-Gq/i construct — confirmed via direct RCSB entity lookup, not a native
+  lipidation-requiring Gα, so no synthetic lipid anchors needed) + `C` (genuine
+  Gβ). Chain `E` (scFv16) excluded — confirmed a cryo-EM stabilization antibody
+  only. Built with `packmol-memgen` (env: `/scratch/drewdog/packmol_memgen_v2/env`,
+  Python 3.10 + AmberTools 23 via conda-forge) + POPC bilayer, auto-oriented via
+  its bundled `memembed` step (do **not** pass `--preoriented` — 7RYC's raw
+  coordinates aren't membrane-normal-aligned).
+  - **Known gotcha (real upstream bug, not ours):** never pass `--overwrite` to
+    `packmol-memgen` — `memembed_align()`'s guard condition
+    (`if not os.path.exists(output) and not overwrite`) inverts the flag's
+    intended meaning and silently skips the orientation step entirely, causing
+    a `FileNotFoundError` downstream. Delete stale intermediate files manually
+    instead.
+  - Membrane-system `.mdp` differs from the water-only variant:
+    `pcoupltype = semiisotropic` (not isotropic — required for independent x/y
+    vs. z box scaling), `DispCorr = no` (not `EnerPres` — the opposite of the
+    water-only fix; applying dispersion correction to a bilayer introduces real
+    artifacts, confirmed via published Lipid14/Lipid21 validation work),
+    `tau_p = 5.0`, graduated multi-stage restraint-release equilibration (not a
+    single NVT+NPT pass) — see the official GROMACS membrane-protein tutorial.
+  - System built once, reused as the common starting scaffold for every
+    candidate's peptide-docking step (not rebuilt per candidate).
+- **Replicates:** MD-confirmed candidates get 2–3 independent trajectories
+  (different initial-velocity seed), not 1.
+- **Equilibration:** verified adequate via `gmx energy` on the v1 water-only runs
+  (density/temperature solidly converged at 100 ps NVT + 100 ps NPT; pressure's
+  large fluctuations are normal MD behavior, not non-convergence) — no duration
+  change needed for that variant.
+- **MM/GBSA:** `gmx_MMPBSA` 1.6.5 installed (`/scratch/drewdog/gmx_mmpbsa/env`)
+  but validation is blocked on a confirmed upstream bug in its own
+  `res2map()`/`list2range()` residue-classification logic (not a setup issue on
+  our end — traced to source, reproduced deterministically). Not pursued further
+  given the scale-up timeline; revisit in a dedicated session.
+
+### Backbone / sequence / temperature — validated, final
+
+**B = 750, S = 53, T = 0.1 (unchanged from v1).** Empirically measured via an
+8-backbone × 7-temperature × 300-sequence experiment (`analysis/stage_0_controls/
+ds_t_experiment_results.csv`) — ~5.1× more distinct-and-good yield than the
+original 10,000×4 defaults for the same total compute (K=40,000). Notably,
+**T=0.1 turned out to already be the empirical peak** — raising it would have
+made things worse. Full derivation: `sampling_parameter_derivation.md` Section 7.
+
+### Job queue infrastructure
+
+`scripts/queue/job_queue.py` — SQLite-backed, resumable, GPU/CPU-aware job queue
+replacing the ad hoc `nohup`/backgrounded shell commands used throughout the
+pilot (fine at 27–100 candidates, doesn't hold up at ~40,000). Verified: atomic
+job claiming under 4 concurrent workers (zero duplicate/missed claims), crash
+resumability (rerunning `enqueue` skips already-tracked candidates), failure
+requeueing. Usage:
+```
+python job_queue.py init
+python job_queue.py enqueue <stage> <ids_file.txt> "<command with {id} placeholder>" --resources gpu|cpu
+python job_queue.py worker --resource gpu:0    # one worker per GPU, or --resource cpu
+python job_queue.py status
+python job_queue.py requeue-failed [--stage STAGE]
+```
 
 Stage 5 is run early/out of order deliberately, as a cheap upfront filter before the
 expensive structure-prediction/docking stages (3/4).
