@@ -199,7 +199,9 @@ BBB-specific classifier, not a generic Caco-2/PAMPA model.
   descriptors → mutual-info feature selection (top 700) → TabPFN classifier.
   Trained on real curated BBB-crossing/non-crossing peptide data (426 positive /
   6865 negative), not a proxy assay.
-- **Repo location:** `/scratch/drewdog/b3bpfn/B3BPFN/`
+- **Repo location:** `/scratch/drewdog/b3bpfn/B3BPFN/` (original, frozen, kept for
+  reference) — **production now uses `/scratch/drewdog/b3bpfn/B3BPFN_v1.2_production/`**,
+  see below.
 - **Env:** `/scratch/drewdog/b3bpfn/env` (dedicated conda env, Python 3.10)
 - **Exact working dependency pins:** `/scratch/drewdog/b3bpfn/env_pins.txt`
   — critically `tabpfn==6.1.0`. The pip-latest `tabpfn` (8.5.0 at setup time) is
@@ -216,11 +218,30 @@ BBB-specific classifier, not a generic Caco-2/PAMPA model.
   currently does that specifically for BBB permeability (cyclic-peptide-aware
   models like CycPeptMP predict gut/PAMPA/Caco-2 permeability, not BBB, and also
   require commercial MOE software).
+- **v1.2 update (2026-09-22):** oxytocin, run as a positive control, scored
+  BBB+ at 0.34 (just over threshold) — a real miss, since oxytocin is
+  well-established as poorly BBB-permeable. Investigation found two other
+  peptides mislabeled BBB+ in the training data (Met-/Leu-enkephalin,
+  contradicted by Banks & Kastin 1985 primary data) and used in the TabPFN
+  fit set; relabeling those two and refitting dropped oxytocin's score to
+  0.18 (BBB−) as a side effect, at a small benchmark cost (ACC 0.906→0.894,
+  MCC 0.813→0.788). A nearest-neighbor hard-negative flag (ESM2 embedding
+  similarity to oxytocin/enkephalins, calibrated at the 99th percentile of
+  similarity across the whole original training pool) is layered on top —
+  it doesn't change the probability, just flags candidates worth a second
+  look. Bulk-adding more UniProt-derived negatives from an independent
+  paper was tried first and made things *worse* (oxytocin rose to 0.63);
+  not used. Full writeup: `B3BPFN_v1.2_production/README.md`. Do not
+  hand-add more "negative" peptides without literature verification —
+  the same-flavored augmentation actively hurt.
 - **Run via:** Stage 5 section of `scripts/backbone_design/OXTR_Stage1_2_5_Automation.sh` — builds a FASTA
   from the Stage 2 outputs (excluding placeholders, tagging traceable IDs), then
-  calls `predict_peptide.py`.
+  calls `B3BPFN_v1.2_production/predict_peptide.py`.
 - **Output:** `stage_5_permeability/bbb_permeability_predictions.csv`
-  (`ID, Sequence, Probability, Prediction`), threshold 0.215.
+  (`ID, Sequence, Probability, Prediction, NN_Flag, NN_Nearest_Reference,
+  NN_Cosine_Similarity, NN_Note`), threshold 0.215. `Prediction` reads
+  `BBB+ (HARD-NEGATIVE-FLAG)` when a BBB+ call closely resembles a known
+  non-permeant reference peptide — treat those with extra scrutiny.
 - **Pilot result:** 400 sequences scored, 39 predicted BBB+.
   Top candidate: `rfd_out_83_sample4` (`YSEELGKIYGKG`), 76.5% BBB+ probability.
 - **Superseded:** an earlier heuristic (counting S/T/E/D/K and I/L/V/M residues)

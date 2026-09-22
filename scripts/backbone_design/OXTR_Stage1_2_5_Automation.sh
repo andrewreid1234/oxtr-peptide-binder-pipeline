@@ -76,7 +76,7 @@ echo "✓ Total sequences: $SEQUENCE_COUNT"
 # ========== STAGE 5 EARLY: BBB PERMEABILITY (B3BPFN) ==========
 echo ""
 echo "=== STAGE 5 (EARLY): Blood-Brain Barrier Permeability (B3BPFN) ==="
-echo "Model: B3BPFN (ESM2 + iFeatureOmega + TabPFN), threshold 0.215"
+echo "Model: B3BPFN v1.2 (ESM2 + iFeatureOmega + TabPFN, 2 relabeled training peptides + NN hard-negative flag), threshold 0.215"
 echo "Env: /scratch/drewdog/b3bpfn/env (pins: /scratch/drewdog/b3bpfn/env_pins.txt)"
 
 cd $PROJECT_ROOT/stage_5_permeability
@@ -115,14 +115,14 @@ FASTA_SCRIPT
 source /home/drewdog/miniforge3/etc/profile.d/conda.sh
 conda activate /scratch/drewdog/b3bpfn/env
 
-python3 /scratch/drewdog/b3bpfn/B3BPFN/predict_peptide.py \
+python3 /scratch/drewdog/b3bpfn/B3BPFN_v1.2_production/predict_peptide.py \
   -i "$PROJECT_ROOT/stage_5_permeability/oxtr_designs.fasta" \
-  -o "$PROJECT_ROOT/stage_5_permeability/bbb_permeability_predictions.csv" \
-  -m /scratch/drewdog/b3bpfn/B3BPFN/models
+  -o "$PROJECT_ROOT/stage_5_permeability/bbb_permeability_predictions.csv"
 
 BBB_COUNT=$(grep -c ",BBB+" "$PROJECT_ROOT/stage_5_permeability/bbb_permeability_predictions.csv" 2>/dev/null || echo 0)
+BBB_FLAGGED=$(grep -c "HARD-NEGATIVE-FLAG" "$PROJECT_ROOT/stage_5_permeability/bbb_permeability_predictions.csv" 2>/dev/null || echo 0)
 TOTAL_SCORED=$(( $(wc -l < "$PROJECT_ROOT/stage_5_permeability/bbb_permeability_predictions.csv") - 1 ))
-echo "✓ BBB+ predicted: $BBB_COUNT / $TOTAL_SCORED"
+echo "✓ BBB+ predicted: $BBB_COUNT / $TOTAL_SCORED ($BBB_FLAGGED hard-negative-flagged — resemble known non-permeant hormone-like peptides, review before trusting)"
 
 conda deactivate
 
