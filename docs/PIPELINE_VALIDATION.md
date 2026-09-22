@@ -748,6 +748,64 @@ and fail the other, and Stage 8 should weigh both rather than either alone.
 metric going forward, computed automatically once both Stage 3 predictions exist —
 it's nearly free and has already demonstrated real discriminating power this run.
 
+### 16.5 Why is Boltz2's confidence so compressed? (root-cause investigation)
+
+Section 16.1 already established that Boltz2's `iptm` is uninformative (0.88–0.98
+regardless of candidate quality, oxytocin included). Rather than treat that as an
+unexplained property of the tool, this investigates *why*, since Boltz2 is a
+published, benchmarked model — if it fails to discriminate here, the question is
+what's different about our usage, not that the tool is inherently unreliable.
+
+**Hypothesis 1 — MSA misconfiguration.** Boltz2's own GitHub issue tracker
+(jwohlwend/boltz#627) documents that explicitly setting `msa: empty` in the input
+YAML bypasses the model's paired-MSA generation mechanism entirely, and that this
+pairing information is "critical for accurate ipTM prediction even when one chain
+has no real homologs." Every Boltz2 run in this project (including the Section
+16.1 oxytocin control) set `msa: empty` for both chains — exactly the
+misconfiguration the issue describes. **Tested directly**, comparing
+`out_70_sample2` (best-supported candidate) against `out_39_sample3` (established
+negative control) under proper online paired-MSA mode (`--use_msa_server`, no
+explicit `msa` field): iptm 0.943 vs. 0.949 — **the negative control scored
+higher.** Hypothesis rejected — this was a real, documented bug worth ruling out,
+but it isn't the cause here.
+
+**Hypothesis 2 — the forced disulfide bond constraint.** Every Boltz2 run declares
+an explicit covalent bond constraint for the disulfide (unlike AfCycDesign's
+unconstrained prediction), which could inflate confidence by removing genuine
+uncertainty about part of the structure. **Tested directly**, same two candidates,
+paired MSA + no bond constraint: iptm 0.959 vs. 0.949 — a 0.010 gap in the
+expected direction, but both candidates still sit deep in the same 0.94–0.96 band.
+Hypothesis rejected as a meaningful explanation — the effect, if real, is far too
+small to be a usable ranking signal.
+
+| Configuration | `out_70_sample2` (good) | `out_39_sample3` (weakest) | Spread |
+|---|---:|---:|---:|
+| Original (msa:empty both chains, bond constrained) | 0.951 | 0.949 | 0.002 |
+| Paired MSA (proper, bond constrained) | 0.943 | 0.949 | −0.006 |
+| Paired MSA + no bond constraint | 0.959 | 0.949 | 0.010 |
+
+**Conclusion.** Across three configurations — including fixing a real, documented
+upstream bug and removing the forced geometric constraint — the spread between our
+best- and worst-supported candidates never exceeds ~0.01, and both always land in
+the same compressed 0.94–0.96 band. Neither tested variable is the cause. This
+points to a genuine property of Boltz2's confidence calibration for this specific
+molecule class (a tiny de novo disulfide-macrocyclic peptide bound to a GPCR
+orthosteric pocket) — plausibly outside the distribution its benchmarks (dominated
+by small-molecule ligands and conventional protein-protein interfaces) were
+validated on. This is the same underlying issue as AfCycDesign's low pLDDT
+(section on pLDDT, below) — a novel, never-observed sequence class the model
+wasn't calibrated for — just manifesting as compression toward high confidence
+here instead of appropriately low confidence. It earns, rather than merely
+assumes, the standing decision to treat Boltz2 as structure-only cross-check
+(pose-agreement, section 16.4), never a ranking signal.
+
+**Separately confirmed via per-chain breakdown (not averaged, whole-complex
+confusion):** even comparing peptide-only pLDDT directly, Boltz2 reports 0.849 for
+`out_70_sample2`'s peptide chain vs. AfCycDesign's 0.475 for the identical
+sequence — a genuine difference in how confidently the two tools score the same
+molecule, not an artifact of Boltz2's `complex_plddt` being diluted by the much
+larger (285 vs. 13 residue) receptor chain.
+
 ## 17. Known limitations and open items
 
 - This is a 100-backbone pilot batch — small enough that further scaling (discussed
