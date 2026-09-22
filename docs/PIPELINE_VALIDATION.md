@@ -296,6 +296,24 @@ Full data: `stage_4_rosetta/stage4_results.csv`.
 | Passed i_ptm + disulfide geometry filters | 27 | Real, defensible shortlist |
 | Physics-scored (Stage 4) | 27 | All shortlisted candidates |
 
+### 8.1 Projected funnel for the v2.0.0 scale-up
+
+With the validated B=750, S=53, T=0.1 allocation (`sampling_parameter_derivation.md`
+Section 7), the backbone→sequence→BBB+ stages project forward directly (these are
+per-structure probabilities that should hold at any scale); the final shortlist
+size is a real range, not a point estimate, because v2.0.0 changed *which* checks
+gate advancement (disulfide-forcing + pose-agreement, not raw i_ptm) — the pilot's
+24% pass rate was measured under the old i_ptm-gated regime, not this one.
+
+| Stage | Projected count | Basis |
+|---|---|---|
+| Backbones | **750** | Validated (Section 7) |
+| Sequences designed | **39,750** | 750 × 53 |
+| Expected distinct-and-good (saturation-curve fit, not raw count) | ~19,987 | D_s(0.1)≈73 — ~5.1× the yield of the old 10,000×4 split at equal compute |
+| Predicted BBB+ | **~22,260** | 56% pilot rate (224/400), extrapolated |
+| Passing v2.0.0 standard checks (disulfide-forcing + pose-agreement) | **~2,600–5,400** (real range, not yet measured at this scale) | Pilot's 24% (27/112) was measured under the *old* i_ptm-gated filter set — first real read on the *new* checks' pass rate comes from the scale-up itself |
+| MD-confirmed | **5–10** | Confirmation-only, fixed small set — same as the pilot; MD is a final spot-check, not a bulk filter |
+
 ---
 
 ## 9. What this pipeline has demonstrated

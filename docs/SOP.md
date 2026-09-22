@@ -21,7 +21,8 @@ those are labeled by which pipeline version produced them):
 |---|---|---|
 | v1.0.0 | 2026-09-15 | 100-backbone pilot methodology, Stages 1–8, as run to produce the 27-candidate shortlist. |
 | v1.1.0 | 2026-09-16 | Stage 0.1 controls added (oxytocin +control, negative-control MD, disulfide-forcing check, AfCycDesign-vs-Boltz2 pose agreement) — informational, non-breaking. |
-| **v2.0.0** | 2026-09-22 | Full pipeline restructuring (this document). Boltz2 `iptm` dropped as a signal (structure kept for pose-agreement only); i_ptm demoted from gate to prior; disulfide-forcing and pose-agreement checks promoted to standard per-candidate; MD protocol corrected (`DispCorr`, `refcoord_scaling`) and moved to membrane + physiological mini-G/Gβ complex (replacing the position-restraint workaround), confirmation-only for a small post-filter set, with replicates; B/S/T sampling parameters validated empirically (B=750, S=53, T=0.1) — see `sampling_parameter_derivation.md` Section 7; job queue infrastructure added for scale-up orchestration. |
+| **v2.0.0** | 2026-09-22 | Full pipeline restructuring (this document). Boltz2 `iptm` dropped as a signal (structure kept for pose-agreement only); i_ptm demoted from gate to prior; disulfide-forcing and pose-agreement checks promoted to standard per-candidate; MD protocol corrected (`DispCorr`, `refcoord_scaling`) for the water-only/restrained-receptor system (**scale-up MD protocol for this version** — membrane+physiological mini-G/Gβ complex is proven buildable but its full graduated-restraint simulation protocol is deferred to v2.1, a deliberate scope decision to launch the scale-up on schedule), confirmation-only for a small post-filter set, with replicates; B/S/T sampling parameters validated empirically (B=750, S=53, T=0.1) — see `sampling_parameter_derivation.md` Section 7; job queue infrastructure added for scale-up orchestration. |
+| v2.1.0 (planned) | — | Membrane + physiological mini-G/Gβ complex as the production MD system, replacing the water-only/restrained-receptor approach — system building already proven (see below); needs the full graduated-restraint equilibration protocol built and validated. Not yet started. |
 
 ## Goal
 
@@ -91,7 +92,12 @@ per batch (pilot precedent: 5–10 candidates).
 
 ### MD protocol v2.0.0
 
-Replaces the position-restrained-receptor/explicit-solvent-only approach.
+**Production system for the scale-up: water-only, position-restrained receptor**
+(same core approach as v1, now with the two corrected `.mdp` settings below) —
+**deliberate scope decision** to launch the scale-up on schedule rather than wait
+on the membrane protocol. Membrane + physiological mini-G/Gβ complex is proven
+buildable (see below) and is the planned v2.1 upgrade, not yet the production
+system.
 
 - **`.mdp` fixes for the water-only variant** (still used for quick/cheap runs):
   `DispCorr = EnerPres`, `refcoord_scaling = com` — both absent in v1, both
