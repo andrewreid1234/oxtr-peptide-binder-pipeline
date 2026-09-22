@@ -80,7 +80,10 @@ expensive):**
    **promoted to standard**, near-zero extra cost (reuses structures from 1/2).
    Caught the negative-control candidate and its whole design family when MD
    alone could not.
-5. B3BPFN BBB permeability — unchanged pending the parallel retraining effort.
+5. B3BPFN BBB permeability — **updated to v1.2** (2 corrected training labels
+   + nearest-neighbor hard-negative flag; see Stage 5 section below). Fixed
+   the oxytocin control's false positive (0.340→0.182, BBB+→BBB−) at a small
+   benchmark cost. Still gates as before; threshold unchanged (0.215).
 
 **Deferred, not gating v2.0.0:** Stage 7 selectivity (AVPR1A/1B/2) — flagged as
 built on the same AF2-confidence-score type shown unreliable above, never run
@@ -367,6 +370,35 @@ BBB-specific classifier, not a generic Caco-2/PAMPA model.
   not used. Full writeup: `B3BPFN_v1.2_production/README.md`. Do not
   hand-add more "negative" peptides without literature verification —
   the same-flavored augmentation actively hurt.
+- **v1.2 NN-flag audit (2026-09-22):** ran the 170-peptide benchmark through
+  v1.2 and manually identified the 8 of its own labeled positives that the
+  hard-negative flag caught. Mixed result — not all flags mean a bad label:
+  - `CYFQNCPRG` = **arginine vasopressin (AVP)**, oxytocin's closest relative.
+    Same contested case as oxytocin itself — Banks & Kastin's own data showed
+    measurable signal above background, but general pharmacology treats
+    systemic AVP as a poor CNS penetrant. Left as-is, not relabeled.
+  - `YPFPG` = **β-casomorphin-5** fragment. Label is **correct** — primary
+    literature confirms real (low) brain uptake via the same saturable
+    N-Tyr transport system as the enkephalins. Flag is a false alarm here.
+  - `CGGGHKYLRW` = **"Tf2"**, a designed transferrin-receptor-targeting
+    shuttle peptide. Label is **correct** — TfR-mediated transcytosis is a
+    validated real BBB-delivery mechanism. Flag is a false alarm here too.
+  - `DYMGWMDF` = **CCK-8** (cholecystokinin octapeptide). **Likely a genuine
+    mislabel**, same caliber of evidence as the enkephalins — CCK-8 is
+    well-documented as poorly BBB-permeable (peripheral CNS effects are
+    vagal-afferent-mediated, not brain penetration). Not yet relabeled/
+    retrained — holding per 2026-09-22 decision to document rather than
+    do a third retrain round immediately.
+  - `YAGFLL` — close to **DADLE** (D-Ala²-Leu-enkephalin analog), which
+    literature says "still faces a formidable obstacle" at the BBB, but the
+    exact residue count doesn't match DADLE precisely — unconfirmed, weaker
+    evidence than CCK-8.
+  - `YGLCGFL`, `RCAVPYIL`, `YASPKSFRYPNGVLACT` — could not be identified via
+    open literature search. No verdict either way.
+
+  If revisiting: CCK-8 is the strongest next relabel candidate. Don't add
+  vasopressin to the reference/relabel set — it's exactly as contested as
+  oxytocin, not a clean case.
 - **Run via:** Stage 5 section of `scripts/backbone_design/OXTR_Stage1_2_5_Automation.sh` — builds a FASTA
   from the Stage 2 outputs (excluding placeholders, tagging traceable IDs), then
   calls `B3BPFN_v1.2_production/predict_peptide.py`.
