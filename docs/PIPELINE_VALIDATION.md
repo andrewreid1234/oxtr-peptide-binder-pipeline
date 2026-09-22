@@ -337,6 +337,12 @@ gate advancement (disulfide-forcing + pose-agreement, not raw i_ptm) — the pil
 
 ## 10. Stage 5 — Molecular dynamics validation
 
+**⚠ Superseded numbers below — see section 16.6 for the current, trusted
+results.** The table in this section reflects the original v1 `.mdp` protocol,
+which had two real bugs (`DispCorr`, `refcoord_scaling` — see section 16.3/16.6)
+fixed in v2.0.0. Kept here as the historical pilot record; section 16.6 has the
+corrected numbers for all 8 candidates and the full before/after comparison.
+
 Static structure prediction (AfCycDesign) and physics-based scoring (Rosetta) both
 score a single, minimized pose. Neither confirms the pose is *stable* — that the
 peptide stays bound and the disulfide stays intact once the system is allowed to move
@@ -805,6 +811,42 @@ confusion):** even comparing peptide-only pLDDT directly, Boltz2 reports 0.849 f
 sequence — a genuine difference in how confidently the two tools score the same
 molecule, not an artifact of Boltz2's `complex_plddt` being diluted by the much
 larger (285 vs. 13 residue) receptor chain.
+
+### 16.6 v2.0.0 MD protocol rerun — all 8 candidates, full comparison
+
+Section 16.3's `.mdp` fixes (`DispCorr=EnerPres`, `refcoord_scaling=com`) were
+validated on 2 candidates first (`out_70_sample2`, `out_39_sample3`), per the
+plan's decision rule: rerun the remaining 6 if the delta looked meaningful. It
+did (up to −0.92 Å on RMSD mean), so all 8 originally-MD-tested candidates were
+rerun under the corrected protocol.
+
+| Candidate | v1 RMSD mean | v2 RMSD mean | Δ | v1 max | v2 max |
+|---|---:|---:|---:|---:|---:|
+| `out_70_sample2` | 2.29 | 1.37 | **−0.92** | 3.09 | 1.93 |
+| `out_70_sample3` | 1.18 | 3.09 | **+1.91** | 2.69 | 4.43 |
+| `out_80_sample4` | 2.57 | 2.96 | +0.39 | 4.43 | 4.71 |
+| `out_35_sample2` | 1.45 | 2.07 | +0.62 | 2.61 | 4.12 |
+| `out_98_sample2` | 2.83 | 2.77 | −0.06 | 4.09 | 3.59 |
+| `out_3_sample3` | 1.91 | 1.01 | **−0.90** | 2.70 | 1.44 |
+| `out_88_sample4` | 2.53 | 1.94 | −0.59 | 3.49 | 2.97 |
+| `out_39_sample3` (neg. control) | 2.31 | 1.70 | −0.61 | 3.21 | 4.56 |
+
+**Mean delta: −0.02 Å (essentially zero); median: −0.32 Å. 5/8 tighter, 3/8
+looser — not a uniform "the fix always helps" result, and that's the honest,
+expected outcome of correcting a real physical bias, not a tuning exercise.**
+The most notable individual change, `out_70_sample3` (+1.91 Å, RMSD mean nearly
+tripled), is a real result worth flagging rather than averaging away — under
+the corrected protocol this candidate looks meaningfully less stable than it did
+under the buggy one. Disulfide geometry was essentially unaffected for every
+candidate (~2.03–2.04 Å mean throughout, both protocols) — exactly as expected
+mechanistically, since `DispCorr`/`refcoord_scaling` affect long-range
+dispersion and restraint-box coupling, not covalent bond geometry.
+
+**These v2-corrected numbers are now the trusted MD results for all 8
+candidates going forward**, superseding the v1 figures in section 10's table
+and `fig4_md_stability.png` (v1 numbers kept in section 10 as the historical
+pilot record, not deleted). Full per-frame data:
+`analysis/stage_0_controls/*_v2ctrl_analysis.npz`.
 
 ## 17. Known limitations and open items
 
