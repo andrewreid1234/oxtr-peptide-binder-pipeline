@@ -105,7 +105,7 @@ system.
 - **`.mdp` fixes for the water-only variant** (still used for quick/cheap runs):
   `DispCorr = EnerPres`, `refcoord_scaling = com` — both absent in v1, both
   standard/recommended for this forcefield + restraint + pressure-coupling
-  combination. Templates: `scripts/md/mdp_v2_water/`.
+  combination. Templates: `scripts/stage5_md/mdp_v2_water/`.
 - **Membrane + physiological complex** (the real v2.0.0 system, replacing
   restraints entirely where used): 7RYC chains `O` (receptor) + `D` (engineered
   mini-Gq/i construct — confirmed via direct RCSB entity lookup, not a native
@@ -248,7 +248,7 @@ unconstrained result highlights which candidates the two tools disagree on.
 ## Stage 3 (backup) — Boltz2 co-fold docking
 
 - **Env:** `/scratch/drewdog/boltz/env` (conda, boltz 2.2.1)
-- **Script:** `/home/drewdog/projects/OXTR_peptides/scripts/docking/OXTR_Stage3a_Docking.sh`
+- **Script:** `/home/drewdog/projects/OXTR_peptides/scripts/stage3_docking/OXTR_Stage3a_Docking.sh`
 - Builds one YAML per BBB+ candidate: chain A = 7RYC OXTR receptor sequence
   (285 aa, CA-trace extracted via `rfdiffusion/cofold/extract_seq.py`, trailing
   gap-marker residues stripped), chain B = candidate peptide with `cyclic: true`
@@ -299,7 +299,7 @@ unconstrained result highlights which candidates the two tools disagree on.
   despite system CUDA toolkit being 11.8 — JAX's pip wheel bundles its own CUDA
   runtime, only needs driver compatibility), ColabDesign v1.1.1.
 - **AF2 params:** `/scratch/drewdog/afcyc/params/` (5.3GB, `alphafold_params_2022-12-06.tar`).
-- **Script:** `/home/drewdog/projects/OXTR_peptides/scripts/docking/OXTR_Stage3b_AfCycDesign.sh`
+- **Script:** `/home/drewdog/projects/OXTR_peptides/scripts/stage3_docking/OXTR_Stage3b_AfCycDesign.sh`
 - **Known gotcha (apparent hang, not real):** stdout is fully block-buffered
   (not line-buffered) when piped through `tee`, so progress prints can appear
   completely stalled for 10+ minutes while the run is actually working fine —
@@ -399,7 +399,7 @@ BBB-specific classifier, not a generic Caco-2/PAMPA model.
   If revisiting: CCK-8 is the strongest next relabel candidate. Don't add
   vasopressin to the reference/relabel set — it's exactly as contested as
   oxytocin, not a clean case.
-- **Run via:** Stage 5 section of `scripts/backbone_design/OXTR_Stage1_2_5_Automation.sh` — builds a FASTA
+- **Run via:** Stage 5 section of `scripts/stage1_backbones/OXTR_Stage1_2_5_Automation.sh` — builds a FASTA
   from the Stage 2 outputs (excluding placeholders, tagging traceable IDs), then
   calls `B3BPFN_v1.2_production/predict_peptide.py`.
 - **Output:** `stage_5_permeability/bbb_permeability_predictions.csv`
@@ -419,7 +419,7 @@ BBB-specific classifier, not a generic Caco-2/PAMPA model.
 
 ## Automation script
 
-`/home/drewdog/projects/OXTR_peptides/scripts/backbone_design/OXTR_Stage1_2_5_Automation.sh` runs Stage 1
+`/home/drewdog/projects/OXTR_peptides/scripts/stage1_backbones/OXTR_Stage1_2_5_Automation.sh` runs Stage 1
 verification → Stage 2 (ProteinMPNN) → Stage 5 (B3BPFN, early) in one pass. Logs to
 `run_<timestamp>.log` in the same directory. Safe to rerun end-to-end from scratch.
 
@@ -518,7 +518,7 @@ its 4 sampled sequences.
 **Prototype location:** `stage_1_backbones/disulfide_prototype/` — `proto/`
 (RFdiffusion output, full complex), `binder_only/` (extracted chain-L-only PDBs
 + per-design fixed-position JSONLs), `mpnn_out/` (ProteinMPNN sequences). Script:
-`/home/drewdog/projects/OXTR_peptides/scripts/backbone_design/OXTR_Stage1_Disulfide_Prototype.sh`.
+`/home/drewdog/projects/OXTR_peptides/scripts/stage1_backbones/OXTR_Stage1_Disulfide_Prototype.sh`.
 
 ### Small-scale end-to-end validation (Stages 1→2→5→3, completed 2026-09-14)
 
@@ -567,7 +567,7 @@ needs job-sharding like Stages 2/3, not done for this run since it was already
 in progress when the GPU default was set).
 
 - **Stage 1:** 100/100 backbones, no errors. Script:
-  `/home/drewdog/projects/OXTR_peptides/scripts/backbone_design/OXTR_Stage1_Disulfide_100.sh`.
+  `/home/drewdog/projects/OXTR_peptides/scripts/stage1_backbones/OXTR_Stage1_Disulfide_100.sh`.
 - **Stage 2:** 100/100 (400 sequences), sharded 4 ways across GPUs, no errors.
 - **Stage 5 (BBB):** 131/400 predicted BBB+.
 - **Stage 3:** both tools run on the 131 BBB+ candidates, sharded 4 ways.

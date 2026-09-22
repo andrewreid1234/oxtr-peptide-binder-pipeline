@@ -7,41 +7,58 @@ scripts, and lightweight analysis outputs. Raw pipeline outputs (backbones,
 predicted structures, MD trajectories — several GB) live on that host's
 `/scratch` disk and are not tracked here; see `docs/SOP.md` for exact paths.
 
+**Current status:** 100-backbone pilot complete (27-candidate shortlist, Stages
+1–7 run, Stage 8 shortlist not yet finalized). Pipeline v2.0.0 methodology
+finalized after a real controls/validation pass — see `docs/SOP.md` Versioning
+section. The ~40,000-peptide scale-up (B=750, S=53, T=0.1) is staged in the job
+queue, not yet launched.
+
 ## Start here
 
 - **[`docs/SOP.md`](docs/SOP.md)** — the full technical SOP: exact commands,
   environment paths, every stage's config, and every gotcha hit along the way.
-  The canonical reference.
+  The canonical reference, including the v2.0.0 methodology and version history.
 - **[`docs/PIPELINE_VALIDATION.md`](docs/PIPELINE_VALIDATION.md)** — narrative
-  write-up with real data and figures, for anyone who wants the results without
-  the command-by-command detail.
+  write-up with real data and figures, including the Stage 0.1 control
+  experiments (oxytocin positive control, negative-control MD, disulfide-forcing
+  and pose-agreement cross-validation) that shaped v2.0.0.
 - **[`docs/sampling_parameter_derivation.md`](docs/sampling_parameter_derivation.md)**
-  — the math behind scaling the sampling parameters (backbones/sequences/
-  temperature) for a future larger run.
+  — full math for every non-arbitrary numerical decision in the pipeline:
+  backbone/sequence/temperature allocation (Part I, validated) and synthetic
+  candidate selection for wet-lab wave sizing (Part II).
+- **[`scripts/README.md`](scripts/README.md)** — what's in each stage folder.
 
 ## Layout
 
 ```
-docs/       SOP, results write-up, figures, sampling-parameter derivation
-scripts/    automation scripts, one folder per pipeline stage group
-  backbone_design/   Stage 1 (RFdiffusion) + combined Stage 1/2/5 automation
-  docking/            Stage 3 (Boltz2 backup, AfCycDesign primary)
-  selectivity/        Stage 7 (off-target receptor cofolding)
-analysis/   small derived analysis outputs (MD RMSD/disulfide-distance arrays)
-logs/       timestamped run logs from past pipeline executions
+docs/       SOP, results write-up, figures, sampling-parameter derivation, dashboard
+scripts/    one folder per pipeline stage (mirrors SOP.md's stage numbers)
+  stage0_controls/     Stage 0.1 controls + validation experiments
+  stage1_backbones/    RFdiffusion (pilot + v2.0.0 scale-up launcher)
+  stage2_sequences/    ProteinMPNN
+  stage3_docking/      AfCycDesign (primary) + Boltz2 (structure cross-check)
+  stage4_rosetta/      Relax + disulfide-forcing + interface scoring
+  stage5_md/           GROMACS MD (v1 and v2.0.0 protocols)
+  stage6_nmethyl/      N-methylation site scan
+  stage7_selectivity/  Selectivity vs. AVPR1A/1B/2 (deferred, not gating v2.0.0)
+  queue/               Job queue infrastructure (not a pipeline stage)
+analysis/   derived analysis outputs (MD RMSD/disulfide-distance, control results)
+logs/       timestamped run logs from the pilot
 ```
 
 ## Pipeline stages
 
-| # | Stage | Status |
-|---|---|---|
-| 1 | RFdiffusion backbone generation (disulfide-cyclized) | done |
-| 2 | ProteinMPNN sequence design (receptor-aware) | done |
-| 3 | Structure/binding co-fold — AfCycDesign (primary), Boltz2 (backup) | done |
-| 4 | Rosetta energy/interface scoring | done |
-| 5 | BBB permeability (B3BPFN) + GROMACS MD validation | done |
-| 6 | N-methylation site scan | done |
-| 7 | Selectivity vs. AVPR1A/1B/2 | done |
-| 8 | Final shortlist | not started |
+| # | Stage | Pilot status | v2.0.0 role |
+|---|---|---|---|
+| 0.1 | Controls (positive/negative, cross-validation) | done | — |
+| 1 | RFdiffusion backbone generation | done (100) | staged, 750 |
+| 2 | ProteinMPNN sequence design | done | ready once Stage 1 lands |
+| 3 | AfCycDesign (primary) / Boltz2 (backup) | done | i_ptm demoted to prior; Boltz2 structure only |
+| 4 | Rosetta + disulfide-forcing | done | promoted to standard gate |
+| 5 | BBB permeability (B3BPFN) + GROMACS MD | done | B3BPFN v1.2; MD confirmation-only |
+| 6 | N-methylation site scan | done | unchanged |
+| 7 | Selectivity vs. AVPR1A/1B/2 | done | deferred, not gating |
+| — | Pose-agreement cross-validation | done | promoted to standard |
+| 8 | Final shortlist | not started | not started |
 
-Full detail on every stage: `docs/SOP.md`.
+Full detail on every stage, and the full v2.0.0 methodology: `docs/SOP.md`.
