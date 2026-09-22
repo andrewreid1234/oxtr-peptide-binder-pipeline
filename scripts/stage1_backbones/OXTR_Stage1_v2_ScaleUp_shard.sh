@@ -6,7 +6,11 @@ SHARD=$1
 N_DESIGNS=$2
 GPU=$3
 source /scratch/drewdog/denovo_binder_100_pilot/activate_rfpeptides.sh
-export CUDA_VISIBLE_DEVICES=$GPU
+# Respect CUDA_VISIBLE_DEVICES if already set by a caller (e.g. the job queue,
+# which masks to one physical GPU and re-indexes it as device 0 - setting it
+# again here to the raw physical id would conflict). Only set it from $GPU
+# when running standalone (unset).
+export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-$GPU}
 mkdir -p /scratch/drewdog/denovo_binder_100_pilot_v2/stage_1_backbones/run/shard_$SHARD
 cd /scratch/drewdog/denovo_binder_100_pilot_v2/stage_1_backbones/run/shard_$SHARD
 

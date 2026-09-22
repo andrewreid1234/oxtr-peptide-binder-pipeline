@@ -80,14 +80,30 @@ def cmd_enqueue(args):
     print(f"Enqueued {n} new jobs for stage '{args.stage}' ({len(ids) - n} already existed)")
 
 
-def _claim_job(conn, resource_type, resource_label):
-    """Atomically claim one pending job for this resource type."""
+def _claim_job(conn, resource_type, resource_label, stage_filter=None):
+    """Atomically claim one pending job for this resource type.
+
+    stage_filter restricts claiming to one named stage - use it whenever the
+    queue holds jobs from more than one stage at once (e.g. a large staged-
+    but-not-yet-authorized run sitting alongside smaller ad hoc jobs).
+    Without it, workers claim strictly by lowest job id regardless of stage,
+    which silently launches whatever was enqueued first - a real footgun if
+    a big job is staged (queued, not yet approved to run) and a worker for
+    something else gets started before it's meant to.
+    """
     conn.execute("BEGIN IMMEDIATE")
-    row = conn.execute(
-        "SELECT id, stage, candidate_id, command FROM jobs "
-        "WHERE status='pending' AND resource_type=? ORDER BY id LIMIT 1",
-        (resource_type,),
-    ).fetchone()
+    if stage_filter:
+        row = conn.execute(
+            "SELECT id, stage, candidate_id, command FROM jobs "
+            "WHERE status='pending' AND resource_type=? AND stage=? ORDER BY id LIMIT 1",
+            (resource_type, stage_filter),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT id, stage, candidate_id, command FROM jobs "
+            "WHERE status='pending' AND resource_type=? ORDER BY id LIMIT 1",
+            (resource_type,),
+        ).fetchone()
     if row is None:
         conn.execute("COMMIT")
         return None
@@ -109,7 +125,7 @@ def cmd_worker(args):
     print(f"Worker started, bound to resource '{args.resource}' (type={resource_type})")
     idle_count = 0
     while True:
-        row = _claim_job(conn, resource_type, label)
+        row = _claim_job(conn, resource_type, label, stage_filter=args.stage)
         if row is None:
             idle_count += 1
             if idle_count >= args.idle_exit:
@@ -180,6 +196,10 @@ def main():
 
     p_work = sub.add_parser("worker")
     p_work.add_argument("--resource", required=True, help="'gpu:0', 'gpu:1', or 'cpu'")
+    p_work.add_argument("--stage", default=None,
+                         help="restrict this worker to one stage - REQUIRED whenever the queue "
+                              "might hold jobs from more than one stage, to avoid accidentally "
+                              "launching a large staged-but-not-yet-authorized job by lowest id")
     p_work.add_argument("--poll-interval", type=float, default=5.0)
     p_work.add_argument("--idle-exit", type=int, default=6, help="exit after N consecutive empty polls")
 
