@@ -10,8 +10,16 @@ predicted structures, MD trajectories — several GB) live on that host's
 **Current status:** 100-backbone pilot complete (27-candidate shortlist, Stages
 1–7 run, Stage 8 shortlist not yet finalized). Pipeline v2.0.0 methodology
 finalized after a real controls/validation pass — see `docs/SOP.md` Versioning
-section. The ~40,000-peptide scale-up (B=750, S=53, T=0.1) is staged in the job
-queue, not yet launched.
+section. The ~40,000-peptide scale-up is staged in the job queue, not yet
+launched, sized as:
+- **750 backbones × 53 sequences/backbone × temperature 0.1** — not a round
+  number, an empirically-fit optimum (measured diversity ceiling for each
+  generative stage, solved for the split that maximizes distinct-good output
+  under a fixed 40,000-structure budget). Full derivation:
+  `docs/sampling_parameter_derivation.md`, Section 7.
+- **11–22 peptides** planned for the eventual wet-lab synthesis wave, sized
+  from two independent statistical models (hit-confidence + calibration-spread)
+  in the same document, Part II.
 
 ## Start here
 

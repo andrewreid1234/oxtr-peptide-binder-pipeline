@@ -17,7 +17,9 @@ and stated assumptions, not picked by feel. Two parts so far:
 
 **Goal:** rigorously derive the number of backbones (B), sequences per backbone (S), and ProteinMPNN sampling temperature (T) that maximize the number of genuinely distinct, still-good-quality structures entering downstream filtering, subject to B·S = 40,000.
 
-**Current production values:** B = 10,000, S = 4, T = 0.1
+**Starting point this section argues away from:** B = 10,000, S = 4, T = 0.1 (the
+pilot's original defaults, never itself derived). **Current production values, as
+resolved in Section 7: B = 750, S = 53, T = 0.1.**
 
 ---
 
@@ -119,21 +121,17 @@ $$
 
 for $D$ gives **$D_b \approx 1{,}000$**. This is a single-equation, single-point solve with no error bars.
 
-### 2.2 Fix using data already in hand (no new RFdiffusion runs)
+### 2.2–2.3 Possible refinements to D_b, considered and deprioritized
 
-**Rarefaction curve:** for each subsample size n = 1..100, repeatedly (~1000×) draw n backbones *without replacement* from the existing 100, count distinct bins, average. This converts the single data point into a full empirical curve for free.
-
-**Bootstrap CI:** resample the 100 backbones with replacement, recompute Chao1 each time, take the 2.5/97.5 percentiles of the resulting D_b estimates.
-
-**Missing input:** Chao1 needs the actual bin-occupancy histogram (f₁, f₂ — bins hit once vs. twice), not just the summary "95 distinct." Pull the real per-bin counts from the existing run before fitting.
-
-**Unavoidable limitation:** N=100 vs. D≈1,000 is roughly a 10% sample of an already-rough D estimate — any extrapolation from the steep early region of a saturating curve is inherently low-precision (plausibly a factor of 2–3× CI width). If cheap, generating more backbones (300–500 total) meaningfully tightens this, and is worth doing since D_b's precision gates the whole allocation.
-
-### 2.3 Is the coarse 3-feature binning defensible?
-
-It's a reasonable cheap first pass, but its bias direction is ambiguous — it can both over-merge backbones with different loop/disulfide geometry that land in the same coarse bin, and under-merge similar backbones straddling a bin edge.
-
-**Better metric:** pairwise Cα-RMSD after Kabsch superposition, then hierarchical (average-linkage) clustering cut at a structurally motivated threshold (~1.5–2 Å for "same fold family" at this length scale, or empirically set as the RMSD at which downstream ProteinMPNN behavior stops changing). Rerun the rarefaction/Chao1 fit on cluster occupancy instead of bin occupancy — modest extra compute (all-pairs RMSD on ≤500 backbones is trivial) for a much more defensible distinctness metric.
+Two refinements were considered before running the Section 3 experiment: (a) a
+proper rarefaction/bootstrap Chao1 refit of D_b instead of the single-point solve
+above, and (b) replacing the coarse 3-feature shape binning with pairwise Cα-RMSD
+clustering, since coarse binning can both over- and under-merge similar backbones.
+**Neither was executed** — the Section 7 result uses the original D_b≈1,000 point
+estimate directly. This turned out not to matter: Section 6's sensitivity analysis
+shows the optimal allocation only moves by √(error) in D_b, so even a factor-of-4
+error in this point estimate would only shift B* by 2×. Revisit only if a future
+run needs tighter precision than that sensitivity bound provides.
 
 ---
 
@@ -203,42 +201,23 @@ $$
 
 ---
 
-## 5. Plugging in real numbers
+## 5. Plugging in pre-experiment estimates (motivation for running Section 3)
 
-### 5.1 Data-anchored estimates
+Before the Section 3 experiment was run, $D_b \approx 1{,}000$ (Section 2) and a rough
+$D_s(0.1) \approx 7$ (solved from "near-duplicates, 1–2 substitutions across 4
+samples") were used as placeholder inputs to check whether reallocating away from the
+original 10,000×4 default was even worth investigating. **Every plausible $D_s(0.1)$
+value in the 3–15 range gave the same directional answer — too many backbones, too
+few sequences per backbone, by roughly an order of magnitude** — which is what
+justified running the real experiment rather than tuning by feel.
 
-- **$D_b \approx 1{,}000$** (Section 2 point estimate; wide CI pending the rarefaction/Chao1 refit).
-- **$D_s(0.1) \approx 5\text{–}10$.** Not yet formally fit, but backed by an actual data point: "near-duplicates, 1–2 conservative substitutions across 4 samples." Solving the coupon-collector form,
-
-$$
-3 \approx D\left(1 - e^{-4/D}\right),
-$$
-
-for what $D$ produces $\approx 3$ distinct-looking sequences out of $N=4$ gives $D \approx 7$ almost exactly. Treat as a plausible range, not a fixed number, until the Section 3 experiment is run.
-
-### 5.2 Optimal split vs. current allocation (10,000 / 4), T fixed at 0.1
-
-| $D_s(0.1)$ estimate | $B^*$ | $S^*$ | $F^*$ (optimal) | $F(\text{current split})$ | Gain from reallocating |
-|---|---|---|---|---|---|
-| 3  | 3,651 | 11.0 | 2,846 | 2,209 | 1.29× |
-| 7 (best single estimate) | 2,390 | 16.7 | 5,776 | 3,043 | **1.90×** |
-| 15 | 1,633 | 24.5 | 9,711 | 3,512 | 2.77× |
-
-($F(\text{current split})$ recomputed at each $D_s$ so the comparison is apples-to-apples — only the allocation changes, $T$ held fixed.)
-
-**Reading this:** across the entire plausible $D_s(0.1)$ range, the current split is unambiguously off, and always in the same direction — **too many backbones, too few sequences per backbone.** Optimal $B$ ranges ~1,600–3,700 and optimal $S$ ranges ~11–25 across this uncertainty band; the current values (10,000 / 4) sit outside that band on both sides regardless of exactly where $D_s(0.1)$ lands. That directional conclusion doesn't depend on nailing $D_s$ precisely.
-
-Why: optimal ratio
-
-$$
-\frac{B}{S} = \frac{D_b}{D_s(0.1)} \approx \frac{1000}{7} \approx 143 : 1.
-$$
-
-Current ratio is $10000{:}4 = 2500{:}1$ — over-investing in backbone diversity by roughly an order of magnitude relative to what ProteinMPNN is actually returning per backbone at this temperature.
-
-### 5.3 On T
-
-$T=0.1$ is conservative, near the collapsed end of ProteinMPNN's practical range — consistent with $D_s(0.1)$ being small and likely well below its own saturation ceiling. Since $D_s(T)$ is plausibly unimodal (diversity vs. quality tradeoff, Section 3.2), moving to a moderate $T$ (0.2–0.3 as a first probe) should increase $D_s(T)$ and thus total achievable yield — but committing to a specific $T$ without the Section 3 measurement risks overshooting past the point where quality collapses faster than diversity grows.
+These specific pre-experiment numbers are now superseded by an actual measurement:
+Section 7 found $D_s(0.1) \approx 73$, roughly 10× higher than any guess used here.
+The pre-experiment estimate of "$T=0.1$ is probably too conservative, try 0.2–0.3"
+(reasoned from $D_s(0.1)$ being small) was **tested directly in Section 7 and found
+wrong** — raising $T$ made things worse, not better. Kept here as the documented,
+falsified hypothesis that motivated the experiment, not as current guidance — see
+Section 7 for the real numbers and the reason the original T reasoning didn't hold up.
 
 ---
 

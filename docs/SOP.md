@@ -90,8 +90,15 @@ built on the same AF2-confidence-score type shown unreliable above, never run
 through its own control. Keep recording results; don't weight in Stage 8 yet.
 
 **Expensive, confirmation-only (not run on the full shortlist):** MD (below) and
-MM/GBSA, reserved for whoever survives checks 1–5, sized to a small fixed set
-per batch (pilot precedent: 5–10 candidates).
+MM/GBSA, reserved for whoever survives checks 1–5. **Set size policy (revised
+2026-09-23): tied to the wet-lab synthesis wave, not a fixed number carried
+over from the pilot.** Every peptide actually selected for synthesis (the
+`sampling_parameter_derivation.md` Part II wave, currently sized 11–22) gets
+MD, plus one negative control drawn the same way as Stage 0.1's negative
+control (weakest surviving candidate on the earlier gates) as a running check
+that the MD protocol itself is still discriminating. This replaces the
+pilot's arbitrary 5–10 figure with a number driven by an actual downstream
+decision (what gets synthesized) rather than an unexplained round number.
 
 ### MD protocol v2.0.0
 
@@ -101,6 +108,12 @@ per batch (pilot precedent: 5–10 candidates).
 on the membrane protocol. Membrane + physiological mini-G/Gβ complex is proven
 buildable (see below) and is the planned v2.1 upgrade, not yet the production
 system.
+
+**Production run length: 20 ns, explicitly reaffirmed for v2.0.0 (2026-09-23).**
+Same length validated in the pilot (7/7 candidates); no new evidence from the
+water-only `.mdp` fixes (`DispCorr`, `refcoord_scaling`) or the scale-up
+otherwise suggests it needs to change. Carried forward deliberately, not by
+default.
 
 - **`.mdp` fixes for the water-only variant** (still used for quick/cheap runs):
   `DispCorr = EnerPres`, `refcoord_scaling = com` — both absent in v1, both
@@ -131,7 +144,14 @@ system.
   - System built once, reused as the common starting scaffold for every
     candidate's peptide-docking step (not rebuilt per candidate).
 - **Replicates:** MD-confirmed candidates get 2–3 independent trajectories
-  (different initial-velocity seed), not 1.
+  (different initial-velocity seed), not 1. **Rationale (2026-09-23):** a
+  single trajectory can't distinguish a real structural trend from ordinary
+  stochastic MD variance; 2 replicates is the minimum that can catch a
+  single-run fluke, and a 3rd is run only when the first two disagree. This
+  stage is confirmation-only (small candidate count, see set-size policy
+  above), so the added compute of 2–3× is affordable in a way it wouldn't be
+  as a bulk filter — a genuine statistical-confidence run (5+ replicates)
+  isn't the goal here.
 - **Equilibration:** verified adequate via `gmx energy` on the v1 water-only runs
   (density/temperature solidly converged at 100 ps NVT + 100 ps NPT; pressure's
   large fluctuations are normal MD behavior, not non-convergence) — no duration
@@ -744,31 +764,15 @@ give ProteinMPNN the same effective information while speeding up featurization
 at scale. Not applied yet — modest benefit at 100-backbone scale, worth doing
 before any much larger (e.g. 10,000-backbone) run.
 
-### Open question: rebalancing backbone count vs. sequences-per-backbone vs.
-### ProteinMPNN temperature for a future large-scale run (not yet resolved)
+### Resolved: backbone count vs. sequences-per-backbone vs. ProteinMPNN
+### temperature rebalancing (was an open question as of 2026-09-15)
 
-Discussed 2026-09-15: instead of naively scaling backbone count toward 10,000,
-consider a deliberate (B backbones) × (S sequences/backbone) × (T temperature)
-allocation for a target total of 40,000 structures, reasoning about the
-*effective diversity ceiling* of each generative stage rather than assuming
-more samples always helps. Modeled as two coupon-collector saturation curves
-(distinct backbone "modes" D_b, and distinct-and-good sequences-per-backbone
-D_s(T)), maximizing the product under B×S=40,000.
-
-- **D_b fit from real data:** 100 backbones generated, 95/100 landed in
-  distinct coarse-shape bins (residue count, end-to-end Cα distance, radius of
-  gyration). Solving the saturation curve gives **D_b ≈ 1,000** (rough,
-  single-point estimate, needs a proper fit — not yet done rigorously).
-- **D_s(T) not yet measured.** Qualitative signal only: at `temp=0.1` (used
-  throughout so far), sequences sampled per backbone look like near-duplicates
-  (1-2 substitutions apart), suggesting D_s(0.1) is small and may already be
-  close to saturated at just 4 samples/backbone.
-- Planned next step (not yet done): a small experiment varying ProteinMPNN
-  temperature on existing backbones to measure D_s(T) properly, then solve the
-  constrained optimization for (B, S, T) — likely landing well below 10,000
-  backbones with more sequences/backbone at moderately higher temperature than
-  used so far. Rigorous math for this being worked out in a separate chat
-  (not yet folded back into this SOP).
+The 2026-09-15 open question above (naive scaling vs. a deliberate (B)×(S)×(T)
+allocation) was resolved on **2026-09-22** by the full empirical experiment in
+`sampling_parameter_derivation.md` (D_b properly fit, D_s(T) measured directly
+rather than the earlier qualitative guess, constrained optimization solved).
+Result: **B=750, S=53, T=0.1** — see that document (Section 7) and the SOP
+version-history table above for the validated values and their derivation.
 
 ### Not yet done
 

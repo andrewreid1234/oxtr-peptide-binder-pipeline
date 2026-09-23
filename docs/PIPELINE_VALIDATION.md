@@ -310,9 +310,9 @@ gate advancement (disulfide-forcing + pose-agreement, not raw i_ptm) — the pil
 | Backbones | **750** | Validated (Section 7) |
 | Sequences designed | **39,750** | 750 × 53 |
 | Expected distinct-and-good (saturation-curve fit, not raw count) | ~19,987 | D_s(0.1)≈73 — ~5.1× the yield of the old 10,000×4 split at equal compute |
-| Predicted BBB+ | **~22,260** | 56% pilot rate (224/400), extrapolated |
+| Predicted BBB+ | **~22,260** | 56% pilot rate (224/400), extrapolated — measured under the pre-v1.2 B3BPFN model; the relabeled v1.2 classifier's pass rate on a comparable batch hasn't been re-measured, so treat this as a rough carry-over, not a v1.2-validated figure |
 | Passing v2.0.0 standard checks (disulfide-forcing + pose-agreement) | **~2,600–5,400** (real range, not yet measured at this scale) | Pilot's 24% (27/112) was measured under the *old* i_ptm-gated filter set — first real read on the *new* checks' pass rate comes from the scale-up itself |
-| MD-confirmed | **5–10** | Confirmation-only, fixed small set — same as the pilot; MD is a final spot-check, not a bulk filter |
+| MD-confirmed | **~12–23** (11–22 synthesis candidates + 1 negative control) | Revised 2026-09-23: tied to the actual wet-lab synthesis wave size (`sampling_parameter_derivation.md` Part II), not a fixed number carried over from the pilot — see SOP.md Stage 5 (ext) |
 
 ---
 
@@ -602,7 +602,10 @@ designed candidate:
 
 **Result 1 — BBB call is wrong, marginally.** Oxytocin is well-established as poorly
 BBB-permeable when peripherally administered; B3BPFN called it BBB+ at 34%, just over
-the 21.5% threshold — a real but not confident miss.
+the 21.5% threshold — a real but not confident miss. **Fixed in v1.2 (see `SOP.md`
+Stage 5 section):** two training-set label errors sharing this mechanistic class were
+found and corrected, dropping oxytocin's score to 0.182 (BBB−) as a side effect. This
+result is kept here as the finding that triggered that fix, not a still-open issue.
 
 **Result 2 — i_ptm doesn't single out the true binder.** Oxytocin's confidence score
 sits below the shortlist's own average. Consistent with the already-documented
@@ -754,9 +757,10 @@ it's nearly free and has already demonstrated real discriminating power this run
   separately, mathematically, via a coupon-collector diversity model) may still shift
   the results meaningfully.
 - Section 16 ran the first real external controls on this pipeline. It surfaced two
-  genuine weaknesses (B3BPFN's BBB threshold sensitivity; AfCycDesign's blind
-  structure prediction failing on a hard no-template case) rather than a clean pass —
-  worth treating as the start of ongoing calibration work, not a closed question.
+  genuine weaknesses (B3BPFN's oxytocin false-positive, **since fixed — see `SOP.md`
+  B3BPFN v1.2**; AfCycDesign's blind structure prediction failing on a hard
+  no-template case, still open) rather than a clean pass — worth treating as the
+  start of ongoing calibration work, not a closed question.
 - No wet-lab validation yet — every result in this document, controls included, is
   still computational.
 - Selectivity (section 13) is scored by AfCycDesign confidence only — no
