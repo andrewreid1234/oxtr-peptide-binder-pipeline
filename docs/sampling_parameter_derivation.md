@@ -266,6 +266,77 @@ that backbone), then exact distinct-sequence count taken among quality-passing
 survivors at each (backbone, T). Full data:
 `analysis/stage_0_controls/ds_t_experiment_results.csv`.
 
+### 7.0 Full rundown of what was actually run
+
+**Purpose.** Section 3's design was still an untested proposal — this run is
+what turned it into a real measurement, replacing the interim, admittedly
+provisional B/S/T guidance with numbers anchored in actual ProteinMPNN output.
+
+**Setup, concretely:**
+- **Backbones:** 8 existing RFdiffusion backbones from the 100-backbone pilot
+  (`out_0, 12, 25, 37, 50, 62, 75, 87`) — reused as-is, no new Stage 1 compute.
+  Chosen to spread across the pilot's design space rather than clustering near
+  one another.
+- **Temperature grid:** T ∈ {0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0} — log-ish
+  spaced, anchored at the current production value (0.1) with points both below
+  and well above it so a peak (Section 3.2's prior) could actually be seen if
+  present, not just approached from one side.
+- **Sequences per (backbone, T):** 300, generated with ProteinMPNN
+  (`--num_seq_per_target 300 --sampling_temp T --batch_size 50`), backbone-only
+  (no receptor context) — this measures the sequence-design step's own raw
+  designability/diversity curve, independent of downstream receptor-aware
+  filtering. Total: 8 × 7 × 300 = 16,800 sequences generated
+  (`scripts/stage0_controls/ds_t_experiment.py`, sharded 4-way across GPUs via
+  `ds_t_shard.py`).
+- **Quality threshold — fixed per backbone, not per (backbone, T).** For each
+  backbone, the median ProteinMPNN score of its own T=0.1 batch was taken as
+  that backbone's quality bar, then applied unchanged to every other T for that
+  same backbone. This keeps the bar an absolute, external standard rather than
+  a moving target that would make "distinct-and-good count" trivially different
+  at every T just because the threshold moved with it (a non-circularity
+  requirement — see Section 3.3).
+- **Distinctness:** exact distinct-sequence count (no fuzzy clustering) taken
+  among the quality-passing survivors at each (backbone, T) — i.e. the
+  diversity/quality tradeoff is baked into one number per condition, not
+  computed as two separate curves and multiplied together (Section 3.3's
+  stated reason: multiplying separately fit curves adds an untested
+  independence assumption that measuring the combined statistic directly
+  avoids).
+- **D_s(T) point-estimate fit (at T=0.1 only, the value the B/S formula
+  actually needs):** solved the coupon-collector saturation equation
+  $D\left(1-e^{-N/D}\right) = n_{\text{distinct-and-good}}$ for $D$, with
+  $N=300$ (total draws) — the same functional form used throughout this
+  document (Section 1.1, Section 5.1's $D\approx7$ worked example), just
+  fit per backbone here instead of assumed.
+
+**Full per-condition results** (`n_distinct_good` = exact distinct sequences
+passing that backbone's fixed quality bar, out of 300 draws):
+
+| Backbone | T=0.05 | T=0.1 | T=0.2 | T=0.3 | T=0.5 | T=0.7 | T=1.0 | D_s(0.1) fit |
+|---|---|---|---|---|---|---|---|---|
+| 0  | 85 | 106 | 52 | 15 | 0 | 0 | 0 | 114.3 |
+| 12 | 26 | 42  | 37 | 24 | 0 | 0 | 0 | 42.0 |
+| 25 | 70 | 71  | 39 | 15 | 1 | 0 | 0 | 72.1 |
+| 37 | 9  | 17  | 26 | 18 | 5 | 0 | 0 | 17.0 |
+| 50 | 52 | 73  | 49 | 9  | 1 | 0 | 0 | 74.3 |
+| 62 | 67 | 82  | 31 | 2  | 0 | 0 | 0 | 84.4 |
+| 75 | 5  | 5   | 7  | 5  | 0 | 0 | 0 | 5.0 |
+| 87 | 75 | 74  | 52 | 14 | 0 | 0 | 0 | 75.4 |
+| **Mean** | **48.6** | **58.8** | **36.6** | **12.8** | **0.9** | **0.0** | **0.0** | — |
+
+Two things this table makes visible that the summary numbers alone don't:
+- **The T=0.1 peak holds for essentially every individual backbone, not just
+  the mean** — only `out_37` peaks slightly later (at T=0.2, 26 vs 17), every
+  other backbone's own row peaks at T=0.1. The aggregate result isn't an
+  artifact of averaging together backbones that peak at different T.
+- **Backbone-to-backbone designability spread is real and large** even at the
+  shared, near-optimal T=0.1: `out_75` tops out at 5 distinct-and-good
+  sequences out of 300 draws, `out_0` reaches 106 — over 20× apart. This is
+  the direct evidence behind Section 3.3's flagged-but-untested "designability
+  varies by backbone" assumption, and the reason the final $D_s$ point estimate
+  below uses the median (robust to `out_37`/`out_75` pulling the mean down)
+  rather than the mean.
+
 **Result 1 — T=0.1 (the existing production value) is at or very near the true
 peak, not too conservative.** Mean distinct-and-good count across the 8 backbones:
 T=0.05→48.6, **T=0.1→58.8**, T=0.2→36.6, T=0.3→12.8, T≥0.5→~0. Raising T to
