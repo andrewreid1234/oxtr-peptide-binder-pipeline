@@ -5,7 +5,7 @@ looking for "the script that does Stage N," it's in `stageN_*/`.
 
 | Folder | Stage | Contents |
 |---|---|---|
-| `stage0_controls/` | 0.1 — Controls | Oxytocin/negative-control spot-check scripts (`forced_disulfide.py`), the full-shortlist disulfide-forcing batch (`fastrelax_batch.py`), the Rosetta relax+IA worker used for both (`rosetta_control_worker.sh`), and the D_s(T) sampling validation experiment (`ds_t_experiment.py`, `ds_t_shard.py`). |
+| `stage0_controls/` | 0.1 — Controls | Oxytocin/negative-control spot-check scripts (`forced_disulfide.py`), the full-shortlist disulfide-forcing batch (`fastrelax_batch.py`), the Rosetta relax+IA worker used for both (`rosetta_control_worker.sh`), the D_s(T) sampling validation experiment (`ds_t_experiment.py`, `ds_t_shard.py`), and the figure generator for `sampling_parameter_derivation.md` (`plot_sampling_figures.py` — reads `analysis/stage_0_controls/ds_t_experiment_results.csv`, writes to `docs/figures/`). |
 | `stage1_backbones/` | 1 — RFdiffusion | Pilot scripts (`OXTR_Stage1_Disulfide_Prototype.sh`, `OXTR_Stage1_Disulfide_100.sh`, the combined `OXTR_Stage1_2_5_Automation.sh`) and the v2.0.0 scale-up launcher (`OXTR_Stage1_v2_ScaleUp.sh` single-process, `OXTR_Stage1_v2_ScaleUp_shard.sh` 4-GPU sharded — the latter is what's actually staged in the job queue). |
 | `stage2_sequences/` | 2 — ProteinMPNN | GPU-sharded batch runners, v1 (`run_mpnn_shard.sh`) and receptor-aware v2 (`run_mpnn_v2_shard.sh` — the `--pdb_path_chains` fix, see SOP). |
 | `stage3_docking/` | 3 — AfCycDesign / Boltz2 | `OXTR_Stage3a_Docking.sh`/`OXTR_Stage3b_AfCycDesign.sh` (original automation), plus GPU-sharded batch runners for both tools, v1 and v2 (receptor-aware). |

@@ -64,6 +64,10 @@ $$
 
 *where:* $N$ = number of draws taken ($B$ for the backbone stage, $S$ for the sequence stage); $D$ = effective number of distinguishable good-quality categories available at that stage ($D_b$ or $D_s$); $N_{\text{distinct}}(N)$ = expected number of distinct categories found after $N$ draws.
 
+![Coupon-collector saturation curve for a few values of D](figures/fig_saturation_curve.png)
+
+*What this shape means concretely:* every curve starts near the dotted "no duplicates" line (early draws are almost always new) and bends over toward a ceiling of D (once most of the available diversity has been seen, a new draw is increasingly likely to be a repeat). A small D (orange, D=50) saturates fast and hard — this is why S=4 sequences/backbone under the *old* defaults was so wasteful once $D_s$ turned out to be in the tens, not thousands. A large D (green, D=1000, RFdiffusion's actual fitted value in this doc) stays close to the "no duplicates" line over the whole range plotted — consistent with backbones being far from saturated even at B≈750–1,000.
+
 Total distinct-and-good structures is modeled as the product of the two saturating curves:
 
 $$
@@ -199,6 +203,10 @@ $$
 - $D_s \to \infty$ ($T$ very high, unlimited quality-passing diversity): $r \to 0$, $F^{*} \to K$ — every draw finds something new, total approaches the full budget. Correct.
 - $D_s \to 0$ ($T \approx 0$, collapsed): $F^{*} \to D_b D_s \to 0$ — nearly everything is a wasted duplicate. Matches the qualitative $T=0.1$ observation.
 
+![F(B,S) along the B·S=K constraint, using the final fitted Db≈1000, Ds≈73.2 from Section 7](figures/fig_optimum_flatness.png)
+
+*Reading this curve:* it's $F$ swept along the constraint line ($S=K/B$), using the actual fitted $D_b\approx1{,}000$ and $D_s(0.1)\approx73.2$ from Section 7 rather than a hypothetical example — so the marked optimum ($B^*\approx739$) is the same number the final recommendation is built on. The curve rises steeply for very small $B$ (too many sequences wasted on too few backbone shapes), peaks, then falls off more gently — this asymmetry, and the broad flat-topped region around the peak, is the visual version of the Section 6 sensitivity result: getting $D_b$ or $D_s$ somewhat wrong costs little, but going too far in either direction (in particular, staying near the old $B=10{,}000$ default, off the right edge of this plot) costs a lot.
+
 ---
 
 ## 5. Plugging in pre-experiment estimates (motivation for running Section 3)
@@ -303,6 +311,10 @@ passing that backbone's fixed quality bar, out of 300 draws):
 | 87 | 75 | 74  | 52 | 14 | 0 | 0 | 0 | 75.4 |
 | **Mean** | **48.6** | **58.8** | **36.6** | **12.8** | **0.9** | **0.0** | **0.0** | — |
 
+![Heatmap of n_distinct_good across all 8 backbones x 7 temperatures](figures/fig_dst_heatmap.png)
+
+*The same table as a picture:* the dark column at T=0.1 is the whole result in one glance — every backbone's row is darkest (or tied for darkest) in that column, and the T≥0.5 columns are uniformly blank (0 everywhere). The row-to-row banding (out_75 pale throughout, out_0 dark throughout) is the designability spread discussed next.
+
 Two things this table makes visible that the summary numbers alone don't:
 - **The T=0.1 peak holds for essentially every individual backbone, not just
   the mean** — only `out_37` peaks slightly later (at T=0.2, 26 vs 17), every
@@ -325,12 +337,18 @@ but the fraction clearing a fixed quality bar collapses much faster than
 diversity grows, so distinct-and-good count falls past T≈0.1. **T=0.1 stays as
 the production temperature — no change from current practice.**
 
+![Mean and per-backbone distinct-and-good count vs T, showing the T=0.1 peak](figures/fig_dst_peak.png)
+
+*What the faint lines show:* each is one backbone's own curve — the thick blue mean line isn't hiding backbones that peak elsewhere. `out_37` (visibly the one faint line still rising slightly at T=0.2) is the only exception noted above; every other backbone's own peak sits at T=0.1, same as the mean.
+
 **Result 2 — D_s(0.1), fit via the saturation curve (not just the raw count) at
 N=300 draws:** per-backbone estimates ranged **5.0 to 114.3** (real, substantial
 backbone-to-backbone designability variance — confirms the "designability varies
 by backbone" assumption flagged in Section 3.3 as worth testing, not asserting).
 Median **D_s(0.1) ≈ 73.2**, used below as the point estimate (more robust to the
 two low outliers, `out_37` and `out_75`, than the mean).
+
+![Fitted D_s(0.1) per backbone, sorted, with the median marked](figures/fig_ds_per_backbone.png)
 
 **Result 3 — final (B, S) allocation, solving Section 4's formula with
 D_b=1,000 (Section 2 point estimate) and this measured D_s(0.1)=73.2:**
