@@ -285,7 +285,10 @@ Full data: `stage_4_rosetta/stage4_results.csv`.
 
 ## 8. The full funnel
 
-![Pipeline funnel](figures/fig2_pipeline_funnel.png)
+> **Figure withheld.** `fig2_pipeline_funnel.png` plotted the BBB+ counts in the
+> table below, which are now known not to correspond to the documented 0.215
+> gate (see `LIMITATIONS.md` O7 and O10). It will be regenerated once these
+> counts are corrected to the measured 9.8% (B3BPFN v1.0) / 8.0% (v1.2) rates.
 
 | Stage | Count | What survives |
 |---|---|---|
