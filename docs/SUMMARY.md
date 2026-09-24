@@ -247,9 +247,9 @@ A 100-backbone pilot ran the full funnel and produced a 27-candidate shortlist.
 
 ## 8. What happens next
 
-1. **Clear the launch blockers** — a Stage 2 script at scale-up size, and the
-   operational runbook brought up to the current design
-   ([`LIMITATIONS.md`](LIMITATIONS.md) B1–B3).
+1. **Clear the two launch blockers** — a Stage 2 script at scale-up size, and
+   archiving the v1 `validation/` directory so its candidate IDs can no longer
+   collide with `validation_v2/` ([`LIMITATIONS.md`](LIMITATIONS.md) B1–B2).
 2. **Run the scale-up** — roughly 36 GPU-hours across generation, docking and
    scoring, with an early checkpoint on the first shard to confirm the backbone
    statistics hold at scale.

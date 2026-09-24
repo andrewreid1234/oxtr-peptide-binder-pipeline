@@ -1,6 +1,6 @@
 # Known Limitations, Open Questions and Unvalidated Assumptions
 
-**Document version:** v1.0.0
+**Document version:** v2.0.0
 **Last updated:** 2026-09-24
 
 A living register, not a dated snapshot. Every known weakness in this project
@@ -20,7 +20,8 @@ clarifications, added evidence.
 
 | Version | Date | Summary |
 |---|---|---|
-| **v1.0.0** | 2026-09-24 | Converted from the dated pre-scale-up audit into a living register. Adds everything found on 2026-09-24: the silent cysteine failure, D_s/B/S derived on non-cyclizable sequences, D_b shown to be unidentifiable, the disulfide ring-size effect, and the missing Stage 2 scale-up script. |
+| v1.0.0 | 2026-09-24 | Converted from the dated pre-scale-up audit into a living register. Adds everything found on 2026-09-24: the silent cysteine failure, D_s/B/S derived on non-cyclizable sequences, D_b shown to be unidentifiable, the disulfide ring-size effect, and the missing Stage 2 scale-up script. |
+| **v2.0.0** | 2026-09-24 | **Blocker closed:** `SOP.md` bumped to v3.0.0, so the runbook no longer describes a superseded pipeline (was B2, now R5). Remaining blockers renumbered. Adds O10 — the funnel figure withheld because it plots the erroneous BBB counts. |
 
 **Status key:** 🔴 blocker · 🟠 open · 🟡 accepted limitation · 🟢 resolved
 
@@ -37,17 +38,7 @@ fixed-positions generator. **The pipeline is not wired end to end.**
 *Needs:* a scale-up Stage 2 script that generates fixed positions, runs MPNN at
 S=300 / T=0.1, and gates on `validate_cys.py` before any GPU time is spent.
 
-### B2. `SOP.md` is still at v2.0.0 and does not describe what will run
-The parameters re-derived on 2026-09-24 (S=300, scout-and-deepen docking, BBB as
-a router rather than a gate, contig spacer 4-6) are in
-`sampling_parameter_derivation.md` v3.0.0 and in the scripts, but the SOP has
-not been updated. Anyone following the SOP today would run the old pipeline.
-
-*Needs:* SOP bumped to v3.0.0. The bump is MAJOR under the SOP's own rule
-because BBB changes from a gate to a router, which changes what gates
-advancement.
-
-### B3. `validation/` and `validation_v2/` share 51 candidate IDs with different sequences
+### B2. `validation/` and `validation_v2/` share 51 candidate IDs with different sequences
 For all 51 shared IDs the peptide sequence differs between the two directories —
 e.g. `out_11_sample1` is `LCAGASAAACAA` in one and `CCLGFGYVECLG` in the other.
 Any code resolving a structure by candidate ID across both can silently serve
@@ -246,9 +237,18 @@ is 36.9, for 8 seconds of MPNN. **S = 300.**
 **Resolved.** A `structure_paths()` fallback from `validation_v2/` to
 `validation/` was added and then removed once the ID collision was verified.
 All 27 shortlist candidates resolve in `validation_v2/` directly; the fallback
-was never load-bearing. The underlying directory hazard remains open as **B3**.
+was never load-bearing. The underlying directory hazard remains open as **B2**.
 
-### R5. Boltz2's compression was unexplained
+### R5. `SOP.md` described a pipeline we had decided not to run
+**Resolved 2026-09-24.** The runbook sat at v2.0.0 while the parameters had been
+re-derived, so anyone following it would have run the old pipeline. Bumped to
+**v3.0.0** — MAJOR under the SOP's own rule, because BBB changes from a gate to
+a router and that changes what gates advancement. The document now separates the
+authoritative forward procedure (Pipeline v3.0.0, plus a step-by-step scale-up
+execution procedure) from the historical pilot record, which is retained for its
+gotchas and provenance with superseded values marked as such.
+
+### R6. Boltz2's compression was unexplained
 **Resolved 2026-09-24**, in the sense that the mechanism is now known (see
 **A3**). Two earlier hypotheses — an MSA-pairing bug and the explicit disulfide
 constraint — were tested on real data and both rejected.
