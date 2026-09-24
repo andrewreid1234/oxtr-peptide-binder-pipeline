@@ -11,7 +11,14 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-CSV_PATH = REPO / "analysis" / "stage_0_controls" / "ds_t_experiment_results.csv"
+# Defaults to the CURRENT experiment: Cys-constrained, receptor-aware, 32
+# backbones (ds_t_cys_experiment_results.csv). The original
+# ds_t_experiment_results.csv is superseded -- it was run without the
+# fixed-positions constraint, so 0/2400 of its sequences could cyclize.
+# Pass a path as argv[1] to plot a different run.
+import sys
+CSV_PATH = Path(sys.argv[1]) if len(sys.argv) > 1 else (
+    REPO / "analysis" / "stage_0_controls" / "ds_t_cys_experiment_results.csv")
 FIG_DIR = REPO / "docs" / "figures"
 FIG_DIR.mkdir(exist_ok=True)
 
@@ -48,7 +55,7 @@ for b in backbones:
     ax.plot(temps, vals, color=LIGHT_GRAY, linewidth=1, zorder=1)
 
 means = [np.mean([by_bt[(b, t)] for b in backbones]) for t in temps]
-ax.plot(temps, means, color=BLUE, linewidth=2.5, marker="o", markersize=6, zorder=3, label="Mean across 8 backbones")
+ax.plot(temps, means, color=BLUE, linewidth=2.5, marker="o", markersize=6, zorder=3, label=f"Mean across {len(backbones)} backbones")
 peak_t = temps[int(np.argmax(means))]
 peak_v = max(means)
 ax.scatter([peak_t], [peak_v], s=90, color=ORANGE, zorder=4, label=f"Peak: T={peak_t}")

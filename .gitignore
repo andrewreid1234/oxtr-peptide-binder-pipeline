@@ -1,5 +1,4 @@
 *.pptx
-docs/figures/*.png
 scripts/queue/queue.db
 scripts/queue/queue.db-*
 scripts/queue/logs/

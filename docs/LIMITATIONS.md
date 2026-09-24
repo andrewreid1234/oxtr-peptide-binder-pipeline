@@ -138,9 +138,18 @@ deterministically and confirmed by source inspection. Compute cost is trivial
 It is not on disk — `pdb_references/` holds only 7RYC and the three AVPR
 structures.
 
-### O10. Housekeeping
-- `docs/figures/*.png` is gitignored but 9 images are referenced, so the docs
-  render with broken images on GitHub.
+### O10. `fig2_pipeline_funnel.png` plots the erroneous funnel counts
+The funnel figure referenced by `PIPELINE_VALIDATION.md` §8 draws the 224 BBB+
+(56%) and docked-112 numbers that **O7** shows do not correspond to the
+documented 0.215 gate. It is deliberately **not committed** — the other eight
+figures are — so the docs do not carry a known-wrong image. Regenerate it once
+§8 is corrected to the measured 9.8% (v1.0) / 8.0% (v1.2) rates.
+
+The five D_s(T) figures were regenerated on 2026-09-24 from the Cys-constrained,
+receptor-aware experiment (`ds_t_cys_experiment_results.csv`, 32 backbones).
+`plot_sampling_figures.py` now defaults to that dataset.
+
+### O11. Housekeeping
 - `biopython` was pip-installed into the dashboard venv but is absent from
   `requirements.txt`; a fresh deploy breaks.
 - PID 2633491 has been sleeping in an `until` loop since 2026-09-15.
