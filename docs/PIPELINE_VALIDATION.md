@@ -312,7 +312,7 @@ gate advancement (disulfide-forcing + pose-agreement, not raw i_ptm) — the pil
 | Expected distinct-and-good (saturation-curve fit, not raw count) | ~19,987 | D_s(0.1)≈73 — ~5.1× the yield of the old 10,000×4 split at equal compute |
 | Predicted BBB+ | **~22,260** | 56% pilot rate (224/400), extrapolated — measured under the pre-v1.2 B3BPFN model; the relabeled v1.2 classifier's pass rate on a comparable batch hasn't been re-measured, so treat this as a rough carry-over, not a v1.2-validated figure |
 | Passing v2.0.0 standard checks (disulfide-forcing + pose-agreement) | **~2,600–5,400** (real range, not yet measured at this scale) | Pilot's 24% (27/112) was measured under the *old* i_ptm-gated filter set — first real read on the *new* checks' pass rate comes from the scale-up itself |
-| MD-confirmed | **~12–23** (11–22 synthesis candidates + 1 negative control) | Revised 2026-09-23: tied to the actual wet-lab synthesis wave size (`sampling_parameter_derivation.md` Part II), not a fixed number carried over from the pilot — see SOP.md Stage 5 (ext) |
+| MD-confirmed | **~12–23** (11–22 synthesis candidates + 1 negative control) | Revised 2026-09-23: tied to the actual wet-lab synthesis wave size (`sampling_parameter_derivation.md` Part V), not a fixed number carried over from the pilot — see SOP.md Stage 5 (ext) |
 
 ---
 

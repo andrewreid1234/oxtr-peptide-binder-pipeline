@@ -1,18 +1,47 @@
 # Mathematical Derivations — OXTR Pipeline Design Decisions
 
+**Document version:** v3.0.0
+**Last updated:** 2026-09-24
+**Pipeline version this describes:** derives the parameters for pipeline **v3.0.0**
+(not yet adopted — `SOP.md` remains at v2.0.0 until the Stage 2/3/5 changes below
+are written into it). The bump is MAJOR under `SOP.md`'s own rule because the BBB
+filter changes from a gate to a router, which changes what gates candidate
+advancement.
+
 This document is the canonical reference for every non-arbitrary numerical decision
 in the OXTR binder pipeline — every parameter here is derived from an explicit model
-and stated assumptions, not picked by feel. Three parts so far:
+and stated assumptions, not picked by feel. If a number appears in `SOP.md` or
+`PIPELINE_VALIDATION.md` and it was not simply measured, its derivation belongs here.
 
-- **Part I (sections 0–8):** how many RFdiffusion backbones (B) and ProteinMPNN
-  sequences per backbone (S), and what sampling temperature (T), maximize genuinely
-  distinct output for a fixed compute budget.
-- **Part II (sections 9–16):** how many computationally-ranked candidates should go
-  to physical synthesis and wet-lab assay, given assay throughput — not synthesis
-  capacity — is the real constraint.
-- **Part III (sections 17–24):** how many BBB-filtered sequences should enter Stage 3
-  cofolding, given GPU-hours are the constraint — and what the BBB gate's
-  discriminating power actually is, measured against a control rather than assumed.
+Sections are ordered to follow the pipeline funnel, so reading top to bottom walks
+the same path a candidate takes:
+
+| Part | Sections | Question it answers | Pipeline stage |
+|---|---|---|---|
+| **I** | 0–8 | How many backbones (B), sequences per backbone (S), at what sampling temperature (T)? | Stages 1–2 |
+| **II** | 9 | How much of the ProteinMPNN output is duplicated, and what survives deduplication? | Stage 2 output |
+| **III** | 10–20 | How many sequences enter cofolding, and which ones? | Stage 3 |
+| **IV** | 21–22 | What does the rest of the funnel cost, and what profile of candidate should it yield? | Stages 4–7 |
+| **V** | 23–30 | How many candidates go to physical synthesis and assay? | Stage 8 |
+
+### Document version history
+
+Semantic versioning matching `SOP.md`'s convention, applied to the *derivations*:
+**MAJOR** — a derived production parameter changes, or a section is restructured;
+**MINOR** — a new derivation added without changing existing parameters;
+**PATCH** — corrections, clarifications, and added citations.
+
+| Version | Date | Summary |
+|---|---|---|
+| v1.0.0 | 2026-09-20 | Part I — B/S/T allocation model derived; pre-experiment estimates only. |
+| v1.1.0 | 2026-09-22 | Part I Section 7 — B=750, S=53, T=0.1 validated against the 16,800-sequence D_s(T) experiment. |
+| v2.0.0 | 2026-09-23 | Part II added — synthetic candidate selection (Wave 1 = 12 compounds). |
+| **v3.0.0** | 2026-09-24 | **Reordered to follow the pipeline funnel.** New: deduplication measurement (Part II), docking-stage allocation and backbone scouting (Part III), downstream compute budget and expected candidate profile (Part IV). Synthetic candidate selection renumbered from Part II to Part V, sections 9–16 → 23–30. Production parameters newly derived here: scout depth k=6, backbone keep fraction 50%, Boltz2 staged behind AfCycDesign, BBB reclassified from gate to router. |
+
+**Note on external references.** Part I's section numbers (0–8) are unchanged in
+v3.0.0 because `SOP.md`, `README.md` and `OXTR_Stage1_v2_ScaleUp.sh` cite
+"Section 7" and "Section 3.3" directly. References to the old "Part II" for
+synthesis selection now point to **Part V**.
 
 ---
 
@@ -388,119 +417,47 @@ direction on T.**
 
 ---
 
-# Part II — Synthetic candidate selection
 
-**Goal:** rigorously derive how many of a computationally-ranked shortlist of $M$ candidates should go to physical synthesis and wet-lab assay, given that high-throughput synthesis is not the constraint — assay throughput is. This is deliberately kept general in $M$: the pipeline's shortlist size will grow as it scales (27 at the time of writing, from a 100-backbone pilot batch — used below purely as a worked example, not a fixed input to the model). Superficially similar to Part I (both are "how many samples" problems) but the objective is fundamentally different: Part I maximizes *diversity entering a filter*; Part II maximizes *information gained per assay slot*, under a resource that is expensive per unit rather than cheap and parallel.
+# Part II — Sequence deduplication
 
-**Context:** this pipeline has zero wet-lab ground truth connecting its computational score to real OXTR binding. That single fact drives everything below — any answer has to serve two goals at once, not one: (a) a reasonable chance of finding a real binder in the first wave, and (b) enough spread in the tested set to tell, afterward, whether the computational ranking means anything at all.
+**Goal:** establish how many of the $B \cdot S$ nominal ProteinMPNN outputs are actually distinct molecules, since every downstream count — docking load, shortlist size, compute budget — is a count of *distinct* sequences, not of draws.
 
-## 9. Notation and goal
+**Why this needs its own section:** Part I optimizes for *distinct* output and its $D_s(T)$ term already encodes saturation, but the production pipeline had no explicit deduplication step, and the funnel counts in `PIPELINE_VALIDATION.md` were written in terms of raw draws. At $T = 0.1$ the gap between the two is large.
 
-| Symbol | Meaning | Units / range |
-|---|---|---|
-| $M$ | Size of the computationally-ranked shortlist to select from (grows as the pipeline scales) | count, integer $\geq 1$; 27 at time of writing |
-| $N$ | Number of candidates selected for synthesis + assay, $N \leq M$ | count, integer $\geq 1$ |
-| $p$ | True (unknown) probability that a top-ranked candidate is a genuine OXTR binder | probability, assumed 0.10–0.40 from literature |
-| $C$ | Target confidence of finding at least one true hit among $N$ tested | probability, $0<C<1$ |
-| $X$ | Number of true hits among $N$ tested candidates (random variable) | count, $X \sim \text{Binomial}(N, p)$ |
-| $\rho$ | True Spearman rank correlation between predicted computational score and measured binding affinity | dimensionless, $-1 \leq \rho \leq 1$ |
-| $\alpha$ | Significance level for detecting $\rho \neq 0$ (two-sided) | probability, conventionally 0.05 |
-| $1-\beta$ | Statistical power to detect $\rho$ if it is truly nonzero | probability, conventionally 0.80 |
-| $z_{1-\alpha/2}$, $z_{1-\beta}$ | Standard normal quantiles for the chosen $\alpha$, $\beta$ | dimensionless |
-| $n_{\text{cal}}$ | Minimum sample size to detect correlation $\rho$ at power $1-\beta$ | count |
-| $\text{arctanh}(\rho)$ | Fisher $z$-transform of the correlation, $\frac{1}{2}\ln\frac{1+\rho}{1-\rho}$ | dimensionless |
+## 9. Duplicate rate at the production temperature
 
-## 10. Model 1 — probability of finding true hits (binomial)
+ProteinMPNN sampling at low temperature is strongly repetitive. Measured directly on the $D_s(T)$ experiment's raw FASTA output (8 backbones × 300 draws at $T = 0.1$), taking a random subsample of $S = 53$ draws per backbone to match production:
 
-**Assumption:** each of the $N$ tested candidates is an independent Bernoulli trial with success probability $p$ (a true OXTR binder). Independence is an approximation — candidates sharing a similar sequence motif (several shortlist candidates are near-duplicates, e.g. `out_37_sample1/3/4` are identical) are not truly independent draws, so this should be read as an upper bound on how much information $N$ independent-*looking* candidates actually provide.
+| Backbone | Unique of 53 draws | Duplicate rate | Unique of 300 draws |
+|---|---:|---:|---:|
+| b0 | 49 | 7.5% | 231 |
+| b12 | 27 | 49.1% | 100 |
+| b25 | 43 | 18.9% | 179 |
+| b37 | **12** | **77.4%** | 35 |
+| b50 | 39 | 26.4% | 174 |
+| b62 | 44 | 17.0% | 220 |
+| b75 | **13** | **75.5%** | 28 |
+| b87 | 47 | 11.3% | 191 |
 
-Then $X \sim \text{Binomial}(N, p)$, and:
+$$\mathbb{E}[\text{unique} \mid S{=}53,\ T{=}0.1] = 34.2 \quad (35.4\%\ \text{duplicates})$$
 
-$$
-P(X \geq 1) = 1 - (1-p)^N \qquad \Longrightarrow \qquad N = \frac{\ln(1-C)}{\ln(1-p)}
-$$
+Cross-backbone duplication is small by comparison: of the pilot's 400 sequences, 388 are distinct (3.0% duplicated across backbones). Total expected loss is therefore roughly 35% within backbones plus ~3% globally.
 
-*where:* solving $P(X\geq 1) = C$ for $N$ and taking the ceiling gives the minimum batch size for confidence $C$ of at least one hit.
+**Scale-up consequence.**
 
-**Why "at least one" isn't enough on its own — the ≥2 case.** A single confirmed hit in an early wave is hard to trust: it could be an assay artifact (aggregation, nonspecific binding, a false positive from the assay's own noise floor). The probability of at least **two** independent hits — enough to have a backup and smell-test the finding — is:
+$$N_{\text{unique}} \approx B \cdot \mathbb{E}[\text{unique}] = 750 \times 34.2 \approx 25{,}700$$
 
-$$
-P(X \geq 2) = 1 - (1-p)^N - Np(1-p)^{N-1}
-$$
+against a nominal $B \cdot S = 39{,}750$. **Every funnel count downstream of Stage 2 should be computed from ~25,700, not 39,750.**
 
-**Expected value:** $E[X] = Np$ — trivial, but worth stating because it shows the "confidence of ≥1" framing and the "expected count" framing don't peak at the same priority. Early-stage screening cares more about *not striking out entirely* (the $P(X\geq1)$ framing) than about the expected count, which is why Model 1 uses the confidence bound, not $E[X]$, as the primary criterion.
+**The variance matters more than the mean.** Unique yield ranges from 12 to 49 across eight backbones — a 4× spread. Backbones like b37 and b75 are effectively exhausted at 53 draws, contributing a quarter of what the nominal $S$ implies, while b0 is nowhere near saturation. This is exactly the per-backbone variation in $D_s$ that Part I Section 8's first open assumption flags as untested, now measured: **$D_s$ is not constant across backbones.**
 
-## 11. Model 2 — statistical power to calibrate score against real affinity
-
-This is the piece Model 1 alone misses, and the more mathematically substantial half of this section. A batch chosen purely to maximize $P(X\geq1)$ is *by construction* all high-score candidates — restricting the score range tested is exactly what destroys your ability to later ask "does the score predict affinity at all?" (restriction of range is a classical confound in correlation estimation). Answering that question requires spread across the score range and a properly powered sample size for detecting a correlation.
-
-**Standard method (Fisher $z$-transform, Bonett–Wright correction for Spearman):** for a true population correlation $\rho$, the Fisher transform $z_r = \text{arctanh}(\rho)$ is approximately normally distributed with variance $\frac{1.06}{n-3}$ for Spearman's $\rho$ (the $1.06$ factor, vs. $1.0$ for Pearson's $r$, is the Bonett–Wright 2000 correction for the extra sampling variability of rank correlation). The minimum sample size to detect a true correlation $\rho$ as significantly different from zero, at significance $\alpha$ (two-sided) and power $1-\beta$, is:
-
-$$
-n_{\text{cal}} \;=\; 1.06\left(\frac{z_{1-\alpha/2} + z_{1-\beta}}{\text{arctanh}(\rho)}\right)^{2} + 3
-$$
-
-**Worked table** ($\alpha=0.05$ two-sided):
-
-| True $\rho$ | $n$ for 70% power | $n$ for 80% power | $n$ for 90% power |
-|---:|---:|---:|---:|
-| 0.3 (weak) | 72 | 90 | 120 |
-| 0.4 | 40 | 50 | 66 |
-| 0.5 (moderate) | 25 | 31 | 40 |
-| 0.6 | 17 | 21 | 27 |
-| 0.7 (strong) | 12 | 15 | 18 |
-| 0.8 (very strong) | 9 | 10 | 13 |
-
-**Reading this:** properly powering a correlation test at conventional thresholds (80% power) needs **15–90 compounds** depending on how strong the true score–affinity relationship turns out to be — an order of magnitude more than Model 1's hit-confidence answer in the weak-to-moderate correlation range. This is real information, not a rounding difference: it says a single 12-compound wave *cannot* rigorously confirm or reject that the computational score is predictive unless the true correlation happens to be strong ($\rho \gtrsim 0.7$). Given four independent computational filters already applied before this stage (interface confidence, Rosetta energetics, disulfide geometry, MD stability), a stronger-than-typical correlation is a reasonable hope, not a safe assumption.
-
-## 12. Combining the two objectives
-
-Models 1 and 2 want different things from a small $N$: Model 1 wants score concentrated at the top (maximize each candidate's individual $p$); Model 2 wants score spread across the range (maximize variance in the predictor to power the correlation test). Both cannot be fully satisfied at once under a small assay budget — this is a genuine, irreducible tension, not a modeling artifact.
-
-**Resolution adopted here: treat Wave 1 as a two-part allocation**, not a single optimization:
-
-$$
-N = N_{\text{hit}} + N_{\text{cal}}^{\text{partial}}
-$$
-
-- $N_{\text{hit}}$ candidates chosen purely top-ranked, sized by Model 1 for a chosen $(p, C)$ — this guarantees the wave isn't wasted if the ranking is only weakly predictive.
-- $N_{\text{cal}}^{\text{partial}}$ candidates chosen to spread the tested score range, undersized relative to Model 2's full power requirement (a full 80%-power calibration batch, 15–90 compounds, is disproportionate for a first wave) — this is explicitly **a first data point toward calibration, not a definitive test of it.** A real calibration verdict may require pooling Wave 1 and Wave 2 data together before Model 2's power threshold is met.
-
-This reframes the "12 compounds" figure honestly: it satisfies Model 1 comfortably, gives a first (underpowered) look at Model 2, and defers a statistically definitive calibration verdict to combined Wave 1 + Wave 2 data — rather than presenting 12 as sufficient for both jobs, which Section 11 shows it is not.
-
-## 13. Plugging in real numbers
-
-Using $p \in [0.15, 0.30]$ (literature range for de novo binder campaigns, plausibly shifted upward here by the pipeline's extra filtering — see `PIPELINE_VALIDATION.md` section 14) and targeting $C = 0.85$:
-
-- $N_{\text{hit}}$ at $p=0.15$: $\lceil \ln(0.15)/\ln(0.85) \rceil = 12$
-- $N_{\text{hit}}$ at $p=0.30$: $\lceil \ln(0.15)/\ln(0.70) \rceil = 6$
-
-Taking the conservative (lower-$p$) end: **$N_{\text{hit}} = 8$** (slightly below the 12 needed for $C=0.85$ at $p=0.15$, accepting $C\approx0.74$ at $p=0.15$ — see Section 10's table — as a defensible trade against reserving assay slots for calibration) plus **$N_{\text{cal}}^{\text{partial}} = 4$**, giving $N=12$ total, matching the recommendation already adopted in `PIPELINE_VALIDATION.md` section 14. Section 11 makes explicit what that document did not: this 12-compound wave is powered for $P(X\geq1)\approx 0.74$–$0.86$ (Model 1), but only a partial, underpowered first look at the score–affinity correlation (Model 2) — full calibration power at plausible $\rho$ (0.5–0.7) needs 15–31 compounds, achievable once Wave 1 and Wave 2 are pooled.
-
-## 14. Sensitivity analysis
-
-From Section 10, $N_{\text{hit}}$'s sensitivity to $p$ is steep in the low-$p$ region (where the shortlist plausibly sits) — $dN/dp$ is large near $p=0.10$–$0.15$ (compare $N=29$ at $p=0.10$, $C=0.95$ vs. $N=19$ at $p=0.15$: a 50% relative change in $p$ moves $N$ by more than 30%). This is the opposite of Part I's flat, forgiving sensitivity (Section 6) — here, getting $p$ wrong by a factor of 2 meaningfully changes the batch size needed, which is exactly why Section 11's calibration argument matters beyond academic interest: a mis-estimated $p$ compounds into future waves if never corrected against real data.
-
-From Section 11, $n_{\text{cal}}$'s sensitivity to $\rho$ is even steeper — roughly $n_{\text{cal}} \propto 1/\text{arctanh}(\rho)^2$, so a true $\rho$ of 0.3 instead of a hoped-for 0.6 costs **more than 4× the sample size** to detect at the same power. This is the single most important number in Part II for planning purposes: if Wave 1 + Wave 2 data suggests only a weak correlation, achieving real statistical confidence in that finding requires substantially more compounds than the hit-confidence framework alone would suggest — a resourcing conversation worth having explicitly rather than discovering it mid-campaign.
-
-## 15. Recommendation
-
-- **Wave 1 = 12 compounds** (8 top-ranked for hit confidence + 4 score-spread for a first calibration look), per Section 13 — unchanged from `PIPELINE_VALIDATION.md` section 14, now with the power tradeoff made explicit rather than implicit.
-- **Do not treat a "no correlation" result from Wave 1 alone as definitive** — Section 11 shows 12 compounds is underpowered for that verdict at plausible $\rho$. A real correlation verdict needs Wave 1 + Wave 2 pooled (targeting 15–31 total, depending on the true $\rho$ once some signal exists to estimate it from).
-- **If assay throughput (still unconfirmed as of this writing) comfortably exceeds 12 per wave**, prefer growing $N_{\text{cal}}^{\text{partial}}$ over $N_{\text{hit}}$ first — Section 10 shows $N_{\text{hit}}=8$ already gives $C\gtrsim0.74$ at a conservative $p$, while Section 11 shows the calibration side is the one still meaningfully underpowered.
-
-## 16. Open assumptions still worth testing
-
-1. **Independence across candidates (Section 10):** several shortlist candidates are near-identical (e.g. `out_37_sample1/3/4`, all `MPCLGLGTCPRP`) — treating them as independent Bernoulli trials overstates the effective $N$. Wave selection should deliberately avoid picking near-duplicates into the same wave, or the true confidence achieved is lower than the binomial formula suggests.
-2. **$p \in [0.10, 0.40]$ is a literature-transferred prior, not measured on this pipeline.** It is the single biggest unvalidated assumption in this whole document, and the entire point of Wave 1 is to start replacing it with real data.
-3. **Spearman-appropriateness:** assumes affinity and score have a monotonic, not necessarily linear, relationship — reasonable given both are model-confidence-like scores rather than physical quantities, but untested until real Kd data exists to check.
-4. **The Bonett–Wright variance correction (1.06 factor, Section 11)** is itself an approximation valid for moderate sample sizes and away from $\rho=\pm1$; adequate for planning purposes here, not for the eventual confirmatory analysis once real data exists.
+**Production requirement.** Deduplicate within each backbone first, then globally, immediately after Stage 2 and before any docking allocation. Backbones yielding fewer than ~15 unique sequences should be flagged in the run log — they indicate a backbone whose sequence space ProteinMPNN has saturated, and they will contribute proportionally less to the scouting design in Part III.
 
 ---
 
-# Part III — Docking-stage allocation
+# Part III — Docking-stage allocation and backbone scouting
 
-**Goal:** rigorously derive how many BBB-filtered sequences should enter Stage 3 (AfCycDesign / Boltz2 cofolding), given that cofolding is the most compute-expensive per-candidate step in the pipeline. Like Part I this is a "how many samples" problem, but the binding constraint is different again: Part I is limited by *diversity per unit compute*, Part II by *assay slots*, and Part III by *GPU-hours against a filter whose discriminating power was never measured*.
+**Goal:** rigorously derive how many BBB-filtered sequences should enter Stage 3 (AfCycDesign / Boltz2 cofolding), given that cofolding is the most compute-expensive per-candidate step in the pipeline. Like Part I this is a "how many samples" problem, but the binding constraint is different again: Part I is limited by *diversity per unit compute*, Part V by *assay slots*, and this part by *GPU-hours against a filter whose discriminating power was never measured*.
 
 **Starting point this section argues away from:** "dock whatever the BBB filter passes, ranked by BBB probability" — the pilot's inherited behaviour, never derived, and resting on a pass-rate figure that turns out not to match the documented threshold.
 
@@ -508,7 +465,7 @@ From Section 11, $n_{\text{cal}}$'s sensitivity to $\rho$ is even steeper — ro
 
 ---
 
-## 17. Notation and goal
+## 10. Notation and goal
 
 | Symbol | Meaning | Units / range |
 |---|---|---|
@@ -525,7 +482,7 @@ From Section 11, $n_{\text{cal}}$'s sensitivity to $\rho$ is even steeper — ro
 
 ---
 
-## 18. Auditing the gate — what the BBB filter actually passes
+## 11. Auditing the gate — what the BBB filter actually passes
 
 The projected funnel in `PIPELINE_VALIDATION.md` §8 records **224 BBB+ (56%)** of 400 pilot sequences, and a docked set of **112** described as "top 50% of BBB+ by probability". Neither figure is consistent with the documented threshold $\tau = 0.215$. Recounting directly from `stage_5_permeability/bbb_permeability_predictions.csv`:
 
@@ -535,9 +492,9 @@ The projected funnel in `PIPELINE_VALIDATION.md` §8 records **224 BBB+ (56%)** 
 | 0.10 | 112 | 28.0% | matches the documented "docked 112" |
 | **0.215** (documented gate) | **39** | **9.8%** | the gate as actually specified |
 
-So the funnel's two recorded counts correspond to thresholds of roughly 0.05 and 0.10 respectively, not to the 0.215 gate stated in `SOP.md`. The 56% figure is not a measurement of the documented filter, and **the §8.1 projection of ~22,260 BBB+ candidates inherits that error**.
+So the funnel's two recorded counts correspond to thresholds of roughly 0.05 and 0.10 respectively, not to the 0.215 gate stated in `SOP.md`. The 56% figure is not a measurement of the documented filter, and **the `PIPELINE_VALIDATION.md` §8.1 projection of ~22,260 BBB+ candidates inherits that error**.
 
-**The v1.2 pass rate, previously unmeasured.** §8.1 flags explicitly that "the relabeled v1.2 classifier's pass rate on a comparable batch hasn't been re-measured". It has now been measured, by rescoring the pilot's own 400 sequences through `B3BPFN_v1.2_production/predict_peptide.py`:
+**The v1.2 pass rate, previously unmeasured.** `PIPELINE_VALIDATION.md` §8.1 flags explicitly that "the relabeled v1.2 classifier's pass rate on a comparable batch hasn't been re-measured". It has now been measured, by rescoring the pilot's own 400 sequences through `B3BPFN_v1.2_production/predict_peptide.py`:
 
 $$f_{v1.2}(0.215) = \frac{32}{400} = 8.0\%$$
 
@@ -551,7 +508,7 @@ against the ~22,260 currently projected — a factor of **7.0** smaller.
 
 ---
 
-## 19. Throughput model
+## 12. Throughput model
 
 Per-candidate wall-clock costs, measured from output-file timestamps across the pilot's 39-candidate Stage 3 runs (single GPU, sequential):
 
@@ -576,7 +533,7 @@ $$H_{\text{staged}}(N) = \frac{N c_A + q N c_B}{3600\,G}$$
 
 ---
 
-## 20. Does the gate rank, or only filter? — the BBB− control
+## 13. Does the gate rank, or only filter? — the BBB− control
 
 Every prior estimate of the BBB filter's discriminating power was computed on candidates that had *already passed it*, so the range of $p_{\text{BBB}}$ was restricted and any correlation attenuated. That restriction was removed by docking a control set: **120 sequences sampled at random (seed 42) from the 361 pilot sequences with $p_{\text{BBB}} \leq 0.215$**, run through the identical AfCycDesign protocol as the BBB+ set.
 
@@ -606,7 +563,7 @@ The single best-scoring candidate in the whole experiment is BBB− ($i_{\text{p
 
 ---
 
-## 21. Why there is no interior optimum for $N_{\text{dock}}$
+## 14. Why there is no interior optimum for $N_{\text{dock}}$
 
 The natural instinct is to optimize $N_{\text{dock}}$ against a quality-versus-cost curve. That framing was attempted and is **not sound enough to base a decision on**, for four reasons worth recording so the attempt is not repeated:
 
@@ -621,30 +578,272 @@ Even taken at face value the curve is logarithmic: doubling $N$ buys roughly $+0
 
 ---
 
-## 22. Recommendation
 
-- **Dock the entire BBB+ pool** — projected $N_{\text{dock}} \approx 3{,}180$ — rather than subsampling it. Not because 3,180 is optimal, but because it is affordable (~6 GPU-h for AfCycDesign) and no defensible prioritization signal exists within the pool (§20).
-- **Stage Boltz2 behind AfCycDesign** rather than running both at full width. It is a cross-check on survivors, so running it on the ~24% that clear Stage 3 checks cuts the stage from 15.4 h to 8.3 h at zero information cost. A batched runner would cut it further (§19).
-- **Never subsample by BBB rank.** $\rho_{\text{BBB}} = +0.116$, $p = 0.145$. If budget ever forces a cut, cut at random.
-- **Dock a random BBB− control sample at scale-up too** (~5,000 candidates, ~9.6 GPU-h). §20 shows the gate discards ~47% of the top decile; at 8% pass rate the scale-up will discard ~36,500 designs on a classifier with a known blind spot for hormone-like disulfide-cyclized peptides. Carrying a control through the scale-up makes that cost measurable rather than assumed.
-- **Correct `PIPELINE_VALIDATION.md` §8 and §8.1** to the measured pass rates (9.8% v1.0, 8.0% v1.2) and re-derive the projected BBB+ count.
+## 15. Binding quality is a property of the backbone — the intraclass correlation
+
+Sections 13–14 establish that no cheap *sequence-level* signal orders candidates by binding quality. A *backbone-level* signal does exist, and it is strong enough to allocate compute on.
+
+Grouping all 159 docked candidates (39 BBB+ and the 120 BBB− controls of Section 13) by their parent RFdiffusion backbone gives 56 backbones with $\geq 2$ docked samples, covering 130 candidates. A one-way random-effects analysis of $i_{\text{ptm}}$:
+
+$$\text{ICC}(1) = \frac{MS_b - MS_w}{MS_b + (k-1)MS_w} = \frac{0.01099 - 0.00397}{0.01099 + 1.32 \times 0.00397} = \mathbf{0.433}$$
+
+with $F = 2.77$ on $(55, 74)$ degrees of freedom, $p = 2.5 \times 10^{-5}$.
+
+**43% of the variance in $i_{\text{ptm}}$ sits between backbones rather than between sequences on the same backbone.** Decomposing the observed individual-candidate standard deviation of 0.086:
+
+$$\sigma_b = \sqrt{\text{ICC}} \cdot \sigma_{\text{total}} = 0.0566, \qquad \sigma_w = 0.0648$$
+
+The practical size of the effect: backbone means range from 0.401 (`rfd_out_79`) to 0.110 (`rfd_out_87`), a spread of 0.291 — more than three times the individual-candidate standard deviation.
+
+**This is the same structure Part I Section 1.1 assumes** in treating backbone diversity and sequence diversity as separate saturating terms. It is now measured on the quantity that actually matters downstream (predicted binding) rather than on sequence identity.
+
+## 16. Scout sizing — how many sequences per backbone reveal its quality
+
+If a backbone's quality is estimated from $k$ docked sequences, the reliability of that estimate follows the Spearman–Brown form:
+
+$$R(k) = \frac{k \cdot \text{ICC}}{1 + (k-1)\text{ICC}}, \qquad \text{corr}(\text{observed}, \text{true}) = \sqrt{R(k)}$$
+
+| $k$ | $R(k)$ | $\text{corr}$ | Scout dockings ($B{=}750$) | GPU-h |
+|---:|---:|---:|---:|---:|
+| 2 | 0.604 | 0.777 | 1,500 | 2.9 |
+| 4 | 0.753 | 0.868 | 3,000 | 5.8 |
+| **6** | **0.821** | **0.906** | **4,500** | **8.7** |
+| 8 | 0.859 | 0.927 | 6,000 | 11.5 |
+| 12 | 0.902 | 0.950 | 9,000 | 17.3 |
+
+Returns flatten sharply after $k = 6$: going 6 → 12 doubles the scout cost to buy 0.044 of reliability. **$k = 6$ is the production value.**
+
+**The scout sample must be random.** The estimand is the backbone's *mean* quality, so the $k$ sequences must be an unbiased sample of that backbone's unique sequences. Taking "the first 6" is unsafe if the FASTA carries any systematic ordering, and taking "the best 6 by ProteinMPNN score" deliberately biases the estimate upward by an amount that varies per backbone. Draw at random under a fixed seed.
+
+## 17. Keep fraction — how many backbones to deepen
+
+Having ranked backbones by scouted mean $i_{\text{ptm}}$, deepening the top fraction $f$ costs
+
+$$N_{\text{dock}}(f) = B k + f B \left(\mathbb{E}[\text{unique}] - k\right)$$
+
+using the deduplicated $\mathbb{E}[\text{unique}] = 34.2$ from Section 9, not the nominal $S$.
+
+The quantity to optimize is not cost but **recovery**: what fraction of genuinely top-quintile backbones survive a cut made on a noisy ranking. With $\text{corr}(\text{observed}, \text{true}) = 0.906$ at $k=6$, this is a bivariate-normal orthant probability, evaluated by simulation ($4 \times 10^5$ draws):
+
+| Keep $f$ | Deep dockings | Total docked | GPU-h | **Top-quintile backbones recovered** |
+|---:|---:|---:|---:|---:|
+| 10% | 2,115 | 6,615 | 12.7 | 46.1% |
+| 20% | 4,230 | 8,730 | 16.8 | 75.9% |
+| 30% | 6,345 | 10,845 | 20.9 | 90.7% |
+| 40% | 8,460 | 12,960 | 24.9 | 97.0% |
+| **50%** | **10,575** | **15,075** | **29.0** | **99.2%** |
+| 100% | 21,150 | 25,650 | 49.3 | 100% |
+
+Each additional 10% of backbones costs a flat **4.1 GPU-h**. The recovery curve is steeply concave: 20% → 30% buys 14.8 points for 4.1 h, 40% → 50% buys 2.2 points for the same, and beyond 50% buys nothing measurable.
+
+**$f = 0.50$ is the production value.** At 99.2% recovery the scouting cut is no longer a meaningful source of loss, which removes it as a variable needing defence. A 20% cut, by contrast, silently discards roughly a quarter of the backbones worth deepening — the failure mode this whole section exists to avoid.
+
+**Caveat.** The recovery column assumes backbone quality is approximately normally distributed and that $\text{ICC} = 0.433$ transfers from the pilot ($S = 4$) to production ($S = 53$). Larger within-backbone sequence diversity at $S = 53$ would *lower* ICC, lower reliability, and argue for a larger $f$ or $k$. **This is a pre-registered check: re-estimate ICC on the first completed scale-up shard before committing the deepening stage.** It is the one input in Part III that could reopen a production parameter.
+
+
+## 18. Recommendation — locked production specification
+
+| Parameter | Value | Derived in |
+|---|---|---|
+| Backbones $B$ | **750** | Part I §7 |
+| Draws per backbone $S$ | **53** | Part I §7 |
+| Sampling temperature $T$ | **0.1** | Part I §7 |
+| Deduplication | **within backbone, then global** | §9 |
+| Expected unique sequences | **~25,700** | §9 |
+| Scout depth $k$ | **6, drawn at random** | §16 |
+| Backbone ranking statistic | **mean $i_{\text{ptm}}$** | §15 |
+| Keep fraction $f$ | **50%** | §17 |
+| Total docked $N_{\text{dock}}$ | **~15,075** | §17 |
+| Boltz2 | **staged behind AfCycDesign, survivors only** | §12 |
+| BBB filter | **router after Rosetta, never a gate** | §13 |
+
+**Execution order.** Generate all 750 backbones → design 53 sequences each → deduplicate → dock 6 random unique sequences per backbone (4,500) → rank backbones by mean $i_{\text{ptm}}$ → deepen the top 375 backbones (10,575) → disulfide-forcing and pose-agreement checks, Boltz2 entering here → Rosetta on the top 2,000 by $i_{\text{ptm}}$ → **then** apply BBB as an annotation → N-methylation scan and selectivity → MD confirmation → Wave 1.
+
+**Why each choice is what it is, in one line each:**
+
+- **Dock the scouted-and-deepened set rather than the BBB+ pool.** The BBB gate discards 47% of the top $i_{\text{ptm}}$ decile (§13); backbone scouting discards 0.8% of good backbones (§17), at 29.0 GPU-h against 6.1.
+- **$k = 6$, $f = 50\%$.** Reliability 0.821 and recovery 99.2% respectively; both sit at the knee of their curves (§16, §17).
+- **Rank backbones by mean, not max.** The ICC and its reliability form apply to the mean; a max over 6 draws promotes lucky backbones (§15).
+- **Stage Boltz2.** It is a pose-agreement cross-check on survivors, not a ranking signal, so full-width execution buys nothing (§12).
+- **BBB as router, not gate.** A strong binder that scores BBB− goes into the Stage 6 N-methylation scan, not the bin — otherwise the 47% loss in §13 is merely relocated to the end of the funnel. Binding cannot be engineered after the fact; permeability can.
+
+## 19. Sensitivity analysis
+
+$N_{\text{dock}}$ is **linear** in the deduplicated unique-sequence count and in $f$, unlike Part I's square-root-damped $B^\star$. It is therefore unforgiving of a mis-estimated input — which is exactly the failure §11 documents, where a 7× error in the assumed BBB pass rate propagated directly into the projected compute bill. The mitigating factor is that the absolute cost is small: even a 3× underestimate leaves the docking stage under 90 GPU-h.
+
+Sensitivity to $\tau$ remains steep ($f$ moves 9.8% → 28.0% → 57.8% as $\tau$ falls 0.215 → 0.10 → 0.05), but under the locked design $\tau$ no longer gates advancement, so a change to it is now a **MINOR** rather than **MAJOR** version event.
+
+Sensitivity to ICC is the live one. Reliability $R(6)$ falls from 0.821 to 0.706 if ICC drops from 0.433 to 0.30, which pushes the 50% keep fraction's recovery from 99.2% to roughly 96%. Still acceptable — the design degrades gracefully rather than failing — but $k$ would rise to 8 if ICC came back below ~0.25.
+
+Sensitivity to $c_A$, $c_B$ and $G$ is linear and well-characterized; $c_B$ is over-measured by an estimated 2–3× (§12).
+
+## 20. Open assumptions still worth testing
+
+1. **ICC = 0.433 was fitted at $S = 4$ and is applied at $S = 53$** (§17). Larger within-backbone diversity would lower it. **Pre-registered: re-estimate on the first completed scale-up shard before the deepening stage commits.** This is the only input that can reopen a locked parameter.
+2. **$\mathbb{E}[\text{unique}] = 34.2$ comes from 8 backbones** (§9), and per-backbone spread is large (12–49). The scale-up's 750 backbones will have their own distribution; re-measure on the first shard at the same time as ICC.
+3. **$q = 0.24$ is carried over from the pilot's old $i_{\text{ptm}}$-gated filter set**, not the v2.0.0 disulfide-forcing + pose-agreement checks. The staged-Boltz2 and Rosetta counts inherit that uncertainty.
+4. **The BBB− control used $i_{\text{ptm}}$ as the quality proxy** — a metric §14 argues against optimizing. Carrying the 120 controls through Rosetta `dG_separated` (~2 CPU-h) would confirm whether the 47% top-decile loss holds under the physics score.
+5. **The length-mediation question is unresolved** (§13): $p_{\text{BBB}}$ tracks length, length tracks $i_{\text{ptm}}$, and the stratified check is underpowered.
+6. **All cost figures assume perfect $G$-way scaling**; real sharded throughput will be slightly worse from contention and stragglers.
+
 
 ---
 
-## 23. Sensitivity analysis
+# Part IV — Downstream compute budget and expected candidate profile
 
-$N_{\text{dock}}$ scales linearly in $f(\tau)$, so unlike Part I's square-root-damped $B^\star$ this parameter is **not** forgiving — a factor-7 error in the pass rate is a factor-7 error in the compute bill, which is exactly the error §18 found. The saving grace is that the cost is linear and small: even if $f$ were underestimated by 3×, $N_{\text{dock}} \approx 9{,}500$ still costs only ~18 GPU-h for AfCycDesign.
+**Goal:** cost the funnel below Stage 3 from measured per-candidate rates, and state what profile of candidate the design is expected to deliver — so that the wet-lab handoff in Part V is planning against a number rather than a hope.
 
-Sensitivity to $\tau$ is steep in the region of interest — $f$ moves 9.8% → 28.0% → 57.8% as $\tau$ falls 0.215 → 0.10 → 0.05. Any future change to $\tau$ therefore has a direct, near-proportional compute consequence and should be treated as a **MAJOR** change under the versioning rules in `SOP.md`.
+## 21. Measured per-stage costs
 
-Sensitivity to $c_A$, $c_B$ and $G$ is linear and well-characterized; the only soft input is $c_B$, over-measured by an estimated 2–3× (§19).
+Every rate below is measured on this hardware (4 × GPU, 64 CPU cores) from pilot output, except where marked.
+
+| Stage | Unit cost | Basis | Count under the locked plan | Cost |
+|---|---|---|---:|---:|
+| RFdiffusion | 85.8 s/backbone | 991 pilot backbones | 750 | 4.5 GPU-h |
+| ProteinMPNN + dedup | negligible | — | 39,750 draws → ~25,700 unique | ~1 h |
+| AfCycDesign scout | 27.7 s/run | 39 pilot runs | 4,500 | 8.7 GPU-h |
+| AfCycDesign deepen | 27.7 s/run | as above | 10,575 | 20.3 GPU-h |
+| Boltz2 (staged) | 42.1 s/run | 39 pilot runs | ~3,620 | 10.6 GPU-h |
+| Rosetta relax + InterfaceAnalyzer | 1,245 s/candidate | 65 pilot structures | top 2,000 by $i_{\text{ptm}}$ | 10.8 h / 64 cores |
+| Stage 7 selectivity | 29 s/run × 3 receptors | 81 pilot runs | ~200 | 1.2 GPU-h |
+| MD, 20 ns | 4,718 s (1 h 18 m), 366 ns/day | `out_70_sample2` production log | 24 | 7.9 GPU-h |
+| MM/GBSA | **not measured** — blocked | `gmx_MMPBSA` 1.6.5 bug | 24 | est. ~12 CPU-h |
+
+**Total ≈ 75–90 hours, roughly 3–4 days**, with the Rosetta CPU work overlapping the GPU stages rather than adding serially to them.
+
+**Three structural observations.**
+
+1. **Rosetta is the second bottleneck, not MD.** At 20.8 min/candidate it dominates everything below docking. Running it on all ~3,620 Stage-3 survivors costs 19.6 h; restricting it to the top 2,000 by $i_{\text{ptm}}$ costs 10.8 h and remains a binding-first ordering. The latter is the production choice.
+2. **MD and MM/GBSA are rounding errors** *because they are confirmation-only* on ~24 candidates (Part V). At 1 h 18 m/candidate, MD does not scale past a few dozen — if it were ever promoted back to a filter, this budget would not survive.
+3. **MM/GBSA's blocker is a software bug, not compute.** `res2map()`/`list2range()` in `gmx_MMPBSA` 1.6.5 returns a bare string where a dict is expected when a residue-classification list comes up empty. At ~12 CPU-h for the whole confirmation set it is effectively free once patched or version-pinned.
+
+## 22. Expected candidate profile — the dual-positive yield
+
+The design target is a candidate that is simultaneously a strong predicted binder and a strong predicted BBB permeant. Section 13's control set allows this to be estimated rather than hoped for.
+
+**There is no binding/permeability tradeoff to fight.** BBB+ candidates average $i_{\text{ptm}}$ 0.217 against BBB− 0.170 — the two properties are weakly *positively* related ($\rho = +0.116$). Selecting hard on binding does not push the funnel away from permeability.
+
+Population-weighting the measured conditional rates by the true 8.0% BBB+ base rate (Section 11) over $N_{\text{dock}} = 15{,}075$:
+
+| $i_{\text{ptm}}$ cut | Quantile | $P(\text{pass} \mid \text{BBB+})$ | $P(\text{pass} \mid \text{BBB−})$ | Expected dual-positives |
+|---:|---:|---:|---:|---:|
+| ≥ 0.208 | top 25% | 38.5% | 20.8% | ~464 |
+| ≥ 0.323 | top 10% | 20.5% | 6.7% | ~247 |
+| ≥ 0.386 | top 5% | 15.4% | 1.7% | ~186 |
+| ≥ 0.431 | top 2% | 7.7% | 0.8% | **~93** |
+
+Even at the strictest cut the expected yield is ~93 candidates against a Wave 1 requirement of 12 (Part V) — roughly 8× headroom. The projection is conservative, since it assumes naive sampling whereas the locked design deepens the best backbones preferentially.
+
+**The profile already exists in pilot data.** The strongest observed dual-positive is `rfd_out_79_sample3` (`GIGRGLRAGAG`, $p_{\text{BBB}} = 0.595$ — nearly 3× threshold, $i_{\text{ptm}} = 0.462$ — second-highest of 159). Its parent backbone `rfd_out_79` is the top-ranked backbone in Section 15's analysis and produced two of the four best dual-positives, which is precisely the backbone-level concentration that Part III's scouting design is built to exploit.
+
+**Boundary on this claim.** "Dual-positive" is a computational profile built from a demoted confidence metric ($i_{\text{ptm}}$, Section 14) and a permeability classifier with a documented blind spot for hormone-like disulfide-cyclized peptides. It is a defensible *selection target*, not evidence of binding or of permeability. Establishing whether the profile means anything is the entire purpose of Wave 1.
 
 ---
 
-## 24. Open assumptions still worth testing
+# Part V — Synthetic candidate selection
 
-1. **$f_{v1.2} = 8.0\%$ is measured on one batch of 400 sequences from a 100-backbone pilot.** The scale-up draws from 750 backbones at $T = 0.1$; if the sequence-composition distribution shifts, so does the pass rate. It is cheap to re-measure on the first completed shard and should be.
-2. **$q = 0.24$ is carried over from the pilot's old $i_{\text{ptm}}$-gated filter set**, not the v2.0.0 disulfide-forcing + pose-agreement checks. The staged-Boltz2 estimate in §19 inherits that uncertainty; the first real read comes from the scale-up itself. This is the same caveat `PIPELINE_VALIDATION.md` §8.1 already carries.
-3. **The BBB− control used AfCycDesign $i_{\text{ptm}}$ as the quality proxy**, which §20's own logic (and §21.3) notes is a demoted metric. A stronger version of this control would carry the 120 BBB− candidates through Rosetta `dG_separated` as well — ~2 CPU-hours — and check whether the same ~47% top-decile loss holds under the physics score.
-4. **The length-mediation question is unresolved** (§20). Settling it needs a length-matched BBB+/BBB− comparison with adequate per-stratum $n$, which the current 39 BBB+ candidates cannot support.
-5. **$c_A$ and $c_B$ assume perfect 4-GPU scaling.** Measured single-GPU sequential rates divided by $G$; real sharded throughput will be slightly worse from contention and stragglers.
+**Goal:** rigorously derive how many of a computationally-ranked shortlist of $M$ candidates should go to physical synthesis and wet-lab assay, given that high-throughput synthesis is not the constraint — assay throughput is. This is deliberately kept general in $M$: the pipeline's shortlist size will grow as it scales (27 at the time of writing, from a 100-backbone pilot batch — used below purely as a worked example, not a fixed input to the model). Superficially similar to Part I (both are "how many samples" problems) but the objective is fundamentally different: Part I maximizes *diversity entering a filter*; Part V maximizes *information gained per assay slot*, under a resource that is expensive per unit rather than cheap and parallel.
+
+**Context:** this pipeline has zero wet-lab ground truth connecting its computational score to real OXTR binding. That single fact drives everything below — any answer has to serve two goals at once, not one: (a) a reasonable chance of finding a real binder in the first wave, and (b) enough spread in the tested set to tell, afterward, whether the computational ranking means anything at all.
+
+## 23. Notation and goal
+
+| Symbol | Meaning | Units / range |
+|---|---|---|
+| $M$ | Size of the computationally-ranked shortlist to select from (grows as the pipeline scales) | count, integer $\geq 1$; 27 at time of writing |
+| $N$ | Number of candidates selected for synthesis + assay, $N \leq M$ | count, integer $\geq 1$ |
+| $p$ | True (unknown) probability that a top-ranked candidate is a genuine OXTR binder | probability, assumed 0.10–0.40 from literature |
+| $C$ | Target confidence of finding at least one true hit among $N$ tested | probability, $0<C<1$ |
+| $X$ | Number of true hits among $N$ tested candidates (random variable) | count, $X \sim \text{Binomial}(N, p)$ |
+| $\rho$ | True Spearman rank correlation between predicted computational score and measured binding affinity | dimensionless, $-1 \leq \rho \leq 1$ |
+| $\alpha$ | Significance level for detecting $\rho \neq 0$ (two-sided) | probability, conventionally 0.05 |
+| $1-\beta$ | Statistical power to detect $\rho$ if it is truly nonzero | probability, conventionally 0.80 |
+| $z_{1-\alpha/2}$, $z_{1-\beta}$ | Standard normal quantiles for the chosen $\alpha$, $\beta$ | dimensionless |
+| $n_{\text{cal}}$ | Minimum sample size to detect correlation $\rho$ at power $1-\beta$ | count |
+| $\text{arctanh}(\rho)$ | Fisher $z$-transform of the correlation, $\frac{1}{2}\ln\frac{1+\rho}{1-\rho}$ | dimensionless |
+
+## 24. Model 1 — probability of finding true hits (binomial)
+
+**Assumption:** each of the $N$ tested candidates is an independent Bernoulli trial with success probability $p$ (a true OXTR binder). Independence is an approximation — candidates sharing a similar sequence motif (several shortlist candidates are near-duplicates, e.g. `out_37_sample1/3/4` are identical) are not truly independent draws, so this should be read as an upper bound on how much information $N$ independent-*looking* candidates actually provide.
+
+Then $X \sim \text{Binomial}(N, p)$, and:
+
+$$
+P(X \geq 1) = 1 - (1-p)^N \qquad \Longrightarrow \qquad N = \frac{\ln(1-C)}{\ln(1-p)}
+$$
+
+*where:* solving $P(X\geq 1) = C$ for $N$ and taking the ceiling gives the minimum batch size for confidence $C$ of at least one hit.
+
+**Why "at least one" isn't enough on its own — the ≥2 case.** A single confirmed hit in an early wave is hard to trust: it could be an assay artifact (aggregation, nonspecific binding, a false positive from the assay's own noise floor). The probability of at least **two** independent hits — enough to have a backup and smell-test the finding — is:
+
+$$
+P(X \geq 2) = 1 - (1-p)^N - Np(1-p)^{N-1}
+$$
+
+**Expected value:** $E[X] = Np$ — trivial, but worth stating because it shows the "confidence of ≥1" framing and the "expected count" framing don't peak at the same priority. Early-stage screening cares more about *not striking out entirely* (the $P(X\geq1)$ framing) than about the expected count, which is why Model 1 uses the confidence bound, not $E[X]$, as the primary criterion.
+
+## 25. Model 2 — statistical power to calibrate score against real affinity
+
+This is the piece Model 1 alone misses, and the more mathematically substantial half of this section. A batch chosen purely to maximize $P(X\geq1)$ is *by construction* all high-score candidates — restricting the score range tested is exactly what destroys your ability to later ask "does the score predict affinity at all?" (restriction of range is a classical confound in correlation estimation). Answering that question requires spread across the score range and a properly powered sample size for detecting a correlation.
+
+**Standard method (Fisher $z$-transform, Bonett–Wright correction for Spearman):** for a true population correlation $\rho$, the Fisher transform $z_r = \text{arctanh}(\rho)$ is approximately normally distributed with variance $\frac{1.06}{n-3}$ for Spearman's $\rho$ (the $1.06$ factor, vs. $1.0$ for Pearson's $r$, is the Bonett–Wright 2000 correction for the extra sampling variability of rank correlation). The minimum sample size to detect a true correlation $\rho$ as significantly different from zero, at significance $\alpha$ (two-sided) and power $1-\beta$, is:
+
+$$
+n_{\text{cal}} \;=\; 1.06\left(\frac{z_{1-\alpha/2} + z_{1-\beta}}{\text{arctanh}(\rho)}\right)^{2} + 3
+$$
+
+**Worked table** ($\alpha=0.05$ two-sided):
+
+| True $\rho$ | $n$ for 70% power | $n$ for 80% power | $n$ for 90% power |
+|---:|---:|---:|---:|
+| 0.3 (weak) | 72 | 90 | 120 |
+| 0.4 | 40 | 50 | 66 |
+| 0.5 (moderate) | 25 | 31 | 40 |
+| 0.6 | 17 | 21 | 27 |
+| 0.7 (strong) | 12 | 15 | 18 |
+| 0.8 (very strong) | 9 | 10 | 13 |
+
+**Reading this:** properly powering a correlation test at conventional thresholds (80% power) needs **15–90 compounds** depending on how strong the true score–affinity relationship turns out to be — an order of magnitude more than Model 1's hit-confidence answer in the weak-to-moderate correlation range. This is real information, not a rounding difference: it says a single 12-compound wave *cannot* rigorously confirm or reject that the computational score is predictive unless the true correlation happens to be strong ($\rho \gtrsim 0.7$). Given four independent computational filters already applied before this stage (interface confidence, Rosetta energetics, disulfide geometry, MD stability), a stronger-than-typical correlation is a reasonable hope, not a safe assumption.
+
+## 26. Combining the two objectives
+
+Models 1 and 2 want different things from a small $N$: Model 1 wants score concentrated at the top (maximize each candidate's individual $p$); Model 2 wants score spread across the range (maximize variance in the predictor to power the correlation test). Both cannot be fully satisfied at once under a small assay budget — this is a genuine, irreducible tension, not a modeling artifact.
+
+**Resolution adopted here: treat Wave 1 as a two-part allocation**, not a single optimization:
+
+$$
+N = N_{\text{hit}} + N_{\text{cal}}^{\text{partial}}
+$$
+
+- $N_{\text{hit}}$ candidates chosen purely top-ranked, sized by Model 1 for a chosen $(p, C)$ — this guarantees the wave isn't wasted if the ranking is only weakly predictive.
+- $N_{\text{cal}}^{\text{partial}}$ candidates chosen to spread the tested score range, undersized relative to Model 2's full power requirement (a full 80%-power calibration batch, 15–90 compounds, is disproportionate for a first wave) — this is explicitly **a first data point toward calibration, not a definitive test of it.** A real calibration verdict may require pooling Wave 1 and Wave 2 data together before Model 2's power threshold is met.
+
+This reframes the "12 compounds" figure honestly: it satisfies Model 1 comfortably, gives a first (underpowered) look at Model 2, and defers a statistically definitive calibration verdict to combined Wave 1 + Wave 2 data — rather than presenting 12 as sufficient for both jobs, which Section 25 shows it is not.
+
+## 27. Plugging in real numbers
+
+Using $p \in [0.15, 0.30]$ (literature range for de novo binder campaigns, plausibly shifted upward here by the pipeline's extra filtering — see `PIPELINE_VALIDATION.md` section 14) and targeting $C = 0.85$:
+
+- $N_{\text{hit}}$ at $p=0.15$: $\lceil \ln(0.15)/\ln(0.85) \rceil = 12$
+- $N_{\text{hit}}$ at $p=0.30$: $\lceil \ln(0.15)/\ln(0.70) \rceil = 6$
+
+Taking the conservative (lower-$p$) end: **$N_{\text{hit}} = 8$** (slightly below the 12 needed for $C=0.85$ at $p=0.15$, accepting $C\approx0.74$ at $p=0.15$ — see Section 24's table — as a defensible trade against reserving assay slots for calibration) plus **$N_{\text{cal}}^{\text{partial}} = 4$**, giving $N=12$ total, matching the recommendation already adopted in `PIPELINE_VALIDATION.md` section 14. Section 25 makes explicit what that document did not: this 12-compound wave is powered for $P(X\geq1)\approx 0.74$–$0.86$ (Model 1), but only a partial, underpowered first look at the score–affinity correlation (Model 2) — full calibration power at plausible $\rho$ (0.5–0.7) needs 15–31 compounds, achievable once Wave 1 and Wave 2 are pooled.
+
+## 28. Sensitivity analysis
+
+From Section 24, $N_{\text{hit}}$'s sensitivity to $p$ is steep in the low-$p$ region (where the shortlist plausibly sits) — $dN/dp$ is large near $p=0.10$–$0.15$ (compare $N=29$ at $p=0.10$, $C=0.95$ vs. $N=19$ at $p=0.15$: a 50% relative change in $p$ moves $N$ by more than 30%). This is the opposite of Part I's flat, forgiving sensitivity (Section 6) — here, getting $p$ wrong by a factor of 2 meaningfully changes the batch size needed, which is exactly why Section 25's calibration argument matters beyond academic interest: a mis-estimated $p$ compounds into future waves if never corrected against real data.
+
+From Section 25, $n_{\text{cal}}$'s sensitivity to $\rho$ is even steeper — roughly $n_{\text{cal}} \propto 1/\text{arctanh}(\rho)^2$, so a true $\rho$ of 0.3 instead of a hoped-for 0.6 costs **more than 4× the sample size** to detect at the same power. This is the single most important number in Part V for planning purposes: if Wave 1 + Wave 2 data suggests only a weak correlation, achieving real statistical confidence in that finding requires substantially more compounds than the hit-confidence framework alone would suggest — a resourcing conversation worth having explicitly rather than discovering it mid-campaign.
+
+## 29. Recommendation
+
+- **Wave 1 = 12 compounds** (8 top-ranked for hit confidence + 4 score-spread for a first calibration look), per Section 27 — unchanged from `PIPELINE_VALIDATION.md` section 14, now with the power tradeoff made explicit rather than implicit.
+- **Do not treat a "no correlation" result from Wave 1 alone as definitive** — Section 25 shows 12 compounds is underpowered for that verdict at plausible $\rho$. A real correlation verdict needs Wave 1 + Wave 2 pooled (targeting 15–31 total, depending on the true $\rho$ once some signal exists to estimate it from).
+- **If assay throughput (still unconfirmed as of this writing) comfortably exceeds 12 per wave**, prefer growing $N_{\text{cal}}^{\text{partial}}$ over $N_{\text{hit}}$ first — Section 24 shows $N_{\text{hit}}=8$ already gives $C\gtrsim0.74$ at a conservative $p$, while Section 25 shows the calibration side is the one still meaningfully underpowered.
+
+## 30. Open assumptions still worth testing
+
+1. **Independence across candidates (Section 24):** several shortlist candidates are near-identical (e.g. `out_37_sample1/3/4`, all `MPCLGLGTCPRP`) — treating them as independent Bernoulli trials overstates the effective $N$. Wave selection should deliberately avoid picking near-duplicates into the same wave, or the true confidence achieved is lower than the binomial formula suggests.
+2. **$p \in [0.10, 0.40]$ is a literature-transferred prior, not measured on this pipeline.** It is the single biggest unvalidated assumption in this whole document, and the entire point of Wave 1 is to start replacing it with real data.
+3. **Spearman-appropriateness:** assumes affinity and score have a monotonic, not necessarily linear, relationship — reasonable given both are model-confidence-like scores rather than physical quantities, but untested until real Kd data exists to check.
+4. **The Bonett–Wright variance correction (1.06 factor, Section 25)** is itself an approximation valid for moderate sample sizes and away from $\rho=\pm1$; adequate for planning purposes here, not for the eventual confirmatory analysis once real data exists.

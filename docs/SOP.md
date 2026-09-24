@@ -93,7 +93,7 @@ through its own control. Keep recording results; don't weight in Stage 8 yet.
 MM/GBSA, reserved for whoever survives checks 1–5. **Set size policy (revised
 2026-09-23): tied to the wet-lab synthesis wave, not a fixed number carried
 over from the pilot.** Every peptide actually selected for synthesis (the
-`sampling_parameter_derivation.md` Part II wave, currently sized 11–22) gets
+`sampling_parameter_derivation.md` Part V wave, currently sized 11–22) gets
 MD, plus one negative control drawn the same way as Stage 0.1's negative
 control (weakest surviving candidate on the earlier gates) as a running check
 that the MD protocol itself is still discriminating. This replaces the
