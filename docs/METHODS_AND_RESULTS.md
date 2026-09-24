@@ -294,10 +294,34 @@ Boltz2 is retained for **pose agreement only**, never ranking.
 
 ### Controls — pose agreement does discriminate
 
-Comparing AfCycDesign and Boltz2 poses after Kabsch superposition of the
-receptor chains catches candidates the ranking alone passed — including the
-negative control and an entire family of related designs — at near-zero marginal
-cost.
+Confidence scores had been compared between the two tools, but never whether
+they put the peptide in the same place. Two independently-trained models landing
+on the same pose is real corroborating evidence; disagreement flags exactly the
+kind of unreliable prediction the oxytocin control showed is possible.
+
+**Method.** Superpose each candidate's AfCycDesign and Boltz2 receptor chains
+(Kabsch fit on backbone atoms — no sequence alignment needed, since both predict
+from the identical extracted 7RYC receptor sequence), apply that transform to
+each structure's peptide chain, then measure peptide backbone RMSD between the
+two aligned poses. Data: `analysis/stage_0_controls/afcyc_vs_boltz2_pose_rmsd.csv`.
+
+**Caveat, and it matters.** The receptor-chain fit residual is itself ~3.0–3.6 Å
+across every candidate, uniformly — the two tools do not fully agree on the
+receptor's conformation either. Part of the peptide RMSD therefore reflects that
+baseline rather than peptide placement. Because the baseline is roughly constant
+across candidates the metric remains informative **relatively**, but it is not a
+clean peptide-only measurement and should not be quoted as one.
+
+**Results.** Mean peptide-pose RMSD 6.9 Å, median 6.6 Å across the 27 — modest
+overall agreement. Best: `out_70_sample3` at **2.60 Å**, one of the MD-validated
+leads. Worst by a wide margin: **the entire `out_39` design family** —
+`out_39_sample3` (15.51 Å), `out_39_sample1` (13.65 Å), `out_39_sample2`
+(13.40 Å), clustered far from every other candidate.
+
+**This is the check that caught the negative control.** `out_39_sample3` is the
+same candidate MD could not distinguish from the good ones — it looked equally
+stable over 20 ns. Pose agreement separated it, and its two siblings with it, at
+near-zero marginal cost since it reuses structures already computed.
 
 ### The backbone effect, and how docking is allocated
 
@@ -467,6 +491,40 @@ Measured: **1 h 18 m per candidate** (366 ns/day).
 ![MD stability](figures/fig4_md_stability.png)
 
 Predicted poses are stable over 20 ns. Disulfides remain intact at ~2.04 Å.
+
+**Protocol correction, validated across all 8 MD-tested candidates.** The v2
+`.mdp` fixes (`DispCorr=EnerPres`, `refcoord_scaling=com`) were validated on two
+candidates first, then — since the delta looked meaningful — all eight were
+rerun under the corrected protocol.
+
+| Candidate | v1 RMSD mean | v2 RMSD mean | Δ | v1 max | v2 max |
+|---|---:|---:|---:|---:|---:|
+| `out_70_sample2` | 2.29 | 1.37 | **−0.92** | 3.09 | 1.93 |
+| `out_70_sample3` | 1.18 | 3.09 | **+1.91** | 2.69 | 4.43 |
+| `out_80_sample4` | 2.57 | 2.96 | +0.39 | 4.43 | 4.71 |
+| `out_35_sample2` | 1.45 | 2.07 | +0.62 | 2.61 | 4.12 |
+| `out_98_sample2` | 2.83 | 2.77 | −0.06 | 4.09 | 3.59 |
+| `out_3_sample3` | 1.91 | 1.01 | **−0.90** | 2.70 | 1.44 |
+| `out_88_sample4` | 2.53 | 1.94 | −0.59 | 3.49 | 2.97 |
+| `out_39_sample3` (neg. control) | 2.31 | 1.70 | −0.61 | 3.21 | 4.56 |
+
+Mean delta **−0.02 Å**, median **−0.32 Å**; 5 of 8 tighter, 3 looser. This is
+not a uniform "the fix always helps" result, and that is the expected outcome of
+correcting a real physical bias rather than tuning a parameter. The individual
+change worth flagging is `out_70_sample3` (+1.91 Å, RMSD mean nearly tripled) —
+under the corrected protocol that candidate looks meaningfully less stable than
+it did under the buggy one.
+
+Disulfide geometry was essentially unaffected throughout (~2.03–2.04 Å under
+both protocols), as expected mechanistically: `DispCorr` and `refcoord_scaling`
+act on long-range dispersion and restraint-coordinate scaling, not on a covalent
+bond.
+
+**Membrane system.** A membrane-embedded build was proven feasible
+(packmol-memgen, with a real upstream `--overwrite` bug identified and worked
+around, and 7RYC chain assignment resolved via RCSB entity lookup), but its
+graduated-restraint equilibration protocol is not built. Deferred to v3.1.0 as a
+documented scope decision.
 
 ### Controls — MD does not discriminate
 
