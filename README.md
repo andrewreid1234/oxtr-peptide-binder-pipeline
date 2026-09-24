@@ -74,7 +74,7 @@ The operational runbook: exact commands, environment activation, scratch paths,
 per-stage configuration, and every gotcha encountered. Read while typing, not
 while trying to understand the project.
 
-Also [`scripts/README.md`](scripts/README.md) for what lives in each stage
+Also [`scripts/SCRIPTS_GUIDE.md`](scripts/SCRIPTS_GUIDE.md) for what lives in each stage
 folder; script folders mirror the SOP's stage numbers.
 
 ---
