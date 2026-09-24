@@ -3,6 +3,11 @@
 Organized to mirror the pipeline stage numbers in `../docs/SOP.md` — if you're
 looking for "the script that does Stage N," it's in `stageN_*/`.
 
+This file is the **inventory** (which folder holds what). For the **orientation**
+— how the process actually flows, what each individual script reads and writes,
+why there are v1/v2 pairs, and the traps — see
+**[`SCRIPTS_GUIDE.md`](SCRIPTS_GUIDE.md)**.
+
 | Folder | Stage | Contents |
 |---|---|---|
 | `stage0_controls/` | 0.1 — Controls | Oxytocin/negative-control spot-check scripts (`forced_disulfide.py`), the full-shortlist disulfide-forcing batch (`fastrelax_batch.py`), the Rosetta relax+IA worker used for both (`rosetta_control_worker.sh`), the D_s(T) sampling validation experiment (`ds_t_experiment.py`, `ds_t_shard.py`), and the figure generator for `sampling_parameter_derivation.md` (`plot_sampling_figures.py` — reads `analysis/stage_0_controls/ds_t_experiment_results.csv`, writes to `docs/figures/`). |

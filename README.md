@@ -34,6 +34,9 @@ launched, sized as:
   — full math for every non-arbitrary numerical decision in the pipeline:
   backbone/sequence/temperature allocation (Part I, validated) and synthetic
   candidate selection for wet-lab wave sizing (Part II).
+- **[`scripts/SCRIPTS_GUIDE.md`](scripts/SCRIPTS_GUIDE.md)** — orientation for
+  the scripts: how the process flows stage to stage, what each script does,
+  and the known traps. Start here if the `scripts/` tree feels opaque.
 - **[`scripts/README.md`](scripts/README.md)** — what's in each stage folder.
 
 ## Layout
