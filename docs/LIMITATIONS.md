@@ -112,7 +112,7 @@ specifically.
 *Status:* deliberately deprioritised. Should be controlled before any candidate
 is taken seriously as a lead.
 
-### O6. `PIPELINE_VALIDATION.md` §16.1 over-states the oxytocin control
+### O6. `METHODS_AND_RESULTS.md` §16.1 over-states the oxytocin control
 The text implies AfCycDesign i_ptm is broken because oxytocin scored 0.368. The
 control showed AfCycDesign cannot blind-predict oxytocin's pose; it did not show
 i_ptm fails to rank designs. i_ptm correlates with Rosetta dG at rho −0.53
@@ -121,7 +121,7 @@ i_ptm fails to rank designs. i_ptm correlates with Rosetta dG at rho −0.53
 *Needs:* text correction. Keeping i_ptm as a prior rather than a gate remains
 the right call; the stated reason is wrong.
 
-### O7. `PIPELINE_VALIDATION.md` §8 funnel counts do not match the documented gate
+### O7. `METHODS_AND_RESULTS.md` §8 funnel counts do not match the documented gate
 The recorded "224 BBB+ (56%)" and "docked 112" correspond to thresholds of
 ~0.05 and ~0.10, not the documented 0.215 gate, which passes 39/400 (9.8%).
 The §8.1 projection of ~22,260 BBB+ candidates inherits the error; the measured
@@ -139,7 +139,7 @@ It is not on disk — `pdb_references/` holds only 7RYC and the three AVPR
 structures.
 
 ### O10. `fig2_pipeline_funnel.png` plots the erroneous funnel counts
-The funnel figure referenced by `PIPELINE_VALIDATION.md` §8 draws the 224 BBB+
+The funnel figure referenced by `METHODS_AND_RESULTS.md` §8 draws the 224 BBB+
 (56%) and docked-112 numbers that **O7** shows do not correspond to the
 documented 0.215 gate. It is deliberately **not committed** — the other eight
 figures are — so the docs do not carry a known-wrong image. Regenerate it once

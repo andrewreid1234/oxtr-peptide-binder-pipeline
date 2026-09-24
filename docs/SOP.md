@@ -58,7 +58,7 @@ pilot.
 
 ## Pipeline v2.0.0 — scale-up methodology
 
-Full derivation and reasoning: `PIPELINE_VALIDATION.md` (control experiments) and
+Full derivation and reasoning: `METHODS_AND_RESULTS.md` (control experiments) and
 the planning record at `.claude/plans/cozy-wandering-treehouse.md`. Summary of
 what changed and why:
 
@@ -784,7 +784,7 @@ version-history table above for the validated values and their derivation.
 
 ## Stage 5 (extended) — GROMACS MD validation
 
-See `PIPELINE_VALIDATION.md` section 10 for the full write-up with data. Summary:
+See `METHODS_AND_RESULTS.md` section 10 for the full write-up with data. Summary:
 7 candidates run to 20 ns unconstrained production MD (GROMACS 2024.5, CUDA,
 Amber99sb-ildn, explicit TIP3P, 0.15 M NaCl, receptor backbone position-restrained
 in lieu of a membrane — see that section for why membrane embedding was abandoned):
@@ -825,7 +825,7 @@ here. Scripts: `/tmp/run_md_pipeline.sh` (reusable, one candidate + GPU id as ar
 
 ## Stage 0.1 — Controls: is the pipeline actually calibrated?
 
-See `PIPELINE_VALIDATION.md` section 16 for the full write-up with data and
+See `METHODS_AND_RESULTS.md` section 16 for the full write-up with data and
 interpretation. Summary:
 
 - **Positive control (oxytocin):** run through identical Stage 3/5 steps. AfCycDesign
@@ -883,7 +883,7 @@ interpretation. Summary:
   also AVPR2) — AVPR2 (renal, antidiuretic) is the most repeated off-target hit
   across the shortlist. `out_70_sample2` (the primary MD-validated lead) has the
   best margin among the MD-tested candidates (+0.059) but this is a modest gap,
-  not a clean separation. See `PIPELINE_VALIDATION.md` section 13 for the full
+  not a clean separation. See `METHODS_AND_RESULTS.md` section 13 for the full
   table and discussion.
 
 ## Environments reference

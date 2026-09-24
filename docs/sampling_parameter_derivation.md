@@ -11,7 +11,7 @@ advancement.
 This document is the canonical reference for every non-arbitrary numerical decision
 in the OXTR binder pipeline — every parameter here is derived from an explicit model
 and stated assumptions, not picked by feel. If a number appears in `SOP.md` or
-`PIPELINE_VALIDATION.md` and it was not simply measured, its derivation belongs here.
+`METHODS_AND_RESULTS.md` and it was not simply measured, its derivation belongs here.
 
 Sections are ordered to follow the pipeline funnel, so reading top to bottom walks
 the same path a candidate takes:
@@ -235,7 +235,14 @@ $$
 - $D_s \to \infty$ ($T$ very high, unlimited quality-passing diversity): $r \to 0$, $F^{*} \to K$ — every draw finds something new, total approaches the full budget. Correct.
 - $D_s \to 0$ ($T \approx 0$, collapsed): $F^{*} \to D_b D_s \to 0$ — nearly everything is a wasted duplicate. Matches the qualitative $T=0.1$ observation.
 
-![F(B,S) along the B·S=K constraint, using the final fitted Db≈1000, Ds≈73.2 from Section 7](figures/fig_optimum_flatness.png)
+![F(B,S) along the B·S=K constraint](figures/fig_optimum_flatness.png)
+
+> **Caption updated 2026-09-24.** This figure was drawn with D_b ≈ 1000 and
+> D_s ≈ 73.2. Both inputs have since changed: D_s is 37.6 under the
+> Cys-constrained measurement (Section 9 and Part I Section 7), and D_b is now
+> known to be unidentifiable (Section 14 note, `LIMITATIONS.md` O2). The
+> *shape* of the curve — its flatness near the optimum, which is the point
+> being made — is unaffected; the absolute axis values are not current.
 
 *Reading this curve:* it's $F$ swept along the constraint line ($S=K/B$), using the actual fitted $D_b\approx1{,}000$ and $D_s(0.1)\approx73.2$ from Section 7 rather than a hypothetical example — so the marked optimum ($B^*\approx739$) is the same number the final recommendation is built on. The curve rises steeply for very small $B$ (too many sequences wasted on too few backbone shapes), peaks, then falls off more gently — this asymmetry, and the broad flat-topped region around the peak, is the visual version of the Section 6 sensitivity result: getting $D_b$ or $D_s$ somewhat wrong costs little, but going too far in either direction (in particular, staying near the old $B=10{,}000$ default, off the right edge of this plot) costs a lot.
 
@@ -343,7 +350,7 @@ passing that backbone's fixed quality bar, out of 300 draws):
 | 87 | 75 | 74  | 52 | 14 | 0 | 0 | 0 | 75.4 |
 | **Mean** | **48.6** | **58.8** | **36.6** | **12.8** | **0.9** | **0.0** | **0.0** | — |
 
-![Heatmap of n_distinct_good across all 8 backbones x 7 temperatures](figures/fig_dst_heatmap.png)
+![Heatmap of n_distinct_good across all backbones × 7 temperatures](figures/fig_dst_heatmap.png)
 
 *The same table as a picture:* the dark column at T=0.1 is the whole result in one glance — every backbone's row is darkest (or tied for darkest) in that column, and the T≥0.5 columns are uniformly blank (0 everywhere). The row-to-row banding (out_75 pale throughout, out_0 dark throughout) is the designability spread discussed next.
 
@@ -422,7 +429,7 @@ direction on T.**
 
 **Goal:** establish how many of the $B \cdot S$ nominal ProteinMPNN outputs are actually distinct molecules, since every downstream count — docking load, shortlist size, compute budget — is a count of *distinct* sequences, not of draws.
 
-**Why this needs its own section:** Part I optimizes for *distinct* output and its $D_s(T)$ term already encodes saturation, but the production pipeline had no explicit deduplication step, and the funnel counts in `PIPELINE_VALIDATION.md` were written in terms of raw draws. At $T = 0.1$ the gap between the two is large.
+**Why this needs its own section:** Part I optimizes for *distinct* output and its $D_s(T)$ term already encodes saturation, but the production pipeline had no explicit deduplication step, and the funnel counts in `METHODS_AND_RESULTS.md` were written in terms of raw draws. At $T = 0.1$ the gap between the two is large.
 
 ## 9. Duplicate rate at the production temperature
 
@@ -484,7 +491,7 @@ against a nominal $B \cdot S = 39{,}750$. **Every funnel count downstream of Sta
 
 ## 11. Auditing the gate — what the BBB filter actually passes
 
-The projected funnel in `PIPELINE_VALIDATION.md` §8 records **224 BBB+ (56%)** of 400 pilot sequences, and a docked set of **112** described as "top 50% of BBB+ by probability". Neither figure is consistent with the documented threshold $\tau = 0.215$. Recounting directly from `stage_5_permeability/bbb_permeability_predictions.csv`:
+The projected funnel in `METHODS_AND_RESULTS.md` §8 records **224 BBB+ (56%)** of 400 pilot sequences, and a docked set of **112** described as "top 50% of BBB+ by probability". Neither figure is consistent with the documented threshold $\tau = 0.215$. Recounting directly from `stage_5_permeability/bbb_permeability_predictions.csv`:
 
 | Threshold $\tau$ | Count of 400 | $f(\tau)$ | Correspondence |
 |---|---:|---:|---|
@@ -492,9 +499,9 @@ The projected funnel in `PIPELINE_VALIDATION.md` §8 records **224 BBB+ (56%)** 
 | 0.10 | 112 | 28.0% | matches the documented "docked 112" |
 | **0.215** (documented gate) | **39** | **9.8%** | the gate as actually specified |
 
-So the funnel's two recorded counts correspond to thresholds of roughly 0.05 and 0.10 respectively, not to the 0.215 gate stated in `SOP.md`. The 56% figure is not a measurement of the documented filter, and **the `PIPELINE_VALIDATION.md` §8.1 projection of ~22,260 BBB+ candidates inherits that error**.
+So the funnel's two recorded counts correspond to thresholds of roughly 0.05 and 0.10 respectively, not to the 0.215 gate stated in `SOP.md`. The 56% figure is not a measurement of the documented filter, and **the `METHODS_AND_RESULTS.md` §8.1 projection of ~22,260 BBB+ candidates inherits that error**.
 
-**The v1.2 pass rate, previously unmeasured.** `PIPELINE_VALIDATION.md` §8.1 flags explicitly that "the relabeled v1.2 classifier's pass rate on a comparable batch hasn't been re-measured". It has now been measured, by rescoring the pilot's own 400 sequences through `B3BPFN_v1.2_production/predict_peptide.py`:
+**The v1.2 pass rate, previously unmeasured.** `METHODS_AND_RESULTS.md` §8.1 flags explicitly that "the relabeled v1.2 classifier's pass rate on a comparable batch hasn't been re-measured". It has now been measured, by rescoring the pilot's own 400 sequences through `B3BPFN_v1.2_production/predict_peptide.py`:
 
 $$f_{v1.2}(0.215) = \frac{32}{400} = 8.0\%$$
 
@@ -518,7 +525,7 @@ Sharded across $G$ GPUs, total wall-clock hours for a two-tool stage is
 
 $$H_{\text{both}}(N) = \frac{N (c_A + c_B)}{3600\,G}$$
 
-**A staging refinement.** Boltz2 was demoted in v2.0.0 to a structure-only cross-check (pose agreement), never a ranking signal — §16.4–16.5 of `PIPELINE_VALIDATION.md`. A cross-check on survivors does not need to run at full width. Running Boltz2 only on the fraction $q \approx 0.24$ that clears the AfCycDesign and disulfide checks gives
+**A staging refinement.** Boltz2 was demoted in v2.0.0 to a structure-only cross-check (pose agreement), never a ranking signal — §16.4–16.5 of `METHODS_AND_RESULTS.md`. A cross-check on survivors does not need to run at full width. Running Boltz2 only on the fraction $q \approx 0.24$ that clears the AfCycDesign and disulfide checks gives
 
 $$H_{\text{staged}}(N) = \frac{N c_A + q N c_B}{3600\,G}$$
 
@@ -541,6 +548,8 @@ Every prior estimate of the BBB filter's discriminating power was computed on ca
 |---|---:|---:|---:|---:|---:|
 | BBB− ($p \leq 0.215$) | 120 | 0.170 | 0.071 | 0.142 | **0.478** |
 | BBB+ ($p > 0.215$) | 39 | 0.217 | 0.111 | 0.167 | **0.471** |
+
+![BBB gate control](figures/fig_bbb_gate_control.png)
 
 **As a binary gate, the filter does weakly enrich.** $\Delta = +0.047$, Welch $t = 2.45$ (df 48), **two-tailed $p = 0.018$**, Cohen's $d = 0.57$. This is a real, moderate effect. An earlier informal claim made during this investigation — that BBB probability carries *no* binding information — was based on the range-restricted data and is **wrong**; it is recorded here as corrected rather than quietly dropped.
 
@@ -589,6 +598,13 @@ $$\text{ICC}(1) = \frac{MS_b - MS_w}{MS_b + (k-1)MS_w} = \frac{0.01099 - 0.00397
 
 with $F = 2.77$ on $(55, 74)$ degrees of freedom, $p = 2.5 \times 10^{-5}$.
 
+![Backbone effect on binding quality](figures/fig_icc_backbone_effect.png)
+
+*The figure plots the Cys-constrained v2 measurement (ICC = 0.562, $F = 5.06$,
+$p = 2.9 \times 10^{-8}$), which supersedes the v1 value derived below — see the
+note at the end of this section. Each grey point is one docked design; each blue
+bar is a backbone mean.*
+
 **43% of the variance in $i_{\text{ptm}}$ sits between backbones rather than between sequences on the same backbone.** Decomposing the observed individual-candidate standard deviation of 0.086:
 
 $$\sigma_b = \sqrt{\text{ICC}} \cdot \sigma_{\text{total}} = 0.0566, \qquad \sigma_w = 0.0648$$
@@ -611,7 +627,9 @@ $$R(k) = \frac{k \cdot \text{ICC}}{1 + (k-1)\text{ICC}}, \qquad \text{corr}(\tex
 | 8 | 0.859 | 0.927 | 6,000 | 11.5 |
 | 12 | 0.902 | 0.950 | 9,000 | 17.3 |
 
-Returns flatten sharply after $k = 6$: going 6 → 12 doubles the scout cost to buy 0.044 of reliability. **$k = 6$ is the production value.**
+![Scout sizing and keep fraction](figures/fig_scout_and_keep.png)
+
+Returns flatten sharply after $k = 6$: going 6 → 12 doubles the scout cost to buy 0.044 of reliability. **$k = 6$ is the production value.** The left panel shows the reliability curve at both the point estimate and the CI lower bound; the right panel shows the recovery curve that sets the keep fraction in Section 17.
 
 **The scout sample must be random.** The estimand is the backbone's *mean* quality, so the $k$ sequences must be an unbiased sample of that backbone's unique sequences. Taking "the first 6" is unsafe if the FASTA carries any systematic ordering, and taking "the best 6 by ProteinMPNN score" deliberately biases the estimate upward by an amount that varies per backbone. Draw at random under a fixed seed.
 
@@ -710,6 +728,8 @@ Every rate below is measured on this hardware (4 × GPU, 64 CPU cores) from pilo
 | MM/GBSA | **not measured** — blocked | `gmx_MMPBSA` 1.6.5 bug | 24 | est. ~12 CPU-h |
 
 **Total ≈ 75–90 hours, roughly 3–4 days**, with the Rosetta CPU work overlapping the GPU stages rather than adding serially to them.
+
+![Projected v3.0.0 funnel](figures/fig_funnel_v3.png)
 
 **Three structural observations.**
 
@@ -822,12 +842,12 @@ This reframes the "12 compounds" figure honestly: it satisfies Model 1 comfortab
 
 ## 27. Plugging in real numbers
 
-Using $p \in [0.15, 0.30]$ (literature range for de novo binder campaigns, plausibly shifted upward here by the pipeline's extra filtering — see `PIPELINE_VALIDATION.md` section 14) and targeting $C = 0.85$:
+Using $p \in [0.15, 0.30]$ (literature range for de novo binder campaigns, plausibly shifted upward here by the pipeline's extra filtering — see `METHODS_AND_RESULTS.md` section 14) and targeting $C = 0.85$:
 
 - $N_{\text{hit}}$ at $p=0.15$: $\lceil \ln(0.15)/\ln(0.85) \rceil = 12$
 - $N_{\text{hit}}$ at $p=0.30$: $\lceil \ln(0.15)/\ln(0.70) \rceil = 6$
 
-Taking the conservative (lower-$p$) end: **$N_{\text{hit}} = 8$** (slightly below the 12 needed for $C=0.85$ at $p=0.15$, accepting $C\approx0.74$ at $p=0.15$ — see Section 24's table — as a defensible trade against reserving assay slots for calibration) plus **$N_{\text{cal}}^{\text{partial}} = 4$**, giving $N=12$ total, matching the recommendation already adopted in `PIPELINE_VALIDATION.md` section 14. Section 25 makes explicit what that document did not: this 12-compound wave is powered for $P(X\geq1)\approx 0.74$–$0.86$ (Model 1), but only a partial, underpowered first look at the score–affinity correlation (Model 2) — full calibration power at plausible $\rho$ (0.5–0.7) needs 15–31 compounds, achievable once Wave 1 and Wave 2 are pooled.
+Taking the conservative (lower-$p$) end: **$N_{\text{hit}} = 8$** (slightly below the 12 needed for $C=0.85$ at $p=0.15$, accepting $C\approx0.74$ at $p=0.15$ — see Section 24's table — as a defensible trade against reserving assay slots for calibration) plus **$N_{\text{cal}}^{\text{partial}} = 4$**, giving $N=12$ total, matching the recommendation already adopted in `METHODS_AND_RESULTS.md` section 14. Section 25 makes explicit what that document did not: this 12-compound wave is powered for $P(X\geq1)\approx 0.74$–$0.86$ (Model 1), but only a partial, underpowered first look at the score–affinity correlation (Model 2) — full calibration power at plausible $\rho$ (0.5–0.7) needs 15–31 compounds, achievable once Wave 1 and Wave 2 are pooled.
 
 ## 28. Sensitivity analysis
 
@@ -837,7 +857,7 @@ From Section 25, $n_{\text{cal}}$'s sensitivity to $\rho$ is even steeper — ro
 
 ## 29. Recommendation
 
-- **Wave 1 = 12 compounds** (8 top-ranked for hit confidence + 4 score-spread for a first calibration look), per Section 27 — unchanged from `PIPELINE_VALIDATION.md` section 14, now with the power tradeoff made explicit rather than implicit.
+- **Wave 1 = 12 compounds** (8 top-ranked for hit confidence + 4 score-spread for a first calibration look), per Section 27 — unchanged from `METHODS_AND_RESULTS.md` section 14, now with the power tradeoff made explicit rather than implicit.
 - **Do not treat a "no correlation" result from Wave 1 alone as definitive** — Section 25 shows 12 compounds is underpowered for that verdict at plausible $\rho$. A real correlation verdict needs Wave 1 + Wave 2 pooled (targeting 15–31 total, depending on the true $\rho$ once some signal exists to estimate it from).
 - **If assay throughput (still unconfirmed as of this writing) comfortably exceeds 12 per wave**, prefer growing $N_{\text{cal}}^{\text{partial}}$ over $N_{\text{hit}}$ first — Section 24 shows $N_{\text{hit}}=8$ already gives $C\gtrsim0.74$ at a conservative $p$, while Section 25 shows the calibration side is the one still meaningfully underpowered.
 

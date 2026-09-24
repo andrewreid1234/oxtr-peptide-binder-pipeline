@@ -11,7 +11,7 @@ method from first principles, because the interesting decisions are all on the
 computational side.
 
 Where a claim rests on data, the table or figure lives in
-[`PIPELINE_VALIDATION.md`](PIPELINE_VALIDATION.md); where it rests on a
+[`METHODS_AND_RESULTS.md`](METHODS_AND_RESULTS.md); where it rests on a
 derivation, that lives in
 [`sampling_parameter_derivation.md`](sampling_parameter_derivation.md). Known
 weaknesses are catalogued in [`LIMITATIONS.md`](LIMITATIONS.md). This document
@@ -115,7 +115,7 @@ N-methylation site scan.
 A screening funnel is only worth its filters. The pilot therefore ran a control
 experiment on each: a molecule known to bind (oxytocin) and the weakest
 candidate that had passed (as a negative). The results changed the pipeline.
-Full data in [`PIPELINE_VALIDATION.md`](PIPELINE_VALIDATION.md) §16.
+Full data in [`METHODS_AND_RESULTS.md`](METHODS_AND_RESULTS.md) §16.
 
 **ProteinMPNN was not seeing the receptor.** An early version passed only the
 binder chain, so sequences were designed for the peptide's shape in isolation
@@ -269,7 +269,7 @@ relative to a single wet-lab measurement.
 
 | If you want | Read |
 |---|---|
-| The data behind any claim here | [`PIPELINE_VALIDATION.md`](PIPELINE_VALIDATION.md) |
+| The data behind any claim here | [`METHODS_AND_RESULTS.md`](METHODS_AND_RESULTS.md) |
 | Why a number is that number | [`sampling_parameter_derivation.md`](sampling_parameter_derivation.md) |
 | What is weak or unresolved | [`LIMITATIONS.md`](LIMITATIONS.md) |
 | How to actually run it | [`SOP.md`](SOP.md) |

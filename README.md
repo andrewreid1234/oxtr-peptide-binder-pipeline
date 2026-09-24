@@ -54,7 +54,7 @@ does and why, what the pilot showed and did not show, and what happens next.
 Assumes a molecular-biology background but explains the computational methods
 from first principles. If you read one document, read this one.
 
-**2. [`docs/PIPELINE_VALIDATION.md`](docs/PIPELINE_VALIDATION.md) — the evidence.**
+**2. [`docs/METHODS_AND_RESULTS.md`](docs/METHODS_AND_RESULTS.md) — the evidence.**
 Every result, stage by stage: methods, data tables, figures, caveats, and the
 control experiments that tested each filter. A reference to look things up in
 rather than a linear read.
