@@ -2,7 +2,7 @@
 
 This document is the canonical reference for every non-arbitrary numerical decision
 in the OXTR binder pipeline — every parameter here is derived from an explicit model
-and stated assumptions, not picked by feel. Two parts so far:
+and stated assumptions, not picked by feel. Three parts so far:
 
 - **Part I (sections 0–8):** how many RFdiffusion backbones (B) and ProteinMPNN
   sequences per backbone (S), and what sampling temperature (T), maximize genuinely
@@ -10,6 +10,9 @@ and stated assumptions, not picked by feel. Two parts so far:
 - **Part II (sections 9–16):** how many computationally-ranked candidates should go
   to physical synthesis and wet-lab assay, given assay throughput — not synthesis
   capacity — is the real constraint.
+- **Part III (sections 17–24):** how many BBB-filtered sequences should enter Stage 3
+  cofolding, given GPU-hours are the constraint — and what the BBB gate's
+  discriminating power actually is, measured against a control rather than assumed.
 
 ---
 
@@ -492,3 +495,156 @@ From Section 11, $n_{\text{cal}}$'s sensitivity to $\rho$ is even steeper — ro
 2. **$p \in [0.10, 0.40]$ is a literature-transferred prior, not measured on this pipeline.** It is the single biggest unvalidated assumption in this whole document, and the entire point of Wave 1 is to start replacing it with real data.
 3. **Spearman-appropriateness:** assumes affinity and score have a monotonic, not necessarily linear, relationship — reasonable given both are model-confidence-like scores rather than physical quantities, but untested until real Kd data exists to check.
 4. **The Bonett–Wright variance correction (1.06 factor, Section 11)** is itself an approximation valid for moderate sample sizes and away from $\rho=\pm1$; adequate for planning purposes here, not for the eventual confirmatory analysis once real data exists.
+
+---
+
+# Part III — Docking-stage allocation
+
+**Goal:** rigorously derive how many BBB-filtered sequences should enter Stage 3 (AfCycDesign / Boltz2 cofolding), given that cofolding is the most compute-expensive per-candidate step in the pipeline. Like Part I this is a "how many samples" problem, but the binding constraint is different again: Part I is limited by *diversity per unit compute*, Part II by *assay slots*, and Part III by *GPU-hours against a filter whose discriminating power was never measured*.
+
+**Starting point this section argues away from:** "dock whatever the BBB filter passes, ranked by BBB probability" — the pilot's inherited behaviour, never derived, and resting on a pass-rate figure that turns out not to match the documented threshold.
+
+**Headline result:** the docking load for the v2.0.0 scale-up is **~3,180 candidates, not ~22,260**, and at measured throughput that is **~6 GPU-hours, not weeks**. The BBB gate weakly enriches for binding quality but is useless as a *ranking*, and it discards roughly half of the best-scoring candidates.
+
+---
+
+## 17. Notation and goal
+
+| Symbol | Meaning | Units / range |
+|---|---|---|
+| $N_{\text{seq}}$ | Sequences produced by Stage 2, $= B \cdot S$ | count; 39,750 at $B{=}750$, $S{=}53$ |
+| $\tau$ | Decision threshold on B3BPFN permeability probability | probability; documented as 0.215 |
+| $f(\tau)$ | Fraction of Stage 2 sequences with $p_{\text{BBB}} > \tau$ | probability, measured |
+| $N_{\text{dock}}$ | Candidates entering Stage 3 cofolding | count, $\leq N_{\text{seq}}$ |
+| $c_A$, $c_B$ | Wall-clock cost per candidate, AfCycDesign and Boltz2 | seconds/run, measured |
+| $G$ | GPUs available for sharding | count; 4 on Woody |
+| $q$ | Fraction of docked candidates clearing the Stage 3 checks | probability; 0.24 from the pilot |
+| $\Delta$ | Mean difference in $i_{\text{ptm}}$ between BBB+ and BBB− candidates | dimensionless |
+| $d$ | Cohen's $d$, standardized effect size of that difference | dimensionless |
+| $\rho_{\text{BBB}}$ | Spearman correlation of $p_{\text{BBB}}$ against $i_{\text{ptm}}$ | dimensionless |
+
+---
+
+## 18. Auditing the gate — what the BBB filter actually passes
+
+The projected funnel in `PIPELINE_VALIDATION.md` §8 records **224 BBB+ (56%)** of 400 pilot sequences, and a docked set of **112** described as "top 50% of BBB+ by probability". Neither figure is consistent with the documented threshold $\tau = 0.215$. Recounting directly from `stage_5_permeability/bbb_permeability_predictions.csv`:
+
+| Threshold $\tau$ | Count of 400 | $f(\tau)$ | Correspondence |
+|---|---:|---:|---|
+| 0.05 | 231 | 57.8% | matches the documented "224 / 56%" |
+| 0.10 | 112 | 28.0% | matches the documented "docked 112" |
+| **0.215** (documented gate) | **39** | **9.8%** | the gate as actually specified |
+
+So the funnel's two recorded counts correspond to thresholds of roughly 0.05 and 0.10 respectively, not to the 0.215 gate stated in `SOP.md`. The 56% figure is not a measurement of the documented filter, and **the §8.1 projection of ~22,260 BBB+ candidates inherits that error**.
+
+**The v1.2 pass rate, previously unmeasured.** §8.1 flags explicitly that "the relabeled v1.2 classifier's pass rate on a comparable batch hasn't been re-measured". It has now been measured, by rescoring the pilot's own 400 sequences through `B3BPFN_v1.2_production/predict_peptide.py`:
+
+$$f_{v1.2}(0.215) = \frac{32}{400} = 8.0\%$$
+
+(one of the 32 carries the nearest-neighbor hard-negative flag). v1.2 is slightly more conservative than v1.0's 9.8%, consistent with the relabeling having removed positive training signal on hormone-like peptides.
+
+**Projected docking load.**
+
+$$N_{\text{dock}} = N_{\text{seq}} \cdot f_{v1.2}(\tau) = 39{,}750 \times 0.080 \approx 3{,}180$$
+
+against the ~22,260 currently projected — a factor of **7.0** smaller.
+
+---
+
+## 19. Throughput model
+
+Per-candidate wall-clock costs, measured from output-file timestamps across the pilot's 39-candidate Stage 3 runs (single GPU, sequential):
+
+$$c_A = 27.7\ \text{s/run} \qquad c_B = 42.1\ \text{s/run}$$
+
+Sharded across $G$ GPUs, total wall-clock hours for a two-tool stage is
+
+$$H_{\text{both}}(N) = \frac{N (c_A + c_B)}{3600\,G}$$
+
+**A staging refinement.** Boltz2 was demoted in v2.0.0 to a structure-only cross-check (pose agreement), never a ranking signal — §16.4–16.5 of `PIPELINE_VALIDATION.md`. A cross-check on survivors does not need to run at full width. Running Boltz2 only on the fraction $q \approx 0.24$ that clears the AfCycDesign and disulfide checks gives
+
+$$H_{\text{staged}}(N) = \frac{N c_A + q N c_B}{3600\,G}$$
+
+| $N_{\text{dock}}$ | AfCycDesign only | Both, full width | Staged ($q{=}0.24$) |
+|---:|---:|---:|---:|
+| 1,000 | 1.9 h | 4.8 h | 2.6 h |
+| **3,180** | **6.1 h** | 15.4 h | **8.3 h** |
+| 12,000 | 23.1 h | 58.2 h | 31.5 h |
+| 39,750 | 76.5 h | 192.7 h | 104.4 h |
+
+**Caveat on $c_B$.** The Boltz2 run log shows only ~13 s of actual prediction against 42.1 s of wall-clock, i.e. roughly 29 s/run is model load and setup that a persistent-process or batched runner would amortize away. $c_B$ as measured is therefore an upper bound on a properly batched implementation, and the "both" column above likely overstates Boltz2's true cost by a factor of 2–3.
+
+---
+
+## 20. Does the gate rank, or only filter? — the BBB− control
+
+Every prior estimate of the BBB filter's discriminating power was computed on candidates that had *already passed it*, so the range of $p_{\text{BBB}}$ was restricted and any correlation attenuated. That restriction was removed by docking a control set: **120 sequences sampled at random (seed 42) from the 361 pilot sequences with $p_{\text{BBB}} \leq 0.215$**, run through the identical AfCycDesign protocol as the BBB+ set.
+
+| Group | $n$ | mean $i_{\text{ptm}}$ | sd | median | max |
+|---|---:|---:|---:|---:|---:|
+| BBB− ($p \leq 0.215$) | 120 | 0.170 | 0.071 | 0.142 | **0.478** |
+| BBB+ ($p > 0.215$) | 39 | 0.217 | 0.111 | 0.167 | **0.471** |
+
+**As a binary gate, the filter does weakly enrich.** $\Delta = +0.047$, Welch $t = 2.45$ (df 48), **two-tailed $p = 0.018$**, Cohen's $d = 0.57$. This is a real, moderate effect. An earlier informal claim made during this investigation — that BBB probability carries *no* binding information — was based on the range-restricted data and is **wrong**; it is recorded here as corrected rather than quietly dropped.
+
+**As a ranking, the filter is not usable.** Over the now-unrestricted range ($n = 159$):
+
+$$\rho_{\text{BBB}} = +0.116, \quad t = 1.46, \quad p = 0.145 \ \text{(not significant)}$$
+
+So sorting candidates by $p_{\text{BBB}}$ does not order them by predicted binding quality. "Take the top $k$ by BBB probability" is therefore **not** a defensible way to subsample the pool — it is close to random with respect to binding while systematically biasing toward the physicochemical extreme. If subsampling is ever forced by budget, it should be done **at random**.
+
+**What the gate costs.** Ranking all 159 docked candidates by $i_{\text{ptm}}$ and asking how many of the best would be discarded by the $\tau = 0.215$ gate:
+
+| Top slice by $i_{\text{ptm}}$ | $n$ | of which BBB− (discarded) |
+|---|---:|---:|
+| Top 10% | 15 | **7 (47%)** |
+| Top 25% | 39 | **24 (62%)** |
+
+The single best-scoring candidate in the whole experiment is BBB− ($i_{\text{ptm}}$ 0.478). **The gate discards roughly half of the top decile for a mean enrichment of 0.047.**
+
+**Confound check.** $p_{\text{BBB}}$ is itself length-dependent ($\rho = -0.212$ against sequence length), and length weakly anti-correlates with $i_{\text{ptm}}$ ($\rho = -0.101$), so part of $\Delta$ could be mediated by length rather than permeability per se. Stratifying by length leaves the difference positive in 5 of 7 strata (+0.082, +0.094, +0.039, −0.035, +0.057, +0.127, 0.000), so it is not purely a length artifact — but the BBB+ strata contain only 2–12 candidates each and this stratified analysis is **underpowered**. It should not be read as having settled the mediation question.
+
+---
+
+## 21. Why there is no interior optimum for $N_{\text{dock}}$
+
+The natural instinct is to optimize $N_{\text{dock}}$ against a quality-versus-cost curve. That framing was attempted and is **not sound enough to base a decision on**, for four reasons worth recording so the attempt is not repeated:
+
+1. **The obvious objective is an extreme-value quantity** — the expected best score among $N$ draws, $\mathbb{E}[\max] \approx \mu + \sigma\sqrt{2\ln N}$ under a normal approximation. Fitting $\mu, \sigma$ requires a sample from the population being drawn from; the only available sample (the 39 docked) is itself *selected*, so the fit is not to the right distribution.
+2. **The approximation is measurably wrong where it can be checked.** It predicts a best-of-39 of 0.518 against an observed 0.471. $i_{\text{ptm}}$ is bounded above by 1 and right-skewed, so the true tail is thinner than normal and the formula overstates gains.
+3. **It optimizes the wrong variable.** v2.0.0 demoted $i_{\text{ptm}}$ from a gate to a prior. Maximizing expected best $i_{\text{ptm}}$ optimizes a quantity the pipeline has explicitly decided not to gate on.
+4. **Draws are not independent.** With $S = 53$ sequences per backbone, candidates sharing a backbone are strongly correlated — the same saturating-diversity argument Part I §1.1 makes against naive sequence counting applies here. The effective independent sample size is far closer to the backbone count than to $N_{\text{dock}}$.
+
+Even taken at face value the curve is logarithmic: doubling $N$ buys roughly $+0.019$ $i_{\text{ptm}}$ *wherever you start*, so 1,000→2,000 costs 1.9 GPU-h for the same gain that 12,000→24,000 costs 23 GPU-h. There is no knife-edge optimum to find.
+
+**The decision does not need that curve.** Since $N_{\text{dock}} \approx 3{,}180$ costs ~6 GPU-hours, the whole BBB+ pool is affordable outright, so no subsampling decision arises and no optimum is required. This is a budget argument, and it is sound independently of everything in this section.
+
+---
+
+## 22. Recommendation
+
+- **Dock the entire BBB+ pool** — projected $N_{\text{dock}} \approx 3{,}180$ — rather than subsampling it. Not because 3,180 is optimal, but because it is affordable (~6 GPU-h for AfCycDesign) and no defensible prioritization signal exists within the pool (§20).
+- **Stage Boltz2 behind AfCycDesign** rather than running both at full width. It is a cross-check on survivors, so running it on the ~24% that clear Stage 3 checks cuts the stage from 15.4 h to 8.3 h at zero information cost. A batched runner would cut it further (§19).
+- **Never subsample by BBB rank.** $\rho_{\text{BBB}} = +0.116$, $p = 0.145$. If budget ever forces a cut, cut at random.
+- **Dock a random BBB− control sample at scale-up too** (~5,000 candidates, ~9.6 GPU-h). §20 shows the gate discards ~47% of the top decile; at 8% pass rate the scale-up will discard ~36,500 designs on a classifier with a known blind spot for hormone-like disulfide-cyclized peptides. Carrying a control through the scale-up makes that cost measurable rather than assumed.
+- **Correct `PIPELINE_VALIDATION.md` §8 and §8.1** to the measured pass rates (9.8% v1.0, 8.0% v1.2) and re-derive the projected BBB+ count.
+
+---
+
+## 23. Sensitivity analysis
+
+$N_{\text{dock}}$ scales linearly in $f(\tau)$, so unlike Part I's square-root-damped $B^\star$ this parameter is **not** forgiving — a factor-7 error in the pass rate is a factor-7 error in the compute bill, which is exactly the error §18 found. The saving grace is that the cost is linear and small: even if $f$ were underestimated by 3×, $N_{\text{dock}} \approx 9{,}500$ still costs only ~18 GPU-h for AfCycDesign.
+
+Sensitivity to $\tau$ is steep in the region of interest — $f$ moves 9.8% → 28.0% → 57.8% as $\tau$ falls 0.215 → 0.10 → 0.05. Any future change to $\tau$ therefore has a direct, near-proportional compute consequence and should be treated as a **MAJOR** change under the versioning rules in `SOP.md`.
+
+Sensitivity to $c_A$, $c_B$ and $G$ is linear and well-characterized; the only soft input is $c_B$, over-measured by an estimated 2–3× (§19).
+
+---
+
+## 24. Open assumptions still worth testing
+
+1. **$f_{v1.2} = 8.0\%$ is measured on one batch of 400 sequences from a 100-backbone pilot.** The scale-up draws from 750 backbones at $T = 0.1$; if the sequence-composition distribution shifts, so does the pass rate. It is cheap to re-measure on the first completed shard and should be.
+2. **$q = 0.24$ is carried over from the pilot's old $i_{\text{ptm}}$-gated filter set**, not the v2.0.0 disulfide-forcing + pose-agreement checks. The staged-Boltz2 estimate in §19 inherits that uncertainty; the first real read comes from the scale-up itself. This is the same caveat `PIPELINE_VALIDATION.md` §8.1 already carries.
+3. **The BBB− control used AfCycDesign $i_{\text{ptm}}$ as the quality proxy**, which §20's own logic (and §21.3) notes is a demoted metric. A stronger version of this control would carry the 120 BBB− candidates through Rosetta `dG_separated` as well — ~2 CPU-hours — and check whether the same ~47% top-decile loss holds under the physics score.
+4. **The length-mediation question is unresolved** (§20). Settling it needs a length-matched BBB+/BBB− comparison with adequate per-stratum $n$, which the current 39 BBB+ candidates cannot support.
+5. **$c_A$ and $c_B$ assume perfect 4-GPU scaling.** Measured single-GPU sequential rates divided by $G$; real sharded throughput will be slightly worse from contention and stragglers.
