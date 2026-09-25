@@ -1,6 +1,6 @@
 # Known Limitations, Open Questions and Unvalidated Assumptions
 
-**Document version:** v3.0.0
+**Document version:** v4.0.0
 **Last updated:** 2026-09-25
 
 A living register, not a dated snapshot. Every known weakness in this project
@@ -23,6 +23,7 @@ clarifications, added evidence.
 | v1.0.0 | 2026-09-24 | Converted from the dated pre-scale-up audit into a living register. Adds everything found on 2026-09-24: the silent cysteine failure, D_s/B/S derived on non-cyclizable sequences, D_b shown to be unidentifiable, the disulfide ring-size effect, and the missing Stage 2 scale-up script. |
 | **v2.0.0** | 2026-09-24 | **Blocker closed:** `SOP.md` bumped to v3.0.0, so the runbook no longer describes a superseded pipeline (was B2, now R5). Remaining blockers renumbered. Adds O10 — the funnel figure withheld because it plots the erroneous BBB counts. |
 | **v3.0.0** | 2026-09-25 | **Blocker closed:** the Stage 2 scale-up script now exists (was B1, now R6), along with the deduplication step the SOP specified but nothing implemented. One blocker remains, renumbered to B1. Also records that the 46,800 unique-sequence projection carries a 95% CI of [33,000, 60,500] — the per-backbone mean is estimated from 32 backbones with a 4-fold spread. |
+| **v4.0.0** | 2026-09-25 | **Last blocker closed.** The v1/v2 ID collision is resolved (was B1, now R7): the hazard was not the archived directory but the superseded v1 Stage 3 runner that would recreate it, which now refuses to run. **No open blockers.** |
 
 **Status key:** 🔴 blocker · 🟠 open · 🟡 accepted limitation · 🟢 resolved
 
@@ -30,15 +31,8 @@ clarifications, added evidence.
 
 ## 🔴 Blockers — must be cleared before the scale-up launches
 
-### B1. `validation/` and `validation_v2/` share 51 candidate IDs with different sequences
-For all 51 shared IDs the peptide sequence differs between the two directories —
-e.g. `out_11_sample1` is `LCAGASAAACAA` in one and `CCLGFGYVECLG` in the other.
-Any code resolving a structure by candidate ID across both can silently serve
-the wrong molecule. A dashboard fallback doing exactly this was found and
-removed, but the hazard is still latent.
-
-*Needs:* `validation/` (the Sep 14 v1 batch) archived or renamed so the
-collision is impossible rather than merely documented.
+**None.** The scale-up is wired end to end and every gate has been exercised
+against both a passing and a failing batch.
 
 ---
 
@@ -250,7 +244,24 @@ specified in the SOP but had no implementation — verified against the D_s
 experiment output, where it independently reproduces the measured yield
 (mean 31.2 per backbone, median 24, range 2–105, 9% thin).
 
-### R7. Boltz2's compression was unexplained
+### R7. The v1/v2 candidate-ID collision could be recreated
+**Resolved 2026-09-25.** All 51 IDs shared between `validation/` and
+`validation_v2/` carry different peptide sequences, so any lookup by candidate
+ID across both silently returns the wrong molecule. The structure directories
+were archived on 2026-09-24 (renamed `*_V1_ARCHIVED_DO_NOT_USE`, with a README
+recording why and how to reverse it), which removed the hazard.
+
+The residual risk was different from what this register originally recorded: not
+the directory existing, but `run_afcyc_shard.py` — the superseded v1 Stage 3
+runner — which writes to `validation/afcyc_out` and would have **recreated** the
+archived directory. That script now refuses to run unless `ALLOW_V1_AFCYC=1` is
+set, and says why.
+
+Renaming the parent `validation/` directory was considered and rejected: its
+non-structure files are still referenced by `SOP.md`, so renaming would break
+those for no additional safety.
+
+### R8. Boltz2's compression was unexplained
 **Resolved 2026-09-24**, in the sense that the mechanism is now known (see
 **A3**). Two earlier hypotheses — an MSA-pairing bug and the explicit disulfide
 constraint — were tested on real data and both rejected.

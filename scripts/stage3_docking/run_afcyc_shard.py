@@ -1,5 +1,30 @@
-import sys, csv, json, time
+"""
+SUPERSEDED v1 Stage 3 shard runner — binder-only ProteinMPNN sequences,
+Sep 14 batch. Kept for provenance. Replaced by run_afcyc_v2_shard.py.
+
+DO NOT RUN. It writes to validation/afcyc_out, whose candidate IDs collide
+with validation_v2/ — all 51 shared IDs carry DIFFERENT peptide sequences
+(out_11_sample1 is LCAGASAAACAA here, CCLGFGYVECLG in v2). Those structure
+directories were archived on 2026-09-24 precisely to make that collision
+impossible; running this script would recreate the directory and reintroduce
+the hazard, in which any lookup-by-candidate-ID silently returns the wrong
+molecule with no error.
+
+Override only if you know why you want the v1 batch back:
+    ALLOW_V1_AFCYC=1 python run_afcyc_shard.py ...
+"""
+import os, sys, csv, json, time
 from pathlib import Path
+
+if os.environ.get("ALLOW_V1_AFCYC") != "1":
+    sys.exit(
+        "REFUSING TO RUN: this is the superseded v1 Stage 3 runner.\n"
+        "It would recreate validation/afcyc_out, whose candidate IDs collide\n"
+        "with validation_v2/ while carrying different sequences (51/51 shared\n"
+        "IDs differ). Use run_afcyc_v2_shard.py instead.\n"
+        "See docs/LIMITATIONS.md B1. To override: ALLOW_V1_AFCYC=1"
+    )
+
 from colabdesign import mk_afdesign_model, clear_mem
 
 gpu_id, shard_idx, num_shards = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
