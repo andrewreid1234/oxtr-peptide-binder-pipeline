@@ -1,5 +1,5 @@
 #!/bin/bash
-# Pipeline v2.0.0 scale-up: Stage 1 RFdiffusion, one shard.
+# Pipeline v3.0.0 scale-up: Stage 1 RFdiffusion, one shard. B=1500 total.
 # Inter-cysteine spacer is 4-6 (separations 5-7), not 4-8: Rosetta's forced
 # disulfide energy degrades with separation (rho +0.511, p=0.007; +0.433 after
 # removing outliers). See OXTR_Stage1_v2_ScaleUp.sh for the full rationale.

@@ -1,8 +1,8 @@
 # De Novo Cyclic Peptide Binders Against the Oxytocin Receptor
 
-**Document version:** v1.0.0
-**Last updated:** 2026-09-24
-**Describes pipeline:** v3.0.0 (scale-up design)
+**Document version:** v1.1.0
+**Last updated:** 2026-09-25
+**Describes pipeline:** v3.1.0 (scale-up design)
 
 This is the document to read first. It explains what the project is trying to
 do, why each choice was made, what the pilot established, and what it did not.
@@ -187,13 +187,13 @@ an explicit model; the derivations are in
 
 | Quantity | Value | Basis |
 |---|---|---|
-| Backbones | **750** | A budget choice, not an optimum — see caveat below |
+| Backbones | **1,500** | A budget choice, not an optimum — see caveat below |
 | Sequences per backbone | **300** | RFdiffusion costs 3,178× a ProteinMPNN sequence, so sequences are effectively free; 300 harvests a backbone almost completely |
 | Sampling temperature | **0.1** | Peak distinct-and-good output, measured across 32 backbones × 7 temperatures × 300 draws |
 | Scout depth | **6 per backbone** | Estimates a backbone's quality at reliability 0.82 |
 | Backbones deepened | **top 50%** | Recovers 99.2% of the genuinely best backbones |
-| Docked | **~15,000** | Follows from the above |
-| Rosetta | **top 2,000** | Binding-ranked, keeps the CPU cost at ~11 h |
+| Docked | **~28,000** | Follows from the above |
+| Rosetta | **all ~6,700 survivors** | Uncapped — pre-filtering on i_ptm would lose a third of the best binders |
 | MD | **24** | Confirmation only |
 | Synthesised | **12** | 8 top-ranked plus 4 spanning the score range, so the ranking itself can be calibrated against real affinity |
 
@@ -202,13 +202,13 @@ a property of the *backbone*, not the sequence — 56% of the variance in
 interface score sits between backbones rather than between sequences sharing
 one. So rather than docking everything, the pipeline docks six sequences per
 backbone to find which backbones are good, then concentrates the remaining
-compute on the best half. Total cost is roughly 36 GPU-hours instead of 193.
+compute on the best half. Total cost is roughly 93 GPU-hours instead of the ~250 a full-width pass would take.
 
 **The honest caveat on backbone count.** The textbook way to set it requires
 knowing how many *distinct* backbones RFdiffusion can produce. That quantity
 turns out not to be identifiable from the available data — estimates range from
 34 to over 2,400 depending on an arbitrary choice of how different two backbones
-must be to count as different. So **750 is a budget decision**: more backbones
+must be to count as different. So **1,500 is a budget decision**: more backbones
 is monotonically better until diversity saturates, and we cannot measure where
 that is. See [`LIMITATIONS.md`](LIMITATIONS.md) O2.
 
@@ -250,7 +250,7 @@ A 100-backbone pilot ran the full funnel and produced a 27-candidate shortlist.
 1. **Clear the two launch blockers** — a Stage 2 script at scale-up size, and
    archiving the v1 `validation/` directory so its candidate IDs can no longer
    collide with `validation_v2/` ([`LIMITATIONS.md`](LIMITATIONS.md) B1–B2).
-2. **Run the scale-up** — roughly 36 GPU-hours across generation, docking and
+2. **Run the scale-up** — roughly 93 GPU-hours (~3.9 days) across generation, docking and
    scoring, with an early checkpoint on the first shard to confirm the backbone
    statistics hold at scale.
 3. **Select 12 compounds** for synthesis: 8 top-ranked, 4 spread across the

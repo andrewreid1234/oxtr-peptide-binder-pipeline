@@ -1,6 +1,6 @@
 # Mathematical Derivations — OXTR Pipeline Design Decisions
 
-**Document version:** v3.0.0
+**Document version:** v4.0.0
 **Last updated:** 2026-09-24
 **Pipeline version this describes:** derives the parameters for pipeline **v3.0.0**
 (not yet adopted — `SOP.md` remains at v2.0.0 until the Stage 2/3/5 changes below
@@ -36,7 +36,8 @@ Semantic versioning matching `SOP.md`'s convention, applied to the *derivations*
 | v1.0.0 | 2026-09-20 | Part I — B/S/T allocation model derived; pre-experiment estimates only. |
 | v1.1.0 | 2026-09-22 | Part I Section 7 — B=750, S=53, T=0.1 validated against the 16,800-sequence D_s(T) experiment. |
 | v2.0.0 | 2026-09-23 | Part II added — synthetic candidate selection (Wave 1 = 12 compounds). |
-| **v3.0.0** | 2026-09-24 | **Reordered to follow the pipeline funnel.** New: deduplication measurement (Part II), docking-stage allocation and backbone scouting (Part III), downstream compute budget and expected candidate profile (Part IV). Synthetic candidate selection renumbered from Part II to Part V, sections 9–16 → 23–30. Production parameters newly derived here: scout depth k=6, backbone keep fraction 50%, Boltz2 staged behind AfCycDesign, BBB reclassified from gate to router. |
+| v3.0.0 | 2026-09-24 | **Reordered to follow the pipeline funnel.** New: deduplication measurement (Part II), docking-stage allocation and backbone scouting (Part III), downstream compute budget and expected candidate profile (Part IV). Synthetic candidate selection renumbered from Part II to Part V, sections 9–16 → 23–30. Production parameters newly derived here: scout depth k=6, backbone keep fraction 50%, Boltz2 staged behind AfCycDesign, BBB reclassified from gate to router. |
+| **v4.0.0** | 2026-09-25 | **Two production parameters changed.** **B: 750 → 1500** — B is not derivable (D_b unidentifiable), so it is a budget choice; chemical space scales linearly at ~746 unique sequences per GPU-hour with no knee, and 1,500 doubles the space for ~1.8 extra days. **Rosetta uncapped** — the top-2,000-by-i_ptm cut recovers only 68% of the true top-10% by dG (ρ = 0.53 between them), and Rosetta is CPU-bound so it overlaps GPU docking at no wall-clock cost. Also corrects the deepening yield from 30.9 to the measured 25.3 per backbone, and adds the ProteinMPNN cost that had been omitted. |
 
 **Note on external references.** Part I's section numbers (0–8) are unchanged in
 v3.0.0 because `SOP.md`, `README.md` and `OXTR_Stage1_v2_ScaleUp.sh` cite
@@ -50,8 +51,17 @@ synthesis selection now point to **Part V**.
 **Goal:** rigorously derive the number of backbones (B), sequences per backbone (S), and ProteinMPNN sampling temperature (T) that maximize the number of genuinely distinct, still-good-quality structures entering downstream filtering, subject to B·S = 40,000.
 
 **Starting point this section argues away from:** B = 10,000, S = 4, T = 0.1 (the
-pilot's original defaults, never itself derived). **Current production values, as
-resolved in Section 7: B = 750, S = 53, T = 0.1.**
+pilot's original defaults, never itself derived).
+
+> **Part I's conclusion has been superseded.** It derived B = 750, S = 53 from a
+> `B·S = K` budget constraint that treats a backbone and a sequence as equally
+> costly. They are not — a backbone costs 3,178× a sequence (Part IV §21) — and
+> the experiment it was fitted to could not cyclize (§9, `LIMITATIONS.md` R1–R3).
+> **Current production values: B = 1500, S = 300, T = 0.1** (Part III §18). Only
+> T survives unchanged. Part I is retained because its *model* — saturating
+> diversity, and the trade-off between backbone and sequence sampling — is still
+> the right frame, and because its D_s(T) experimental design is what Part III
+> re-runs correctly.
 
 ---
 
@@ -394,8 +404,13 @@ D_b=1,000 (Section 2 point estimate) and this measured D_s(0.1)=73.2:**
 
 $$B^{*} = \sqrt{K D_b/D_s} \approx 739, \qquad S^{*} = \sqrt{K D_s/D_b} \approx 54$$
 
-**Recommended: B = 750 backbones, S = 53 sequences/backbone** (B·S ≈ 39,750 ≈
-K=40,000), **T = 0.1 (unchanged)**.
+**Recommended at the time: B = 750 backbones, S = 53 sequences/backbone**
+(B·S ≈ 39,750 ≈ K=40,000), **T = 0.1**.
+
+> **Superseded — see Part III §18.** The `B·S = K` constraint behind this is
+> mis-specified (a backbone costs 3,178× a sequence), and the D_s value it uses
+> was measured on sequences that could not form the disulfide. Production is
+> now **B = 1500, S = 300, T = 0.1**. T is the only value that survived.
 
 Expected yield: F* ≈ 19,987 distinct-and-good structures entering downstream
 filtering — versus F(10,000×4) ≈ 3,893 under the original production defaults
@@ -452,9 +467,11 @@ Cross-backbone duplication is small by comparison: of the pilot's 400 sequences,
 
 **Scale-up consequence.**
 
-$$N_{\text{unique}} \approx B \cdot \mathbb{E}[\text{unique}] = 750 \times 34.2 \approx 25{,}700$$
+At the production $S = 300$ the measured yield is **31.2 distinct-and-good sequences per backbone** (median 24 — the distribution is strongly right-skewed, running 2 to 105), so at $B = 1500$:
 
-against a nominal $B \cdot S = 39{,}750$. **Every funnel count downstream of Stage 2 should be computed from ~25,700, not 39,750.**
+$$N_{\text{unique}} \approx 1500 \times 31.2 \approx 46{,}800$$
+
+against a nominal $B \cdot S = 450{,}000$ draws. **Every funnel count downstream of Stage 2 should be computed from ~46,800, not from the raw draw count.**
 
 **The variance matters more than the mean.** Unique yield ranges from 12 to 49 across eight backbones — a 4× spread. Backbones like b37 and b75 are effectively exhausted at 53 draws, contributing a quarter of what the nominal $S$ implies, while b0 is nowhere near saturation. This is exactly the per-backbone variation in $D_s$ that Part I Section 8's first open assumption flags as untested, now measured: **$D_s$ is not constant across backbones.**
 
@@ -468,7 +485,7 @@ against a nominal $B \cdot S = 39{,}750$. **Every funnel count downstream of Sta
 
 **Starting point this section argues away from:** "dock whatever the BBB filter passes, ranked by BBB probability" — the pilot's inherited behaviour, never derived, and resting on a pass-rate figure that turns out not to match the documented threshold.
 
-**Headline result:** the docking load for the v2.0.0 scale-up is **~3,180 candidates, not ~22,260**, and at measured throughput that is **~6 GPU-hours, not weeks**. The BBB gate weakly enriches for binding quality but is useless as a *ranking*, and it discards roughly half of the best-scoring candidates.
+**Headline result:** the BBB gate does not set the docking load at all — it was moved out of the gating path entirely (Section 13). The load is set by backbone scouting (Sections 15–17): **27,975 dockings at B = 1500, ~53.8 GPU-hours**, against the ~188 a full-width pass would cost. The BBB gate weakly enriches for binding quality but is useless as a *ranking*, and it discards roughly half of the best-scoring candidates.
 
 ---
 
@@ -476,7 +493,7 @@ against a nominal $B \cdot S = 39{,}750$. **Every funnel count downstream of Sta
 
 | Symbol | Meaning | Units / range |
 |---|---|---|
-| $N_{\text{seq}}$ | Sequences produced by Stage 2, $= B \cdot S$ | count; 39,750 at $B{=}750$, $S{=}53$ |
+| $N_{\text{seq}}$ | Sequences produced by Stage 2, $= B \cdot S$ | count; 450,000 at $B{=}1500$, $S{=}300$ |
 | $\tau$ | Decision threshold on B3BPFN permeability probability | probability; documented as 0.215 |
 | $f(\tau)$ | Fraction of Stage 2 sequences with $p_{\text{BBB}} > \tau$ | probability, measured |
 | $N_{\text{dock}}$ | Candidates entering Stage 3 cofolding | count, $\leq N_{\text{seq}}$ |
@@ -619,13 +636,13 @@ If a backbone's quality is estimated from $k$ docked sequences, the reliability 
 
 $$R(k) = \frac{k \cdot \text{ICC}}{1 + (k-1)\text{ICC}}, \qquad \text{corr}(\text{observed}, \text{true}) = \sqrt{R(k)}$$
 
-| $k$ | $R(k)$ | $\text{corr}$ | Scout dockings ($B{=}750$) | GPU-h |
+| $k$ | $R(k)$ | $\text{corr}$ | Scout dockings ($B{=}1500$) | GPU-h |
 |---:|---:|---:|---:|---:|
-| 2 | 0.604 | 0.777 | 1,500 | 2.9 |
-| 4 | 0.753 | 0.868 | 3,000 | 5.8 |
-| **6** | **0.821** | **0.906** | **4,500** | **8.7** |
-| 8 | 0.859 | 0.927 | 6,000 | 11.5 |
-| 12 | 0.902 | 0.950 | 9,000 | 17.3 |
+| 2 | 0.604 | 0.777 | 3,000 | 5.8 |
+| 4 | 0.753 | 0.868 | 6,000 | 11.5 |
+| **6** | **0.821** | **0.906** | **9,000** | **17.3** |
+| 8 | 0.859 | 0.927 | 12,000 | 23.1 |
+| 12 | 0.902 | 0.950 | 18,000 | 34.6 |
 
 ![Scout sizing and keep fraction](figures/fig_scout_and_keep.png)
 
@@ -639,31 +656,34 @@ Having ranked backbones by scouted mean $i_{\text{ptm}}$, deepening the top frac
 
 $$N_{\text{dock}}(f) = B k + f B \left(\mathbb{E}[\text{unique}] - k\right)$$
 
-using the deduplicated $\mathbb{E}[\text{unique}] = 34.2$ from Section 9, not the nominal $S$.
+where $\mathbb{E}[\text{unique}] - k$ is the **measured 25.3 sequences remaining per backbone** after the 6 scouts are spent — not the 30.9 that a naive subtraction from the mean $D_s$ gives. The distribution is strongly right-skewed (2 to 105 distinct-and-good, median 24), so the mean overstates what a typical backbone yields. Two consequences worth recording:
 
-The quantity to optimize is not cost but **recovery**: what fraction of genuinely top-quintile backbones survive a cut made on a noisy ranking. With $\text{corr}(\text{observed}, \text{true}) = 0.906$ at $k=6$, this is a bivariate-normal orthant probability, evaluated by simulation ($4 \times 10^5$ draws):
+- **~9% of backbones have nothing left to deepen** — their entire unique pool is $\leq k$, consumed by scouting.
+- **~31% yield fewer than 10 more.** These are identifiable at the dedup step, before any docking compute is spent.
+
+The quantity to optimize is not cost but **recovery**: what fraction of genuinely top-quintile backbones survive a cut made on a noisy ranking. With $\text{corr}(\text{observed}, \text{true}) = 0.906$ at $k=6$, this is a bivariate-normal orthant probability, evaluated by simulation ($4 \times 10^5$ draws). At $B = 1500$:
 
 | Keep $f$ | Deep dockings | Total docked | GPU-h | **Top-quintile backbones recovered** |
 |---:|---:|---:|---:|---:|
-| 10% | 2,115 | 6,615 | 12.7 | 46.1% |
-| 20% | 4,230 | 8,730 | 16.8 | 75.9% |
-| 30% | 6,345 | 10,845 | 20.9 | 90.7% |
-| 40% | 8,460 | 12,960 | 24.9 | 97.0% |
-| **50%** | **10,575** | **15,075** | **29.0** | **99.2%** |
-| 100% | 21,150 | 25,650 | 49.3 | 100% |
+| 10% | 3,795 | 12,795 | 24.6 | 46.1% |
+| 20% | 7,590 | 16,590 | 31.9 | 75.9% |
+| 30% | 11,385 | 20,385 | 39.2 | 90.7% |
+| 40% | 15,180 | 24,180 | 46.5 | 97.0% |
+| **50%** | **18,975** | **27,975** | **53.8** | **99.2%** |
+| 100% | 37,950 | 46,950 | 90.3 | 100% |
 
-Each additional 10% of backbones costs a flat **4.1 GPU-h**. The recovery curve is steeply concave: 20% → 30% buys 14.8 points for 4.1 h, 40% → 50% buys 2.2 points for the same, and beyond 50% buys nothing measurable.
+Each additional 10% of backbones costs a flat **7.3 GPU-h**. The recovery curve is steeply concave: 20% → 30% buys 14.8 points for 7.3 h, 40% → 50% buys 2.2 points for the same, and beyond 50% buys nothing measurable.
 
 **$f = 0.50$ is the production value.** At 99.2% recovery the scouting cut is no longer a meaningful source of loss, which removes it as a variable needing defence. A 20% cut, by contrast, silently discards roughly a quarter of the backbones worth deepening — the failure mode this whole section exists to avoid.
 
-**Caveat.** The recovery column assumes backbone quality is approximately normally distributed and that $\text{ICC} = 0.433$ transfers from the pilot ($S = 4$) to production ($S = 53$). Larger within-backbone sequence diversity at $S = 53$ would *lower* ICC, lower reliability, and argue for a larger $f$ or $k$. **This is a pre-registered check: re-estimate ICC on the first completed scale-up shard before committing the deepening stage.** It is the one input in Part III that could reopen a production parameter.
+**Caveat.** The recovery column assumes backbone quality is approximately normally distributed and that ICC transfers from the pilot ($S = 4$) to production ($S = 300$). Larger within-backbone sequence diversity at $S = 300$ would *lower* ICC, lower reliability, and argue for a larger $f$ or $k$. The Cys-constrained estimate is $\text{ICC} = 0.562$, 95% CI $[0.363, 0.736]$ — at the lower bound, $k = 6$ gives reliability 0.773 rather than 0.885. **This is a pre-registered check: re-estimate ICC on the first completed scale-up shard before committing the deepening stage.** It is the one input in Part III that could reopen a production parameter.
 
 
 ## 18. Recommendation — locked production specification
 
 | Parameter | Value | Derived in |
 |---|---|---|
-| Backbones $B$ | **750** | Part I §7 |
+| Backbones $B$ | **1,500** | §14 note — a budget choice, not a derived optimum |
 | Draws per backbone $S$ | **53** | Part I §7 |
 | Sampling temperature $T$ | **0.1** | Part I §7 |
 | Deduplication | **within backbone, then global** | §9 |
@@ -671,11 +691,11 @@ Each additional 10% of backbones costs a flat **4.1 GPU-h**. The recovery curve 
 | Scout depth $k$ | **6, drawn at random** | §16 |
 | Backbone ranking statistic | **mean $i_{\text{ptm}}$** | §15 |
 | Keep fraction $f$ | **50%** | §17 |
-| Total docked $N_{\text{dock}}$ | **~15,075** | §17 |
+| Total docked $N_{\text{dock}}$ | **27,975** | §17 |
 | Boltz2 | **staged behind AfCycDesign, survivors only** | §12 |
 | BBB filter | **router after Rosetta, never a gate** | §13 |
 
-**Execution order.** Generate all 750 backbones → design 53 sequences each → deduplicate → dock 6 random unique sequences per backbone (4,500) → rank backbones by mean $i_{\text{ptm}}$ → deepen the top 375 backbones (10,575) → disulfide-forcing and pose-agreement checks, Boltz2 entering here → Rosetta on the top 2,000 by $i_{\text{ptm}}$ → **then** apply BBB as an annotation → N-methylation scan and selectivity → MD confirmation → Wave 1.
+**Execution order.** Generate all 1,500 backbones → design 300 sequences each → deduplicate → dock 6 random unique sequences per backbone (9,000) → rank backbones by mean $i_{\text{ptm}}$ → deepen the top 750 backbones (18,975) → disulfide-forcing and pose-agreement checks, Boltz2 entering here → **Rosetta on every survivor, uncapped (~6,714)** → **then** apply BBB as an annotation → N-methylation scan and selectivity → MD confirmation → Wave 1.
 
 **Why each choice is what it is, in one line each:**
 
@@ -698,7 +718,7 @@ Sensitivity to $c_A$, $c_B$ and $G$ is linear and well-characterized; $c_B$ is o
 ## 20. Open assumptions still worth testing
 
 1. **ICC = 0.433 was fitted at $S = 4$ and is applied at $S = 53$** (§17). Larger within-backbone diversity would lower it. **Pre-registered: re-estimate on the first completed scale-up shard before the deepening stage commits.** This is the only input that can reopen a locked parameter.
-2. **$\mathbb{E}[\text{unique}] = 34.2$ comes from 8 backbones** (§9), and per-backbone spread is large (12–49). The scale-up's 750 backbones will have their own distribution; re-measure on the first shard at the same time as ICC.
+2. **$\mathbb{E}[\text{unique}] = 34.2$ comes from 8 backbones** (§9), and per-backbone spread is large (12–49). The scale-up's 1,500 backbones will have their own distribution; re-measure on the first shard at the same time as ICC. Note ~9% of backbones have a unique pool of $\leq k$, so deepening returns nothing for them.
 3. **$q = 0.24$ is carried over from the pilot's old $i_{\text{ptm}}$-gated filter set**, not the v2.0.0 disulfide-forcing + pose-agreement checks. The staged-Boltz2 and Rosetta counts inherit that uncertainty.
 4. **The BBB− control used $i_{\text{ptm}}$ as the quality proxy** — a metric §14 argues against optimizing. Carrying the 120 controls through Rosetta `dG_separated` (~2 CPU-h) would confirm whether the 47% top-decile loss holds under the physics score.
 5. **The length-mediation question is unresolved** (§13): $p_{\text{BBB}}$ tracks length, length tracks $i_{\text{ptm}}$, and the stratified check is underpowered.
@@ -717,12 +737,12 @@ Every rate below is measured on this hardware (4 × GPU, 64 CPU cores) from pilo
 
 | Stage | Unit cost | Basis | Count under the locked plan | Cost |
 |---|---|---|---:|---:|
-| RFdiffusion | 85.8 s/backbone | 991 pilot backbones | 750 | 4.5 GPU-h |
-| ProteinMPNN + dedup | negligible | — | 39,750 draws → ~25,700 unique | ~1 h |
-| AfCycDesign scout | 27.7 s/run | 39 pilot runs | 4,500 | 8.7 GPU-h |
-| AfCycDesign deepen | 27.7 s/run | as above | 10,575 | 20.3 GPU-h |
+| RFdiffusion | 85.8 s/backbone | 991 pilot backbones | 1,500 | 8.9 GPU-h |
+| ProteinMPNN + dedup | 10.7 s/backbone at S=300 | measured | 450,000 draws → ~46,800 unique | 1.1 GPU-h |
+| AfCycDesign scout | 27.7 s/run | 39 pilot runs | 9,000 | 17.3 GPU-h |
+| AfCycDesign deepen | 27.7 s/run | as above | 18,975 | 36.5 GPU-h |
 | Boltz2 (staged) | 42.1 s/run | 39 pilot runs | ~3,620 | 10.6 GPU-h |
-| Rosetta relax + InterfaceAnalyzer | 1,245 s/candidate | 65 pilot structures | top 2,000 by $i_{\text{ptm}}$ | 10.8 h / 64 cores |
+| Rosetta relax + InterfaceAnalyzer | 1,245 s/candidate | 65 pilot structures | **all ~6,714 survivors** | 36.3 h / 64 cores |
 | Stage 7 selectivity | 29 s/run × 3 receptors | 81 pilot runs | ~200 | 1.2 GPU-h |
 | MD, 20 ns | 4,718 s (1 h 18 m), 366 ns/day | `out_70_sample2` production log | 24 | 7.9 GPU-h |
 | MM/GBSA | **not measured** — blocked | `gmx_MMPBSA` 1.6.5 bug | 24 | est. ~12 CPU-h |
@@ -733,7 +753,7 @@ Every rate below is measured on this hardware (4 × GPU, 64 CPU cores) from pilo
 
 **Three structural observations.**
 
-1. **Rosetta is the second bottleneck, not MD.** At 20.8 min/candidate it dominates everything below docking. Running it on all ~3,620 Stage-3 survivors costs 19.6 h; restricting it to the top 2,000 by $i_{\text{ptm}}$ costs 10.8 h and remains a binding-first ordering. The latter is the production choice.
+1. **Rosetta runs uncapped, and that is deliberate.** Pre-filtering to the top 2,000 by $i_{\text{ptm}}$ would look like a saving, but $i_{\text{ptm}}$ and $dG_{\text{separated}}$ correlate at only $\rho = 0.53$ — that cut recovers just **68%** of the true top-10% by Rosetta energy, discarding roughly a third of the best binders before physics sees them. It is the same error as gating early on BBB (§13). Rosetta is CPU-bound while docking is GPU-bound, so its 36.3 h overlap with the GPU stages and cost nothing in wall-clock.
 2. **MD and MM/GBSA are rounding errors** *because they are confirmation-only* on ~24 candidates (Part V). At 1 h 18 m/candidate, MD does not scale past a few dozen — if it were ever promoted back to a filter, this budget would not survive.
 3. **MM/GBSA's blocker is a software bug, not compute.** `res2map()`/`list2range()` in `gmx_MMPBSA` 1.6.5 returns a bare string where a dict is expected when a residue-classification list comes up empty. At ~12 CPU-h for the whole confirmation set it is effectively free once patched or version-pinned.
 
@@ -743,7 +763,7 @@ The design target is a candidate that is simultaneously a strong predicted binde
 
 **There is no binding/permeability tradeoff to fight.** BBB+ candidates average $i_{\text{ptm}}$ 0.217 against BBB− 0.170 — the two properties are weakly *positively* related ($\rho = +0.116$). Selecting hard on binding does not push the funnel away from permeability.
 
-Population-weighting the measured conditional rates by the true 8.0% BBB+ base rate (Section 11) over $N_{\text{dock}} = 15{,}075$:
+Population-weighting the measured conditional rates by the true 8.0% BBB+ base rate (Section 11) over $N_{\text{dock}} = 27{,}975$:
 
 | $i_{\text{ptm}}$ cut | Quantile | $P(\text{pass} \mid \text{BBB+})$ | $P(\text{pass} \mid \text{BBB−})$ | Expected dual-positives |
 |---:|---:|---:|---:|---:|

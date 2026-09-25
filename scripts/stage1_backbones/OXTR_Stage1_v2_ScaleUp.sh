@@ -1,8 +1,10 @@
 #!/bin/bash
-# Pipeline v2.0.0 scale-up: Stage 1 RFdiffusion backbone generation.
+# Pipeline v3.0.0 scale-up: Stage 1 RFdiffusion backbone generation.
 # Contig/hotspot config as the 100-backbone pilot (OXTR_Stage1_Disulfide_100.sh),
 # with ONE change - the inter-cysteine spacer is 4-6, not 4-8. See below.
-# B=750 per sampling_parameter_derivation.md Section 7.
+# B=1500 per sampling_parameter_derivation.md Part III. B is a budget choice,
+# not a derived optimum - D_b is not identifiable, so chemical space scales
+# linearly with B at ~746 unique sequences per GPU-hour with no knee to find.
 #
 # DISULFIDE RING SIZE (changed 2026-09-24)
 # ----------------------------------------
@@ -32,7 +34,7 @@ cd /scratch/drewdog/denovo_binder_100_pilot_v2/stage_1_backbones/run
 python $RFD_REPO/scripts/run_inference.py \
   --config-name base \
   inference.output_prefix=out/out \
-  inference.num_designs=750 \
+  inference.num_designs=1500 \
   'contigmap.contigs=[1-3/L1-1/4-6/L6-6/1-3 O31-67/O69-236/O266-345/0]' \
   inference.input_pdb=/scratch/drewdog/denovo_binder_100_pilot/project_files/pdb_references/7RYC.pdb \
   "ppi.hotspot_res=['O96','O295','O299','O38','O188','O34','O200','O316']" \

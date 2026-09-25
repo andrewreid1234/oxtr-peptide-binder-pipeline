@@ -180,7 +180,7 @@ save(fig, "fig_disulfide_ring_size.png")
 # ------------------------------------------------------------ corrected funnel
 stages = ["Sequences\n(dedup)", "Scout\ndocked", "Deepened", "Stage 3\npass",
           "Rosetta", "MD", "Synthesis"]
-counts = [25700, 4500, 10575, 3620, 2000, 24, 12]
+counts = [46800, 9000, 18975, 6714, 6714, 24, 12]
 fig, ax = plt.subplots(figsize=(9.5, 4.4))
 xs = np.arange(len(stages))
 ax.bar(xs, counts, color=[BLUE] * 5 + [GREEN, ORANGE], width=.62)
@@ -191,8 +191,8 @@ for x, c in zip(xs, counts):
 ax.set_xticks(xs)
 ax.set_xticklabels(stages, fontsize=9.5)
 ax.set_ylabel("candidates (log scale)")
-ax.set_title("Projected v3.0.0 funnel — 750 backbones × 300 draws\n"
-             "BBB is applied as an annotation after Rosetta, not as a gate", fontsize=11.5)
+ax.set_title("Projected v3.0.0 funnel — 1,500 backbones × 300 draws\n"
+             "BBB annotates after Rosetta; Rosetta runs uncapped on all survivors", fontsize=11.5)
 ax.set_ylim(5, 60000)
 save(fig, "fig_funnel_v3.png")
 

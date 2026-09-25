@@ -1,8 +1,8 @@
 # Methods and Results
 
-**Document version:** v1.0.0
-**Last updated:** 2026-09-24
-**Describes pipeline:** v3.0.0
+**Document version:** v1.1.0
+**Last updated:** 2026-09-25
+**Describes pipeline:** v3.1.0
 
 The complete technical record: what each stage does, exactly how it is
 configured, what it produced, and what the controls say about whether to believe
@@ -604,18 +604,19 @@ batch size fixes it.
 
 | Stage | Count | Cost |
 |---|---:|---|
-| Backbones | 750 | 4.5 GPU-h |
-| Sequences designed (300/backbone) | 225,000 | ~1 h |
-| After deduplication | ~25,700 | — |
-| Scout docking (6/backbone) | 4,500 | 8.7 GPU-h |
-| Deepening (top 50% of backbones) | 10,575 | 20.3 GPU-h |
-| Boltz2 (staged, survivors only) | ~3,620 | 10.6 GPU-h |
-| Rosetta (top 2,000 by i_ptm) | 2,000 | 10.8 h / 64 cores |
+| Backbones | 1,500 | 8.9 GPU-h |
+| Sequences designed (300/backbone) | 450,000 | 1.1 GPU-h |
+| Unique distinct-and-good after dedup | ~46,800 | — |
+| Scout docking (6/backbone) | 9,000 | 17.3 GPU-h |
+| Deepening (top 50% of backbones) | 18,975 | 36.5 GPU-h |
+| Boltz2 (staged, survivors only) | ~6,714 | 19.6 GPU-h |
+| Rosetta (uncapped, all survivors) | ~6,714 | 36.3 h / 64 cores, overlaps GPU |
 | Selectivity | ~200 | 1.2 GPU-h |
 | MD confirmation | 24 | 7.9 GPU-h |
 | Synthesis | 12 | — |
 
-**Total ≈ 36 GPU-hours.**
+**Total ≈ 93 GPU-hours (~3.9 days), GPU-bound.** Rosetta's 36.3 CPU-hours run
+concurrently on the otherwise-idle 64 cores and do not add to wall-clock.
 
 ---
 

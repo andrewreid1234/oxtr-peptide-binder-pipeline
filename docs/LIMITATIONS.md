@@ -69,7 +69,7 @@ over 2,400, Chao1 reproduces the coupon-collector inversion rather than checking
 it, and at the binning that produced the published ~1,000 the doubleton count
 falls to 0–2 where both estimators are known to be unreliable.
 
-*Status:* **B = 750 is a budget choice, not a derived optimum.** More backbones
+*Status:* **B = 1,500 is a budget choice, not a derived optimum.** More backbones
 is monotonically better until backbone diversity saturates, and we cannot
 measure where that is. A principled distinctness definition (structural
 clustering rather than three binned scalars) would be needed to fix this.

@@ -3,8 +3,8 @@
 **Project root (compute):** `/scratch/drewdog/denovo_binder_100_pilot`
 **Automation scripts:** `/home/drewdog/projects/OXTR_peptides/`
 **Host:** Woody (`drewdog@sn4622111116`)
-**Last updated:** 2026-09-24
-**Pipeline version:** v3.0.0 (see Versioning and Version History below)
+**Last updated:** 2026-09-25
+**Pipeline version:** v3.1.0 (see Versioning and Version History below)
 
 > **Reading note.** This document has two halves. The **Pipeline v3.0.0**
 > section and the **Scale-up execution procedure** are the authoritative
@@ -31,6 +31,7 @@ those are labeled by which pipeline version produced them):
 | v1.1.0 | 2026-09-16 | Stage 0.1 controls added (oxytocin +control, negative-control MD, disulfide-forcing check, AfCycDesign-vs-Boltz2 pose agreement) — informational, non-breaking. |
 | **v2.0.0** | 2026-09-22 | Full pipeline restructuring (this document). Boltz2 `iptm` dropped as a signal (structure kept for pose-agreement only); i_ptm demoted from gate to prior; disulfide-forcing and pose-agreement checks promoted to standard per-candidate; MD protocol corrected (`DispCorr`, `refcoord_scaling`) for the water-only/restrained-receptor system (**scale-up MD protocol for this version** — membrane+physiological mini-G/Gβ complex is proven buildable but its full graduated-restraint simulation protocol is deferred to v2.1, a deliberate scope decision to launch the scale-up on schedule), confirmation-only for a small post-filter set, with replicates; B/S/T sampling parameters validated empirically (B=750, S=53, T=0.1) — see `sampling_parameter_derivation.md` Section 7; job queue infrastructure added for scale-up orchestration. |
 | **v3.0.0** | 2026-09-24 | **MAJOR: the BBB permeability filter changes from a gate to a router**, which changes what gates advancement. Also: a Stage 2 cysteine gate added after ProteinMPNN was found to silently drop the motif cysteines when its fixed-positions file is absent (the disulfide is the cyclization mechanism, so those molecules cannot cyclize); S raised 53 → 300 after measuring that a backbone costs 3,178× a sequence; docking allocation changed from "everything that passes BBB" to backbone scout-and-deepen (ICC = 0.562); Boltz2 staged behind AfCycDesign rather than run at full width; RFdiffusion inter-cysteine spacer tightened 4-8 → 4-6 on measured disulfide strain. B/S/T re-derived on Cys-constrained, receptor-aware output — **T = 0.1 survived re-derivation**. See `sampling_parameter_derivation.md` v3.0.0 and `LIMITATIONS.md`. |
+| **v3.1.0** | 2026-09-25 | B raised 750 → 1500 (a budget choice — chemical space is linear in B with no optimum to find, since D_b is unidentifiable). **Rosetta uncapped**: it now runs on every Stage-3 survivor rather than the top 2,000 by i_ptm, because that cut discarded ~32% of the best binders by Rosetta energy and the 64 CPU cores are idle during GPU docking anyway. Deepening yield corrected to the measured 25.3 per backbone. Not a MAJOR bump: nothing changed about what *gates* advancement. |
 | v3.1.0 (planned) | — | Membrane + physiological mini-G/Gβ complex as the production MD system, replacing the water-only/restrained-receptor approach — system building already proven (see below); needs the full graduated-restraint equilibration protocol built and validated. Not yet started. (Was numbered v2.1.0 before the v3.0.0 bump.) |
 
 ## Goal
@@ -79,7 +80,9 @@ Full evidence: `METHODS_AND_RESULTS.md`. Full derivations of every number:
 |---|---|---|
 | **Stage 2 cysteine gate added** | ProteinMPNN exits 0 with no warning when `--fixed_positions_jsonl` is missing and designs the motif cysteines away. The disulfide is the cyclization mechanism, so those molecules cannot cyclize. Caused the pilot's 1/400 and the original D_s experiment's 0/2400. | `LIMITATIONS.md` R1 |
 | **S: 53 → 300** | RFdiffusion costs 85.8 s/backbone, ProteinMPNN 0.027 s/sequence — a factor of 3,178. The old `B·S = K` constraint treated them as equally costly. At S=53 only 19 of a backbone's ~37 available distinct-and-good sequences were extracted. | derivation §9, R3 |
-| **Docking allocation: BBB-first → backbone scout-and-deepen** | 56% of the variance in interface score sits between backbones (ICC = 0.562, p = 2.9×10⁻⁸). Scouting 6 designs per backbone then deepening the best 50% recovers 99.2% of good backbones for ~36 GPU-h instead of 193. | derivation §15–17 |
+| **B: 750 → 1500** | B cannot be derived — D_b is unidentifiable — so it is a budget choice. Chemical space scales linearly at ~746 unique sequences per GPU-hour with no knee, so the only question is time. 1,500 doubles the space of 750 for ~1.8 extra days. | derivation §14 note |
+| **Rosetta uncapped** | Capping at the top 2,000 by i_ptm recovers only 68% of the true top-10% by `dG_separated` (ρ = 0.53 between the two). Rosetta is CPU-bound and overlaps with GPU docking, so running all survivors is effectively free. | `METHODS_AND_RESULTS.md` §5 |
+| **Docking allocation: BBB-first → backbone scout-and-deepen** | 56% of the variance in interface score sits between backbones (ICC = 0.562, p = 2.9×10⁻⁸). Scouting 6 designs per backbone then deepening the best 50% recovers 99.2% of good backbones for ~54 GPU-h of docking instead of the ~188 a full-width pass would cost. | derivation §15–17 |
 | **BBB: gate → router** (MAJOR) | The gate enriches weakly (p = 0.018) but cannot rank (ρ = +0.12, n.s.) and discards 47% of the top i_ptm decile. Binding cannot be engineered afterwards; permeability can. | derivation §13 |
 | **Boltz2 staged behind AfCycDesign** | It is a pose-agreement cross-check on survivors, not a ranking signal, so full-width execution buys nothing. Halves the docking stage. | derivation §12 |
 | **Contig spacer: 4-8 → 4-6** | Rosetta forced-disulfide energy degrades with cysteine separation (ρ = +0.511, p = 0.007; +0.433 outlier-free). The S–S bond *length* is unaffected — fixed by chemistry at ~2.03 Å. | `METHODS_AND_RESULTS.md` §2 |
@@ -184,7 +187,7 @@ default.
 
 ### Backbone / sequence / temperature — re-derived 2026-09-24
 
-**B = 750, S = 300, T = 0.1.**
+**B = 1500, S = 300, T = 0.1.**
 
 Measured on a **32-backbone × 7-temperature × 300-sequence** experiment run
 **Cys-constrained and receptor-aware**, i.e. matching production
@@ -196,7 +199,7 @@ Measured on a **32-backbone × 7-temperature × 300-sequence** experiment run
 - **S = 300** because ProteinMPNN is effectively free relative to RFdiffusion
   (0.027 s vs 85.8 s). At 300 draws a backbone yields ~36.9 distinct-and-good
   sequences — nearly its full complement — for ~8 s of compute.
-- **B = 750 is a budget choice, not a derived optimum.** The textbook form
+- **B = 1500 is a budget choice, not a derived optimum.** The textbook form
   B\* = √(K·D_b/D_s) needs D_b, which is **not identifiable** from 100
   backbones: a bin-width sweep moves it from 34 to over 2,400. More backbones is
   monotonically better until backbone diversity saturates, and we cannot measure
@@ -224,7 +227,7 @@ source /scratch/drewdog/denovo_binder_100_pilot/activate_rfpeptides.sh
 scripts/stage1_backbones/OXTR_Stage1_v2_ScaleUp_shard.sh <shard 0-3> <n_designs> <gpu>
 ```
 
-Contig spacer is `4-6` (cysteine separations 5–7). ~4.5 GPU-h for 750 backbones.
+Contig spacer is `4-6` (cysteine separations 5–7). ~8.9 GPU-h for 1,500 backbones.
 
 **Verify before proceeding:** every backbone's chain L must contain exactly two
 CYS residues. `make_fixed_positions.py` refuses any that do not.
@@ -259,8 +262,10 @@ python scripts/stage2_sequences/validate_cys.py \
 whole batch is non-cyclizable.
 
 Then **deduplicate within each backbone, then globally**. Expect ~35% within-
-backbone duplicates at T=0.1 plus ~3% across backbones; ~25,700 unique sequences
-from 750 × 300.
+backbone duplicates at T=0.1 plus ~3% across backbones. From 1,500 × 300 draws
+expect **~46,800 unique distinct-and-good sequences** (measured mean 31.2 per
+backbone, median 24 — the distribution is strongly right-skewed, so plan on the
+median for any single backbone).
 
 ### 3. Docking — scout, then deepen
 
@@ -273,7 +278,14 @@ rank:    backbones by MEAN i_ptm (not max — the reliability maths applies to
 deepen:  the top 50% of backbones, all their remaining unique sequences
 ```
 
-~4,500 scout + ~10,575 deepening dockings, ~29 GPU-h at 27.7 s/run on 4 GPUs.
+**9,000 scout + 18,975 deepening = 27,975 dockings, ~53.8 GPU-h** at 27.7 s/run
+on 4 GPUs.
+
+Deepening yield is the measured **25.3 sequences per backbone remaining after the
+6 scouts**, not the 30.9 a naive D_s calculation gives. Note that ~9% of
+backbones have nothing left to deepen (their whole unique pool is ≤ 6) and ~31%
+yield fewer than 10 more — flag these at the dedup step so the funnel projection
+stays honest.
 
 **Pre-registered checkpoint:** after the first completed shard, re-estimate ICC
 and the unique-sequence yield. ICC was fitted at S=4 and is applied at S=300; if
@@ -284,8 +296,17 @@ parameter.
 ### 4. Survivors → Boltz2 → Rosetta
 
 Boltz2 runs **only** on candidates clearing the AfCycDesign and disulfide
-checks (~24%), for pose agreement. Rosetta runs on the **top 2,000 by i_ptm**
-(~10.8 h on 64 cores at 1,245 s/candidate).
+checks (~24%, so **~6,714 candidates**), for pose agreement.
+
+**Rosetta runs UNCAPPED, on every survivor** — ~6,714 candidates, **36.3 h on 64
+cores** at 1,245 s/candidate.
+
+> **Do not pre-filter by i_ptm before Rosetta.** i_ptm and `dG_separated`
+> correlate at only ρ = 0.53, so cutting to the top 2,000 by i_ptm would recover
+> just **68%** of the true top-10% by Rosetta energy — discarding roughly a third
+> of the best binders before physics ever sees them. This is the same error as
+> gating early on BBB. Rosetta is CPU-bound and the 64 cores are otherwise idle
+> while the GPUs dock, so it overlaps and costs nothing in wall-clock.
 
 ### 5. BBB annotation, then routing
 
@@ -921,7 +942,7 @@ Result at the time: **B=750, S=53, T=0.1**.
 > receptor-aware design. It therefore did not measure production's sequence
 > space. Re-run correctly on 32 backbones: **T = 0.1 survives**, but
 > **S becomes 300** and D_s drops from 60.6 to 37.6. The current values are
-> **B = 750, S = 300, T = 0.1** — see *Backbone / sequence / temperature —
+> **B = 1500, S = 300, T = 0.1** — see *Backbone / sequence / temperature —
 > re-derived 2026-09-24* above, and `LIMITATIONS.md` R1–R3.
 
 ### Not yet done
