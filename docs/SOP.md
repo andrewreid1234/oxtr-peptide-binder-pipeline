@@ -243,6 +243,19 @@ python scripts/stage2_sequences/make_fixed_positions.py \
 Generates one `fixed_out_N.jsonl` per backbone pinning the two motif cysteines.
 Exits non-zero if any backbone does not carry exactly two.
 
+### 2. Stage 2, all four steps in one command
+
+```bash
+scripts/stage2_sequences/run_stage2_v3_scaleup.sh \
+    <scale-up>/stage_1_backbones/run/out \
+    <scale-up>/stage_2_sequences  4  300  0.1
+```
+
+This runs fixed-position generation → ProteinMPNN (S=300, T=0.1,
+receptor-aware, cysteines pinned) → **the cysteine gate as a hard abort** →
+deduplication, and writes `unique_sequences.csv`. The individual steps are
+documented below if you need to run them separately.
+
 ### 2b. Sequence design, then the cysteine gate — REQUIRED
 
 ```bash
@@ -261,11 +274,30 @@ python scripts/stage2_sequences/validate_cys.py \
 **If it fails, stop** — ProteinMPNN has silently dropped the cysteines and the
 whole batch is non-cyclizable.
 
-Then **deduplicate within each backbone, then globally**. Expect ~35% within-
-backbone duplicates at T=0.1 plus ~3% across backbones. From 1,500 × 300 draws
-expect **~46,800 unique distinct-and-good sequences** (measured mean 31.2 per
-backbone, median 24 — the distribution is strongly right-skewed, so plan on the
-median for any single backbone).
+Then deduplicate:
+
+```bash
+python scripts/stage2_sequences/dedupe_sequences.py \
+    --seq_dir <out>/seqs --out <out>/unique_sequences.csv
+```
+
+This applies the per-backbone median quality bar, removes duplicates within each
+backbone and then globally, re-checks the cysteines, and flags thin backbones.
+From 1,500 × 300 draws expect **~46,800 unique distinct-and-good sequences**
+(measured mean 31.2 per backbone, median 24 — strongly right-skewed, so plan on
+the median for any single backbone).
+
+> **46,800 is an estimate, not a guarantee.** Sampling noise across 1,500
+> backbones is only ±4.3%, but the per-backbone mean itself is estimated from
+> just 32 backbones with a 4-fold spread, giving a 95% CI of **[33,000, 60,500]**
+> — about ±29%.
+>
+> **If the unique count matters more than the backbone count, generate until you
+> hit it.** Simulated: the median run reaches 46,800 at **1,502 backbones** and
+> 90% finish by 1,543, so the expected RFdiffusion cost is identical to fixed
+> B=1500 (8.9 GPU-h). Generating in batches and stopping on the deduplicated
+> total converts a ±29% output uncertainty into a guaranteed output with slightly
+> variable cost. `dedupe_sequences.py` prints the running total for exactly this.
 
 ### 3. Docking — scout, then deepen
 
@@ -295,8 +327,23 @@ parameter.
 
 ### 4. Survivors → Boltz2 → Rosetta
 
-Boltz2 runs **only** on candidates clearing the AfCycDesign and disulfide
-checks (~24%, so **~6,714 candidates**), for pose agreement.
+**Order: Rosetta first, then Boltz2 pose agreement on the best.**
+
+Boltz2's only remaining job is pose agreement, which is a *confirmatory* check on
+candidates that would otherwise advance — so it belongs after the ranking, not
+before it. Rosetta scores the AfCycDesign structure and does not need Boltz2.
+
+Running it on the **top 1,000 by `dG_separated`** costs **2.9 GPU-h** against
+19.6 h for all ~6,714 survivors — a saving of ~17 GPU-h, about 18% of the run.
+
+Checked for loss: the `out_39` design family, which pose agreement caught when MD
+could not, had dG −29.4 — among the weakest of the 27 — so Rosetta filters it
+anyway. Nothing that pose agreement used to catch is lost by moving it.
+
+> **Do not filter Boltz2 by BBB.** It would cut the stage to ~537 runs, but it
+> reintroduces the error removed in v3.0.0 and leaves you with no pose-agreement
+> data on strong binders that score BBB− — precisely the candidates being routed
+> to Stage 6 for rescue.
 
 **Rosetta runs UNCAPPED, on every survivor** — ~6,714 candidates, **36.3 h on 64
 cores** at 1,245 s/candidate.

@@ -1,7 +1,7 @@
 # Known Limitations, Open Questions and Unvalidated Assumptions
 
-**Document version:** v2.0.0
-**Last updated:** 2026-09-24
+**Document version:** v3.0.0
+**Last updated:** 2026-09-25
 
 A living register, not a dated snapshot. Every known weakness in this project
 lives here with a current status, so that a reader can judge what to trust
@@ -22,6 +22,7 @@ clarifications, added evidence.
 |---|---|---|
 | v1.0.0 | 2026-09-24 | Converted from the dated pre-scale-up audit into a living register. Adds everything found on 2026-09-24: the silent cysteine failure, D_s/B/S derived on non-cyclizable sequences, D_b shown to be unidentifiable, the disulfide ring-size effect, and the missing Stage 2 scale-up script. |
 | **v2.0.0** | 2026-09-24 | **Blocker closed:** `SOP.md` bumped to v3.0.0, so the runbook no longer describes a superseded pipeline (was B2, now R5). Remaining blockers renumbered. Adds O10 — the funnel figure withheld because it plots the erroneous BBB counts. |
+| **v3.0.0** | 2026-09-25 | **Blocker closed:** the Stage 2 scale-up script now exists (was B1, now R6), along with the deduplication step the SOP specified but nothing implemented. One blocker remains, renumbered to B1. Also records that the 46,800 unique-sequence projection carries a 95% CI of [33,000, 60,500] — the per-backbone mean is estimated from 32 backbones with a 4-fold spread. |
 
 **Status key:** 🔴 blocker · 🟠 open · 🟡 accepted limitation · 🟢 resolved
 
@@ -29,16 +30,7 @@ clarifications, added evidence.
 
 ## 🔴 Blockers — must be cleared before the scale-up launches
 
-### B1. No Stage 2 script exists for the scale-up
-`scripts/stage2_sequences/run_mpnn_v2_shard.sh` is hardcoded to the pilot
-directory (`disulfide_100`) with `--num_seq_per_target 4`. There is no script
-that runs Stage 2 at scale-up size, and Stage 1's launcher does not call the
-fixed-positions generator. **The pipeline is not wired end to end.**
-
-*Needs:* a scale-up Stage 2 script that generates fixed positions, runs MPNN at
-S=300 / T=0.1, and gates on `validate_cys.py` before any GPU time is spent.
-
-### B2. `validation/` and `validation_v2/` share 51 candidate IDs with different sequences
+### B1. `validation/` and `validation_v2/` share 51 candidate IDs with different sequences
 For all 51 shared IDs the peptide sequence differs between the two directories —
 e.g. `out_11_sample1` is `LCAGASAAACAA` in one and `CCLGFGYVECLG` in the other.
 Any code resolving a structure by candidate ID across both can silently serve
@@ -237,7 +229,7 @@ is 36.9, for 8 seconds of MPNN. **S = 300.**
 **Resolved.** A `structure_paths()` fallback from `validation_v2/` to
 `validation/` was added and then removed once the ID collision was verified.
 All 27 shortlist candidates resolve in `validation_v2/` directly; the fallback
-was never load-bearing. The underlying directory hazard remains open as **B2**.
+was never load-bearing. The underlying directory hazard remains open as **B1**.
 
 ### R5. `SOP.md` described a pipeline we had decided not to run
 **Resolved 2026-09-24.** The runbook sat at v2.0.0 while the parameters had been
@@ -248,7 +240,17 @@ authoritative forward procedure (Pipeline v3.0.0, plus a step-by-step scale-up
 execution procedure) from the historical pilot record, which is retained for its
 gotchas and provenance with superseded values marked as such.
 
-### R6. Boltz2's compression was unexplained
+### R6. No Stage 2 script existed for the scale-up
+**Resolved 2026-09-25.** `run_mpnn_v2_shard.sh` was hardcoded to the pilot
+directory with `--num_seq_per_target 4`, so the pipeline was not wired end to
+end. Added `run_stage2_v3_scaleup.sh`, which runs fixed-position generation →
+ProteinMPNN at S=300/T=0.1 → the cysteine gate **as a hard abort** →
+deduplication, in one command. Also added `dedupe_sequences.py`, which was
+specified in the SOP but had no implementation — verified against the D_s
+experiment output, where it independently reproduces the measured yield
+(mean 31.2 per backbone, median 24, range 2–105, 9% thin).
+
+### R7. Boltz2's compression was unexplained
 **Resolved 2026-09-24**, in the sense that the mechanism is now known (see
 **A3**). Two earlier hypotheses — an MSA-pairing bug and the explicit disulfide
 constraint — were tested on real data and both rejected.

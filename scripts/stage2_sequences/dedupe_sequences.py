@@ -1,0 +1,158 @@
+#!/usr/bin/env python
+"""
+Stage 2 deduplication — within each backbone, then globally.
+
+WHY THIS MATTERS
+----------------
+ProteinMPNN at T=0.1 repeats itself heavily. Measured on 32 backbones at
+S=300: only ~31.2 of the 300 draws are distinct AND above the quality bar,
+and the spread is 4-fold (2 to 105). Redundancy is expensive here because
+every duplicate that reaches Stage 3 costs a full 27.7 s docking run for
+information already held.
+
+Deduplication is therefore not tidy-up, it is a cost control. It runs after
+ProteinMPNN and before any docking compute.
+
+WHAT IT DOES
+------------
+1. Reads each backbone's ProteinMPNN FASTA (skipping the poly-glycine
+   reference record ProteinMPNN writes first).
+2. Applies the quality bar: sequences whose MPNN score is above the
+   backbone's own median are dropped. This matches how D_s was measured.
+3. Deduplicates within the backbone, keeping the best-scoring instance.
+4. Deduplicates globally across backbones (~3% of the pilot's sequences were
+   duplicated across backbones), keeping the first occurrence.
+5. Verifies every surviving sequence still carries >= 2 cysteines.
+6. Flags thin backbones: those whose surviving pool is <= the scout depth
+   contribute nothing to the deepening stage, and ~9% of backbones are in
+   this category. They are reported so the funnel projection stays honest.
+
+Usage:
+    dedupe_sequences.py --seq_dir <mpnn out>/seqs --out unique_sequences.csv
+                        [--scout-depth 6] [--min-cys 2] [--no-quality-bar]
+"""
+import argparse
+import csv
+import glob
+import os
+import re
+import statistics as st
+import sys
+
+
+def read_fasta(path):
+    """[(sequence, mpnn_score)] for designed records only."""
+    recs, hdr = [], None
+    for line in open(path):
+        line = line.strip()
+        if line.startswith(">"):
+            hdr = line
+        elif line and hdr is not None:
+            recs.append((line, hdr))
+            hdr = None
+    out = []
+    for seq, hdr in recs[1:]:          # record 0 is ProteinMPNN's reference
+        m = re.search(r"score=([\d.]+)", hdr)
+        out.append((seq, float(m.group(1)) if m else float("nan")))
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seq_dir", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--scout-depth", type=int, default=6)
+    ap.add_argument("--min-cys", type=int, default=2)
+    ap.add_argument("--no-quality-bar", action="store_true",
+                    help="keep all distinct sequences, not just those at or "
+                         "below the backbone's median MPNN score")
+    args = ap.parse_args()
+
+    files = sorted(glob.glob(os.path.join(args.seq_dir, "*.fa")))
+    if not files:
+        sys.exit("ERROR: no .fa files in %s" % args.seq_dir)
+
+    seen_global = {}
+    rows = []
+    per_bb, thin, no_cys = [], [], 0
+
+    for fa in files:
+        bb = os.path.basename(fa)[:-3]
+        recs = read_fasta(fa)
+        if not recs:
+            continue
+
+        if args.no_quality_bar:
+            kept = recs
+        else:
+            bar = st.median([s for _, s in recs])
+            kept = [(q, s) for q, s in recs if s <= bar]
+
+        best = {}
+        for q, s in kept:
+            if q.count("C") < args.min_cys:
+                no_cys += 1
+                continue
+            if q not in best or s < best[q]:
+                best[q] = s
+
+        n_local = len(best)
+        n_new = 0
+        for q, s in sorted(best.items(), key=lambda kv: kv[1]):
+            if q in seen_global:
+                continue
+            seen_global[q] = bb
+            n_new += 1
+            rows.append({"sequence_id": "%s_u%d" % (bb, n_new), "backbone": bb,
+                         "sequence": q, "length": len(q),
+                         "n_cys": q.count("C"), "mpnn_score": "%.4f" % s})
+        per_bb.append((bb, len(recs), n_local, n_new))
+        if n_new <= args.scout_depth:
+            thin.append((bb, n_new))
+
+    if not rows:
+        sys.exit("ERROR: nothing survived deduplication - check the quality bar "
+                 "and that ProteinMPNN actually produced designs.")
+
+    with open(args.out, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+
+    draws = sum(r[1] for r in per_bb)
+    local = sum(r[2] for r in per_bb)
+    uniq = len(rows)
+    counts = sorted(r[3] for r in per_bb)
+
+    print("backbones            : %d" % len(per_bb))
+    print("raw draws            : %d" % draws)
+    print("after quality bar    : %d  (%.1f%% of draws)"
+          % (local, 100 * local / draws if draws else 0))
+    print("after global dedup   : %d  (%.1f%% of draws kept)"
+          % (uniq, 100 * uniq / draws if draws else 0))
+    print("  duplicates removed : %d within-backbone, %d cross-backbone"
+          % (draws - local, local - uniq))
+    if no_cys:
+        print("  DROPPED for <%d Cys : %d" % (args.min_cys, no_cys))
+    print("\nunique per backbone  : mean %.1f  median %d  min %d  max %d"
+          % (st.mean(counts), st.median(counts), min(counts), max(counts)))
+    print("\nthin backbones (<= scout depth %d, nothing left to deepen): %d/%d (%.0f%%)"
+          % (args.scout_depth, len(thin), len(per_bb), 100 * len(thin) / len(per_bb)))
+    for bb, c in thin[:15]:
+        print("   %-22s %d unique" % (bb, c))
+    if len(thin) > 15:
+        print("   ... and %d more" % (len(thin) - 15))
+
+    deepen = sum(max(0, c - args.scout_depth) for c in counts)
+    print("\nPROJECTED DOCKING LOAD from this pool:")
+    print("  scout  : %d backbones x %d = %d"
+          % (len(per_bb), args.scout_depth, len(per_bb) * args.scout_depth))
+    print("  deepen : 50%% of backbones -> ~%d" % (deepen // 2))
+    print("  total  : ~%d dockings, ~%.1f GPU-h at 27.7 s/run on 4 GPUs"
+          % (len(per_bb) * args.scout_depth + deepen // 2,
+             (len(per_bb) * args.scout_depth + deepen // 2) * 27.7 / 3600 / 4))
+    print("\nwrote %s" % args.out)
+
+
+if __name__ == "__main__":
+    main()
