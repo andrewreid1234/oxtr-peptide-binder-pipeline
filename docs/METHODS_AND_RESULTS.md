@@ -609,13 +609,13 @@ batch size fixes it.
 | Unique distinct-and-good after dedup | ~46,800 | — |
 | Scout docking (6/backbone) | 9,000 | 17.3 GPU-h |
 | Deepening (top 50% of backbones) | 18,975 | 36.5 GPU-h |
-| Boltz2 (staged, survivors only) | ~6,714 | 19.6 GPU-h |
+| Boltz2 pose agreement (top 1,000 by dG) | 1,000 | 2.9 GPU-h |
 | Rosetta (uncapped, all survivors) | ~6,714 | 36.3 h / 64 cores, overlaps GPU |
 | Selectivity | ~200 | 1.2 GPU-h |
 | MD confirmation | 24 | 7.9 GPU-h |
 | Synthesis | 12 | — |
 
-**Total ≈ 93 GPU-hours (~3.9 days), GPU-bound.** Rosetta's 36.3 CPU-hours run
+**Total ≈ 76 GPU-hours (~3.2 days), GPU-bound.** Rosetta's 36.3 CPU-hours run
 concurrently on the otherwise-idle 64 cores and do not add to wall-clock.
 
 ---

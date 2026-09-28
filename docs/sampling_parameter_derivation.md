@@ -542,16 +542,19 @@ Sharded across $G$ GPUs, total wall-clock hours for a two-tool stage is
 
 $$H_{\text{both}}(N) = \frac{N (c_A + c_B)}{3600\,G}$$
 
-**A staging refinement.** Boltz2 was demoted in v2.0.0 to a structure-only cross-check (pose agreement), never a ranking signal — §16.4–16.5 of `METHODS_AND_RESULTS.md`. A cross-check on survivors does not need to run at full width. Running Boltz2 only on the fraction $q \approx 0.24$ that clears the AfCycDesign and disulfide checks gives
+**Boltz2 does not belong at this width at all.** It was demoted in v2.0.0 to a structure-only cross-check (pose agreement), never a ranking signal — §16.4–16.5 of `METHODS_AND_RESULTS.md`. Pose agreement *confirms candidates that would otherwise advance*, so it belongs **after** the ranking, not beside it. It therefore runs on the top 1,000 by $dG_{\text{separated}}$ (§21), not on every docked candidate:
 
-$$H_{\text{staged}}(N) = \frac{N c_A + q N c_B}{3600\,G}$$
+$$H_{\text{pose}} = \frac{1000 \, c_B}{3600\,G} = 2.9\ \text{GPU-h}$$
 
-| $N_{\text{dock}}$ | AfCycDesign only | Both, full width | Staged ($q{=}0.24$) |
-|---:|---:|---:|---:|
-| 1,000 | 1.9 h | 4.8 h | 2.6 h |
-| **3,180** | **6.1 h** | 15.4 h | **8.3 h** |
-| 12,000 | 23.1 h | 58.2 h | 31.5 h |
-| 39,750 | 76.5 h | 192.7 h | 104.4 h |
+against 19.6 h for all ~6,714 survivors, or 327 h at full docking width. AfCycDesign alone therefore sets the cost of this stage:
+
+| $N_{\text{dock}}$ | AfCycDesign only | (Boltz2 at full width, **not done**) |
+|---:|---:|---:|
+| 9,000 (scout) | 17.3 h | 26.3 h |
+| **27,975 (production)** | **53.8 h** | 81.7 h |
+| 46,950 (deepen everything) | 90.3 h | 137.2 h |
+
+Nothing is lost by the reorder: the `out_39` design family, which pose agreement caught when MD could not, scored $dG = -29.4$ — among the weakest of the 27 — so Rosetta filters it before Boltz2 would have been asked.
 
 **Caveat on $c_B$.** The Boltz2 run log shows only ~13 s of actual prediction against 42.1 s of wall-clock, i.e. roughly 29 s/run is model load and setup that a persistent-process or batched runner would amortize away. $c_B$ as measured is therefore an upper bound on a properly batched implementation, and the "both" column above likely overstates Boltz2's true cost by a factor of 2–3.
 
@@ -687,22 +690,22 @@ Each additional 10% of backbones costs a flat **7.3 GPU-h**. The recovery curve 
 | Draws per backbone $S$ | **53** | Part I §7 |
 | Sampling temperature $T$ | **0.1** | Part I §7 |
 | Deduplication | **within backbone, then global** | §9 |
-| Expected unique sequences | **~25,700** | §9 |
+| Expected unique sequences | **~46,800** | §9 |
 | Scout depth $k$ | **6, drawn at random** | §16 |
 | Backbone ranking statistic | **mean $i_{\text{ptm}}$** | §15 |
 | Keep fraction $f$ | **50%** | §17 |
 | Total docked $N_{\text{dock}}$ | **27,975** | §17 |
-| Boltz2 | **staged behind AfCycDesign, survivors only** | §12 |
+| Boltz2 | **after Rosetta, top 1,000 by $dG_{\text{separated}}$** | §12, §21 |
 | BBB filter | **router after Rosetta, never a gate** | §13 |
 
-**Execution order.** Generate all 1,500 backbones → design 300 sequences each → deduplicate → dock 6 random unique sequences per backbone (9,000) → rank backbones by mean $i_{\text{ptm}}$ → deepen the top 750 backbones (18,975) → disulfide-forcing and pose-agreement checks, Boltz2 entering here → **Rosetta on every survivor, uncapped (~6,714)** → **then** apply BBB as an annotation → N-methylation scan and selectivity → MD confirmation → Wave 1.
+**Execution order.** Generate all 1,500 backbones → design 300 sequences each → deduplicate → dock 6 random unique sequences per backbone (9,000) → rank backbones by mean $i_{\text{ptm}}$ → deepen the top 750 backbones (18,975) → disulfide-forcing check → **Rosetta on every survivor, uncapped (~6,714)** → **Boltz2 pose agreement on the top 1,000 by dG** → **then** apply BBB as an annotation → N-methylation scan and selectivity → MD confirmation → Wave 1.
 
 **Why each choice is what it is, in one line each:**
 
 - **Dock the scouted-and-deepened set rather than the BBB+ pool.** The BBB gate discards 47% of the top $i_{\text{ptm}}$ decile (§13); backbone scouting discards 0.8% of good backbones (§17), at 29.0 GPU-h against 6.1.
 - **$k = 6$, $f = 50\%$.** Reliability 0.821 and recovery 99.2% respectively; both sit at the knee of their curves (§16, §17).
 - **Rank backbones by mean, not max.** The ICC and its reliability form apply to the mean; a max over 6 draws promotes lucky backbones (§15).
-- **Stage Boltz2.** It is a pose-agreement cross-check on survivors, not a ranking signal, so full-width execution buys nothing (§12).
+- **Boltz2 runs after Rosetta, on the top 1,000 by dG.** Pose agreement confirms candidates that would otherwise advance, so it belongs after the ranking: 2.9 GPU-h rather than 19.6, with nothing lost (the `out_39` family it once caught had dG −29.4, so Rosetta filters it regardless).
 - **BBB as router, not gate.** A strong binder that scores BBB− goes into the Stage 6 N-methylation scan, not the bin — otherwise the 47% loss in §13 is merely relocated to the end of the funnel. Binding cannot be engineered after the fact; permeability can.
 
 ## 19. Sensitivity analysis
@@ -741,7 +744,7 @@ Every rate below is measured on this hardware (4 × GPU, 64 CPU cores) from pilo
 | ProteinMPNN + dedup | 10.7 s/backbone at S=300 | measured | 450,000 draws → ~46,800 unique | 1.1 GPU-h |
 | AfCycDesign scout | 27.7 s/run | 39 pilot runs | 9,000 | 17.3 GPU-h |
 | AfCycDesign deepen | 27.7 s/run | as above | 18,975 | 36.5 GPU-h |
-| Boltz2 (staged) | 42.1 s/run | 39 pilot runs | ~3,620 | 10.6 GPU-h |
+| Boltz2 pose agreement | 42.1 s/run | 39 pilot runs | top 1,000 by dG | 2.9 GPU-h |
 | Rosetta relax + InterfaceAnalyzer | 1,245 s/candidate | 65 pilot structures | **all ~6,714 survivors** | 36.3 h / 64 cores |
 | Stage 7 selectivity | 29 s/run × 3 receptors | 81 pilot runs | ~200 | 1.2 GPU-h |
 | MD, 20 ns | 4,718 s (1 h 18 m), 366 ns/day | `out_70_sample2` production log | 24 | 7.9 GPU-h |

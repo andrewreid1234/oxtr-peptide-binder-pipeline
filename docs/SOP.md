@@ -84,7 +84,7 @@ Full evidence: `METHODS_AND_RESULTS.md`. Full derivations of every number:
 | **Rosetta uncapped** | Capping at the top 2,000 by i_ptm recovers only 68% of the true top-10% by `dG_separated` (ρ = 0.53 between the two). Rosetta is CPU-bound and overlaps with GPU docking, so running all survivors is effectively free. | `METHODS_AND_RESULTS.md` §5 |
 | **Docking allocation: BBB-first → backbone scout-and-deepen** | 56% of the variance in interface score sits between backbones (ICC = 0.562, p = 2.9×10⁻⁸). Scouting 6 designs per backbone then deepening the best 50% recovers 99.2% of good backbones for ~54 GPU-h of docking instead of the ~188 a full-width pass would cost. | derivation §15–17 |
 | **BBB: gate → router** (MAJOR) | The gate enriches weakly (p = 0.018) but cannot rank (ρ = +0.12, n.s.) and discards 47% of the top i_ptm decile. Binding cannot be engineered afterwards; permeability can. | derivation §13 |
-| **Boltz2 staged behind AfCycDesign** | It is a pose-agreement cross-check on survivors, not a ranking signal, so full-width execution buys nothing. Halves the docking stage. | derivation §12 |
+| **Boltz2 moved after Rosetta** | It is a pose-agreement cross-check on candidates that would otherwise advance, so it belongs after the ranking. Running it on the top 1,000 by `dG_separated` costs 2.9 GPU-h against 19.6 for all survivors. The `out_39` family it once caught had dG −29.4, so Rosetta filters it anyway — nothing is lost. | `METHODS_AND_RESULTS.md` §4 |
 | **Contig spacer: 4-8 → 4-6** | Rosetta forced-disulfide energy degrades with cysteine separation (ρ = +0.511, p = 0.007; +0.433 outlier-free). The S–S bond *length* is unaffected — fixed by chemistry at ~2.03 Å. | `METHODS_AND_RESULTS.md` §2 |
 
 ### Per-candidate checks, universal
@@ -94,7 +94,8 @@ Full evidence: `METHODS_AND_RESULTS.md`. Full derivations of every number:
    failure (the C-terminal tail diverges to 20.7 Å, the disulfide never closes),
    not evidence the metric is broken. It correlates with Rosetta interface
    energy at ρ = −0.53. Trust it as a ranking prior; do not gate on it.
-2. Boltz2 cofold — **structure only, run on survivors only.** Its `iptm` is
+2. Boltz2 cofold — **structure only, and run after Rosetta on the top 1,000
+   by `dG_separated`.** Its `iptm` is
    compressed to 0.88–0.98 for everything including oxytocin. The mechanism is
    known (an asymmetric `pair_chains_iptm` matrix read on the receptor-normalised
    direction), and recovering the other direction still does not discriminate.
@@ -325,7 +326,7 @@ it comes back materially below 0.43, raise k or the keep fraction before
 committing the deepening stage. This is the one input that can reopen a locked
 parameter.
 
-### 4. Survivors → Boltz2 → Rosetta
+### 4. Survivors → Rosetta → Boltz2 pose agreement
 
 **Order: Rosetta first, then Boltz2 pose agreement on the best.**
 

@@ -160,7 +160,7 @@ Each stage, and why it sits where it does.
 | **1. RFdiffusion** | Generate backbone geometries against OXTR with the two cysteines planted | Shape first — sequence is meaningless without one |
 | **2. ProteinMPNN** | Design sequences onto each backbone, cysteines pinned, then deduplicate | Cheap; receptor-aware so sequences are designed for complementarity |
 | **3. AfCycDesign** | Predict each complex, score the interface | The main binding signal, applied to everything |
-| **3b. Boltz2** | Independent structure prediction on survivors | Pose agreement only; staged behind Stage 3 because it is not a ranking signal |
+| **3b. Boltz2** | Independent structure prediction on the top 1,000 by Rosetta energy | Pose agreement only; runs *after* Rosetta because it confirms candidates that would otherwise advance |
 | **4. Rosetta** | Relax, force the disulfide, score the interface | Physics-based check on the best candidates |
 | **5a. B3BPFN** | Predict BBB permeability | **Late, as a router not a gate** — see below |
 | **5b. MD** | 20 ns stability on a small set | Confirmation only |
@@ -202,7 +202,7 @@ a property of the *backbone*, not the sequence — 56% of the variance in
 interface score sits between backbones rather than between sequences sharing
 one. So rather than docking everything, the pipeline docks six sequences per
 backbone to find which backbones are good, then concentrates the remaining
-compute on the best half. Total cost is roughly 93 GPU-hours instead of the ~250 a full-width pass would take.
+compute on the best half. Total cost is roughly 76 GPU-hours instead of the ~250 a full-width pass would take.
 
 **The honest caveat on backbone count.** The textbook way to set it requires
 knowing how many *distinct* backbones RFdiffusion can produce. That quantity
@@ -248,7 +248,7 @@ A 100-backbone pilot ran the full funnel and produced a 27-candidate shortlist.
 ## 8. What happens next
 
 1. **Launch.** No blockers remain — see [`LIMITATIONS.md`](LIMITATIONS.md).
-2. **Run the scale-up** — roughly 93 GPU-hours (~3.9 days) across generation, docking and
+2. **Run the scale-up** — roughly 76 GPU-hours (~3.2 days) across generation, docking and
    scoring, with an early checkpoint on the first shard to confirm the backbone
    statistics hold at scale.
 3. **Select 12 compounds** for synthesis: 8 top-ranked, 4 spread across the
