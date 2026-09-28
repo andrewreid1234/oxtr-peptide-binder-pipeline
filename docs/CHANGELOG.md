@@ -11,9 +11,29 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.0 — 2026-09-28
+
+**Current.** MAJOR by `SOP.md`'s convention: this changes what gates candidate
+advancement at Stage 3.
+
+| change | why |
+|---|---|
+| **Stage 3 gate: disulfide demoted from gate to diagnostic. q = 0.360 → 0.463** | AfCycDesign draws the bond closed in 52.2% of 600 scouts, but all 100 parent backbones are bond-compatible (virtual CB–CB median 4.13 Å, range 3.74–4.74, against a 3.4–4.5 Å reference) and parent geometry does not predict the predicted SG–SG (r = +0.100). AfCycDesign's cyclic offset applies to head-to-tail macrocycles, so a disulfide peptide is predicted as an ordinary single sequence with no knowledge of the bond. The open 48% are a prediction artifact; gating on them discarded viable designs. Enforced downstream instead — AF3 via `bondedAtomPairs`, Rosetta under constraint. |
+| **AF3 favoured over Boltz2 for the Stage 3b cross-check** (provisional, n=2) | Pose *agreement* between AF3 and AfCycDesign separated the designed positive control from the negative control by 0.92 Å vs 10.80 Å centroid, where Boltz2's *score* separated them by 0.002. AF3 also reproduces oxytocin's disulfide at 2.12 Å (crystal 2.03) where AfCycDesign leaves it open at 9.20 Å. Two candidates only — a hypothesis, not a result. |
+| **AF3 per-candidate cost 1,075 s → 87 s (12.4×)** | Of 1,075 s, 604 s is receptor MSA identical on every run (reusable via `unpairedMsaPath`/`pairedMsaPath`, already saved in `oxytocin_oxtr_ss_data.json`) and 384 s is a peptide MSA that returned 17 characters. Only featurisation (12 s) and inference (75 s) are irreducible. |
+
+### Superseded values
+
+| value | superseded | replaced by | why |
+|---|---|---|---|
+| Stage 3 pass rate q | 0.24 (pilot, old i_ptm-gated filters), then 0.360 (disulfide-gated) | **0.463** | 0.24 was measured under filters no longer used. 0.360 gated on a prediction artifact. 0.463 is pocket occupancy measured on 600 scouts. |
+| Disulfide SG–SG ≤ 4 Å | advancement gate | diagnostic annotation | See above; `--gate-disulfide` restores it. |
+
+---
+
 ## Pipeline v3.2.0 — 2026-09-28
 
-**Current.** Six changes, each measured rather than assumed.
+Six changes, each measured rather than assumed.
 
 | change | why |
 |---|---|

@@ -1,7 +1,7 @@
 # Known Limitations, Open Questions and Unvalidated Assumptions
 
-**Document version:** v5.0.0
-**Last updated:** 2026-09-25
+**Document version:** v5.1.0
+**Last updated:** 2026-09-28
 
 A living register, not a dated snapshot. Every known weakness in this project
 lives here with a current status, so that a reader can judge what to trust
@@ -25,6 +25,7 @@ clarifications, added evidence.
 | **v3.0.0** | 2026-09-25 | **Blocker closed:** the Stage 2 scale-up script now exists (was B1, now R6), along with the deduplication step the SOP specified but nothing implemented. One blocker remains, renumbered to B1. Also records that the 46,800 unique-sequence projection carries a 95% CI of [33,000, 60,500] — the per-backbone mean is estimated from 32 backbones with a 4-fold spread. |
 | **v4.0.0** | 2026-09-25 | **Last blocker closed.** The v1/v2 ID collision is resolved (was B1, now R7): the hazard was not the archived directory but the superseded v1 Stage 3 runner that would recreate it, which now refuses to run. **No open blockers.** |
 | **v4.1.0** | 2026-09-28 | Adds O12 (the 99.2% recovery figure is about backbones; the sequence-level equivalent is 95.8% of the top decile) and O13 (q = 0.24 is carried from the pilot's superseded filter set and drives every count below docking — added to the first-shard checkpoint). |
+| **v5.1.0** | 2026-09-28 | **O13 resolved:** the Stage-3 pass rate is measured at q = 0.463 on the 600 validation-shard scouts. The disulfide criterion is demoted from gate to diagnostic — all 100 parent backbones are bond-compatible (CB–CB median 4.13 Å) and parent geometry does not predict AfCycDesign's SG–SG (r = +0.100), so the 48% open predictions are a prediction artifact of AfCycDesign never being told the bond exists. Gating on it understated q as 0.360 and discarded ~48% of viable designs. RFdiffusion exonerated. |
 | **v5.0.0** | 2026-09-28 | **O1 escalated:** the BBB classifier is not usable on this molecule class — 95% of its BBB+ calls have a known non-permeant as nearest reference at 0.98 similarity, while oxytocin itself scores BBB−, and its own hard-negative flag catches none of them. BBB pass rates removed from all funnel projections; the metric is retained as a re-scorable annotation. |
 
 **Status key:** 🔴 blocker · 🟠 open · 🟡 accepted limitation · 🟢 resolved
@@ -172,19 +173,46 @@ sequence-level figures are:
 **95.8% of the top decile of sequences**, which is the quantity that matters,
 with 99.2% retained only where backbones are explicitly the subject.
 
-### O13. The Stage-3 pass rate q = 0.24 is the weakest number in the run plan
-Every count below docking — ~6,714 survivors, the Boltz2 load, the 36.3 h of
-Rosetta — derives from $q = 0.24$, which is the pilot's 27 shortlisted from 112
-docked. **That ratio was measured under the old i_ptm-gated filter set**, not the
-disulfide-forcing + pose-agreement checks that gate now. They are different
-filters and there is no reason their pass rates should match.
+### O13. 🟢 RESOLVED — the Stage-3 pass rate is measured: q = 0.463
+Every count below docking derived from $q = 0.24$, the pilot's 27 shortlisted
+from 112 docked, measured under the old i_ptm-gated filter set. It has now been
+measured directly on the 600 validation-shard scouts by
+`scripts/stage3_docking/stage3_gate.py`:
 
-Sensitivity: at q = 0.15 Rosetta drops to ~4,200 candidates; at q = 0.40 it rises
-to ~11,200 and 60 CPU-h.
+| criterion | rate | role |
+|---|---|---|
+| in the orthosteric pocket (≥1 buried contact) | 46.3% | **gate** |
+| disulfide drawn closed (SG–SG ≤ 4 Å) | 52.2% | diagnostic only |
+| **q (pocket occupancy)** | **0.463** | sizes every downstream stage |
 
-*Needs:* it cannot be measured in advance. **Add it to the first-shard
-checkpoint** alongside ICC and unique yield — measure the actual Stage-3 pass
-rate before sizing the Rosetta stage.
+**Why the disulfide is not a gate.** Gating on both gave q = 0.360, and that was
+wrong. AfCycDesign draws the bond closed in only 52.2% of predictions, but the
+parent backbones can *always* form it — measured on all 100 shard backbones with
+virtual CB built from N/CA/C ideal geometry
+(`scripts/stage1_backbones/check_backbone_disulfide_geom.py`):
+
+```
+CB-CB median 4.13 A, range 3.74-4.74      (reference disulfide 3.4-4.5, mean 3.8)
+100 / 100 backbones disulfide-compatible
+correlation, parent CB-CB vs predicted SG-SG:  +0.100
+```
+
+Every backbone is bond-compatible and parent geometry does not predict whether
+AfCycDesign draws the bond. **Cause:** AfCycDesign's cyclic offset applies to
+head-to-tail macrocycles, so for a disulfide-cyclized peptide it runs as an
+ordinary single-sequence prediction and is never told the bond exists. An open
+prediction is an unsatisfied unconstrained degree of freedom, not a design
+defect. Gating on it discarded ~48% of viable designs.
+
+The disulfide is enforced downstream where it is actually modelled: AF3 declares
+it via `bondedAtomPairs`, Rosetta rebuilds it under constraint.
+
+*Consequence:* survivors rise ~29% against the disulfide-gated projection. The
+Rosetta top-fraction should be cut to hold CPU roughly constant — the pool is
+larger and less biased, so the same compute buys a better-selected set.
+
+*Residual caveat:* q is measured on scouts from 100 backbones, not 1,500. It is
+retained at the first-shard checkpoint as a confirmation, no longer an estimate.
 
 ### O11. Housekeeping
 - `biopython` was pip-installed into the dashboard venv but is absent from
