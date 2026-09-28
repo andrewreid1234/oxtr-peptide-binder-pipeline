@@ -13,7 +13,7 @@
 #   3. Stage-3 pass rate q   assumed 0.24 from the pilot's SUPERSEDED
 #                            i_ptm-gated filters. Drives the Rosetta load and
 #                            is the single weakest number in the plan.
-#   4. Docking throughput    measured 4.6 s/candidate on groups of 14-32.
+#   4. Docking throughput    measured 5.6 s/candidate on groups of 14-32.
 #                            Production groups are far larger, so this should
 #                            improve; confirm rather than assume.
 #   5. BBB pass rate         the 8.0% in the docs was measured on the v1

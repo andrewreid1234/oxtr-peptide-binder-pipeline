@@ -47,6 +47,9 @@ import sys
 # Keep in step with SOP.md's funnel timings; the pre-grouping value was 27.7 s.
 DOCK_SECONDS = 5.6
 
+# Used only to translate GPU-hours into wall-clock for the printed projection.
+N_GPUS = 4
+
 
 def read_fasta(path):
     """[(sequence, mpnn_score)] for designed records only."""
@@ -180,10 +183,18 @@ def main():
     print("  deepen : 50%% of backbones -> ~%d" % (deepen // 2))
     # 5.6 s/candidate, measured on the validation shard with the v3 length-grouped
     # runner. This line read 27.7 s/run -- the pre-grouping figure -- and so
-    # overstated the GPU-h by ~5x at a decision point.
+    # overstated the cost by ~5x at a decision point.
+    #
+    # GPU-h and wall-clock hours are reported SEPARATELY and labelled. This line
+    # used to divide by the GPU count and call the result "GPU-h", which is
+    # wall-clock hours on 4 GPUs -- understating the true GPU-hours 4-fold. The
+    # distinction matters because B was chosen as a GPU-hour budget, and because
+    # Rosetta's cost is CPU-hours that overlap this, so the two cannot be added.
     n_dock = len(per_bb) * args.scout_depth + deepen // 2
-    print("  total  : ~%d dockings, ~%.1f GPU-h at %.1f s/candidate on 4 GPUs"
-          % (n_dock, n_dock * DOCK_SECONDS / 3600 / 4, DOCK_SECONDS))
+    gpu_h = n_dock * DOCK_SECONDS / 3600
+    print("  total  : ~%d dockings at %.1f s/candidate" % (n_dock, DOCK_SECONDS))
+    print("           ~%.1f GPU-h  (~%.1f h wall on %d GPUs)"
+          % (gpu_h, gpu_h / N_GPUS, N_GPUS))
     print("\nwrote %s" % args.out)
 
 

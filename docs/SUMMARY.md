@@ -203,7 +203,10 @@ a property of the *backbone*, not the sequence — 56% of the variance in
 interface score sits between backbones rather than between sequences sharing
 one. So rather than docking everything, the pipeline docks six sequences per
 backbone to find which backbones are good, then concentrates the remaining
-compute on the best half. Total cost is roughly 66 GPU-hours.
+compute on the best half. Total cost is roughly 66 hours of wall clock on 4
+GPUs. (Not 66 GPU-hours: this document had been using "GPU-hours" to mean
+wall-clock hours on four cards. Stage 1 alone is 34.5 GPU-h. See `CHANGELOG.md`
+v3.3.3.)
 
 **The honest caveat on backbone count.** The textbook way to set it requires
 knowing how many *distinct* backbones RFdiffusion can produce. That quantity
@@ -249,7 +252,7 @@ A 100-backbone pilot ran the full funnel and produced a 27-candidate shortlist.
 ## 8. What happens next
 
 1. **Launch.** No blockers remain — see [`LIMITATIONS.md`](LIMITATIONS.md).
-2. **Run the scale-up** — roughly 66 GPU-hours (~3.3 days wall clock, Rosetta-bound) across generation, docking and
+2. **Run the scale-up** — ~3.3 days wall clock, Rosetta-bound (~66 h of that on 4 GPUs) across generation, docking and
    scoring, with an early checkpoint on the first shard to confirm the backbone
    statistics hold at scale.
 3. **Select 12 compounds** for synthesis: 8 top-ranked, 4 spread across the

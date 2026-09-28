@@ -21,7 +21,7 @@ export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-$GPU}
 # its own run/shard_$SHARD/ and wrote run/shard_$SHARD/out/, producing four
 # separate directories that nothing merged -- while SOP.md step 2 tells the
 # operator to pass run/out, which no shard created. That is fatal after Stage
-# 1's 8.9 GPU-h, or silently runs Stage 2 on 375 of 1500 backbones if the
+# 1's 34.5 GPU-h, or silently runs Stage 2 on 375 of 1500 backbones if the
 # operator "fixes" it by pointing at one shard directory.
 #
 # Filenames stay distinct across shards via the shard-prefixed output_prefix,

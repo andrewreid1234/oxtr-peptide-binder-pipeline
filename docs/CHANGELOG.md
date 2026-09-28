@@ -11,9 +11,57 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.3 — 2026-09-28
+
+**Current.** PATCH: one silent-failure fix, plus three reporting corrections. No
+methodology change and no threshold change — `q` still reproduces at 0.465
+(279/600) on the validation shard's `afcyc_out`.
+
+| fix | file | why |
+|---|---|---|
+| **A truncated FASTA is no longer mistaken for a finished one** | `run_stage2_v3_scaleup.sh` | The resume test was `[[ ! -f seqs/$stem.fa ]]` — existence only. ProteinMPNN opens that file with mode `'w'` (truncating it at once) and appends one record per sequence across the ~17 s it spends on a backbone, so a killed or preempted run leaves a **short but syntactically valid** FASTA. A re-run then treated it as finished. Nothing downstream noticed: the post-`wait` reconciliation counts *files*, `validate_cys.py` counts sequences but never compares its total against `N_FIXED × NSEQ`, and `dedupe_sequences.py` prints raw draws without gating. **Measured:** truncating 1 of 100 backbones to 100 of 600 designs, and a second to zero, left the hard gate printing `PASS: all 58900 sequences` and exiting 0 — 1,100 sequences missing, named nowhere. Now a backbone is redesigned unless its FASTA holds exactly `NSEQ + 1` records, and a sequence-level reconciliation after `wait` aborts on any shortfall and names every short file. Blast radius before the fix was bounded — a dead shard's unstarted backbones have no FASTA at all and *were* caught — so this cost at most one backbone per shard (≤4 of 1,500, 0.27%), except under a full disk, where it is unbounded. |
+| **GPU-hours and wall-clock hours separated and labelled** | `dedupe_sequences.py`, `SOP.md`, `SUMMARY.md` | The projection divided by the GPU count and called the result "GPU-h". Every compute figure in the docs was therefore wall-clock hours on four cards, understating true GPU-hours 4-fold — and B=1500 was justified as a *GPU-hour* budget. Stage 1 measured at 1.38 min/design is **34.5 GPU-h / 8.6 h wall**, not "8.9 GPU-h"; Stage 2 is **7.4 GPU-h / 1.9 h wall**, not "2.2 GPU-h". The two cannot simply be scaled into each other for the pipeline as a whole, because Rosetta's cost is CPU-hours that overlap GPU docking. |
+| **`SOP.md` §3 funnel restated** | `SOP.md` | It read "18,975 deepening = 27,975 dockings, ~53.8 GPU-h at 27.7 s/run" — all four numbers pre-v3.2.0, and v3.2.0's own correction table already records the docked count moving 27,975 → 151,275. Now 151,275 dockings, ~235 GPU-h, ~59 h wall at the measured 5.6 s/candidate. Its "~9% of backbones have nothing left to deepen" also does not hold at S=600: **0 of 100**. |
+| **Docking throughput reconciled to the measurement** | `CHANGELOG.md` | v3.2.0 recorded 4.6 s/candidate (9.7× speed-up); `validation_measurements.json` gives `dock_s = 5.597`, which is what `DOCK_SECONDS = 5.6` is built on. Corrected to 5.6 s and 8.0×. |
+
+### Superseded values
+
+| value | superseded | replaced by | why |
+|---|---|---|---|
+| Stage 1 cost | 8.9 "GPU-h" | **34.5 GPU-h / 8.6 h wall on 4 GPUs** | 8.9 was wall clock mislabelled. Measured 1.38 min/design. |
+| Stage 2 MPNN cost | 2.2 "GPU-h" | **7.4 GPU-h / 1.9 h wall on 4 GPUs** | Same mislabel. |
+| Stage 3 docking throughput | 27.7 s/run, then 4.6 s/candidate | **5.6 s/candidate** | 27.7 is pre-length-grouping; 4.6 disagrees with the recorded measurement. |
+| Stage 3 docking load | 27,975 dockings, 53.8 "GPU-h" | **151,275 dockings, ~235 GPU-h / ~59 h wall** | Deepening is uncapped since v3.2.0 and the pool is 6× larger. Count taken from `METHODS_AND_RESULTS.md` §11 (9,000 scout + 142,275 deepening), which already carried it. |
+| Deepening yield | 25.3 unique/backbone (S=300) | **192.3 unique/backbone (S=600)** | Measured on 100 validation backbones. |
+| Backbones with nothing to deepen | ~9% | **0 / 100 at S=600** | Measured. |
+
+**Also swept.** The same mislabel and the same superseded rates appeared in
+`METHODS_AND_RESULTS.md` §11 (the master funnel table — now **303 GPU-h / ~76 h
+wall**, and its scout row had been carrying 27.7 s/run while its deepening row
+used 4.6 s), `sampling_parameter_derivation.md` §21 (per-stage cost table),
+`LIMITATIONS.md`, `SCRIPTS_GUIDE.md` and `run_validation_shard.sh`.
+
+`sampling_parameter_derivation.md` §18 "locked production specification" was the
+worst of it: never updated past v2.0.0, still specifying $S = 53$, $T = 0.1$,
+~46,800 unique and 27,975 docked — contradicting `SOP.md` on every value while
+titled as the locked spec. Refreshed.
+
+**Not fixed, flagged.**
+- The §§9–17 derivations were not re-run. They are sound at their own sample
+  sizes and their conclusions ($k = 6$, $f = 0.50$) are unchanged, but their
+  absolute counts and hours predate S=600 and uncapped deepening. Basis notes
+  added in place rather than substituting numbers whose derivation was not redone.
+- **Rosetta survivor count disagrees between documents:** `METHODS_AND_RESULTS.md`
+  §11 sizes it on ~14,500 candidates (5,014 CPU-h, 78.5 h wall on 64 cores),
+  `sampling_parameter_derivation.md` §21 on ~6,714 (2,322 CPU-h, 36.3 h). Both
+  internally consistent at 1,245 s/candidate, so one count is stale. Does not
+  affect Stages 1–3; settle it with the open Rosetta top-fraction question.
+
+---
+
 ## Pipeline v3.3.2 — 2026-09-28
 
-**Current.** PATCH: the remaining seven code-review findings, none of which
+PATCH: the remaining seven code-review findings, none of which
 blocked the launch but all of which cost either compute or trust in a number.
 
 | fix | file | why |
@@ -23,7 +71,7 @@ blocked the launch but all of which cost either compute or trust in a number.
 | **Zero-yield backbones counted, not silently dropped** | `dedupe_sequences.py` | Backbones with an empty FASTA `continue`d before `per_bb.append`, so the mean-unique-per-backbone statistic excluded them — biased upward *exactly* when a ProteinMPNN shard had died, and that mean is what the whole unique-sequence pool projection rests on. Now included at zero and reported loudly. |
 | **Printed projection uses measured throughput** | `dedupe_sequences.py` | Said `27.7 s/run`, the pre-grouping figure, overstating GPU-h by ~5× at a decision point. Now a single `DOCK_SECONDS = 5.6` constant. |
 | **Docstring matches the code on the quality bar** | `dedupe_sequences.py` | Docstring said the bar is applied and the usage line advertised `--no-quality-bar`, but v3.2.0 made it opt-in via `--quality-bar`. The code was right, the docs were not. |
-| **One bad backbone no longer discards Stage 1's 8.9 GPU-h** | `make_fixed_positions.py`, `run_stage2_v3_scaleup.sh` | It exited 1 if *any* backbone lacked exactly two chain-L cysteines, killing all of Stage 2 for a 0.07% loss. Now refused backbones simply get no fixed-position file and Stage 2 skips them — so a backbone can still never be designed with its cysteines unpinned — and it aborts only above `--max-bad-frac` (default 1%), which indicates a systematic Stage 1 problem. |
+| **One bad backbone no longer discards Stage 1's 34.5 GPU-h** | `make_fixed_positions.py`, `run_stage2_v3_scaleup.sh` | It exited 1 if *any* backbone lacked exactly two chain-L cysteines, killing all of Stage 2 for a 0.07% loss. Now refused backbones simply get no fixed-position file and Stage 2 skips them — so a backbone can still never be designed with its cysteines unpinned — and it aborts only above `--max-bad-frac` (default 1%), which indicates a systematic Stage 1 problem. |
 | **Scout bias check tolerance scales with sample size** | `select_scouts.py` | The fixed 0.40–0.60 window is sound at production width (~4,500 ranks, sd 0.004) but at 18 ranks the sd is 0.068, so a legitimately random sample failed ~10% of the time — aborting a shard that had already spent Stage 1 and Stage 2 compute, and doing so *after* writing `scouts.csv`. Now ±max(0.10, 3·0.289/√n), identical to the old window at production scale. Also distinguishes "not checkable" (every pool ≤ k) from "passed". |
 
 `SOP.md` step 2a also had `--out_dir .../mpnn_out` while step 2 looks for
@@ -48,7 +96,7 @@ compute was spent.
 
 | fix | what it would have cost |
 |---|---|
-| **B1. Stage 1 shards now share one `out/` directory** | Each shard `cd`'d into `run/shard_$SHARD/` and wrote `run/shard_$SHARD/out/`; nothing merged the four, and `SOP.md` step 2 told the operator to pass `run/out`, which no shard created. Fatal after Stage 1's 8.9 GPU-h — or, if "fixed" by pointing at one shard directory, Stage 2 silently runs on 375 of 1,500 backbones. `run_validation_shard.sh` `cd`s once into a shared directory, which is why the end-to-end shard never exercised this. |
+| **B1. Stage 1 shards now share one `out/` directory** | Each shard `cd`'d into `run/shard_$SHARD/` and wrote `run/shard_$SHARD/out/`; nothing merged the four, and `SOP.md` step 2 told the operator to pass `run/out`, which no shard created. Fatal after Stage 1's 34.5 GPU-h — or, if "fixed" by pointing at one shard directory, Stage 2 silently runs on 375 of 1,500 backbones. `run_validation_shard.sh` `cd`s once into a shared directory, which is why the end-to-end shard never exercised this. |
 | **B2. `SOP.md` Stage 2 command corrected to `4 600 0.2`** | It read `4 300 0.1`, the pre-v3.2.0 values. Copy-pasting ran production Stage 2 at half the draws and the wrong temperature — 2.1× fewer distinct sequences — invalidating the unique-sequence projection. |
 | **B3. ProteinMPNN failures are now fatal and visible** | MPNN ran with `>/dev/null 2>&1` and its exit status unchecked; a bare `wait` returns 0 regardless, so a dead shard left a partial pool with no error in the log. Now: output kept per backbone, exit checked, per-PID waits, and a FASTA count reconciled against the backbone count. Also fixes an unconditional `CUDA_VISIBLE_DEVICES` clobber (broke the job queue's GPU mask) and a `seqs/` mkdir race that killed whichever shard lost. |
 | **B4. `q = 0.463 → 0.465`, and the label corrected** | `HOTSPOTS` was declared in `stage3_gate.py` and never referenced: the gate counted contacts to the whole receptor, so "pocket occupancy" was really a receptor-contact rate that would pass a peptide on the lipid-facing surface. Now gates on ≥1 peptide CA within 8 Å of a hotspot heavy atom. |
@@ -109,11 +157,11 @@ Six changes, each measured rather than assumed.
 | parameter | v3.1.0 | **v3.2.0** | why |
 |---|---|---|---|
 | Sampling temperature | 0.1 | **0.2** | 450 dockings: binding quality is flat across T=0.1–0.3 (largest gap p = 0.17), while distinct sequences rise 2.1×. T=0.1 had been chosen on the MPNN quality bar, which does not predict binding. |
-| Draws per backbone | 300 | **600** | 94% of the T=0.2 saturation ceiling; MPNN costs 2.2 GPU-h. |
+| Draws per backbone | 300 | **600** | 94% of the T=0.2 saturation ceiling; MPNN costs 7.4 GPU-h (~1.9 h wall on 4 GPUs). Recorded here as "2.2 GPU-h", which was the wall-clock figure; see v3.3.3. |
 | Design pool | all 20 AA | **omit C, M** | Leaves exactly 2 sulfur atoms per sequence. Without it one backbone produced 93.3% extra-sulfur sequences, which can form a disulfide other than the designed one. Costs ~1% of unique output at T=0.2. Pinned cysteines verified untouched, 900/900. |
 | MPNN quality bar | median cut | **removed** | Within-backbone ρ = −0.095 against i_ptm; kept 46% of the top binding quartile against 50% by chance. It discarded ~58% of distinct molecules for no gain. |
 | Deepening cap | — | **none** | Capping at 30 would dock only 15% of a kept backbone. ICC = 0.562 means 44% of variance is *within* backbones, so deeper sampling is not redundant. |
-| Stage 3 script | v2 | **v3** | v2 rebuilt the model per candidate, so XLA recompiled per input shape: 45.0 s/candidate with the GPU idle. Grouping by peptide length gives 4.6 s/candidate — **9.7× measured**, predictions identical. |
+| Stage 3 script | v2 | **v3** | v2 rebuilt the model per candidate, so XLA recompiled per input shape: 45.0 s/candidate with the GPU idle. Grouping by peptide length gives **5.6 s/candidate** — **8.0× measured**, predictions identical. (Recorded here as 4.6 s; `validation_measurements.json` gives `dock_s = 5.597`, which is what `DOCK_SECONDS` is built on. See v3.3.3.) |
 
 **Resulting scale:** unique pool 46,800 → **293,000**; docked 27,975 → **151,275**;
 GPU 75.8 h → **71.4 h**. Roughly 6× the chemical space at slightly less compute.

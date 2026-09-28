@@ -3,3 +3,5 @@ scripts/queue/queue.db
 scripts/queue/queue.db-*
 scripts/queue/logs/
 .claude/
+__pycache__/
+*.pyc

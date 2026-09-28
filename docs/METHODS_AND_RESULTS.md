@@ -236,8 +236,9 @@ model.prep_inputs(pdb_filename="7RYC.pdb", target_chain="O", binder_len=len(seq)
 model.predict(seq=seq, models=["model_1_ptm"], num_recycles=3)
 ```
 
-Measured cost: **27.7 s/run** (AfCycDesign), **42.1 s/run** (Boltz2, of which
-~29 s is model loading that batching would amortise).
+Measured cost: **5.6 s/candidate** (AfCycDesign, length-grouped — 27.7 s/run
+was the pre-grouping figure), **42.1 s/run** unbatched or **~15 s** batched
+(Boltz2, of which ~29 s is model loading that batching amortises).
 
 Note that `hotspot=` has no effect at prediction time — it shapes the design
 loss only. Verified: predictions with and without it are identical to seven
@@ -602,22 +603,34 @@ batch size fixes it.
 
 ![v3.0.0 funnel](figures/fig_funnel_v3.png)
 
-| Stage | Count | Cost |
-|---|---:|---|
-| Backbones | 1,500 | 8.9 GPU-h |
-| Sequences designed (600/backbone, T=0.2, omit C/M) | 900,000 | 2.2 GPU-h |
-| Unique after dedup | ~293,000 | — |
-| Scout docking (6/backbone) | 9,000 | 17.3 GPU-h |
-| Deepening (top 50% of backbones, no cap) | 142,275 | 45.5 GPU-h |
-| Boltz2 pose agreement (top 5,000 by dG, batched) | 5,000 | 5.2 GPU-h |
-| Rosetta (top 40% of survivors) | ~14,500 | 78.5 h / 64 cores, overlaps GPU |
-| Selectivity | ~200 | 1.2 GPU-h |
-| MD confirmation | **deferred** | — |
-| Synthesis | 12 | — |
+| Stage | Count | GPU-hours | Wall clock, 4 GPUs |
+|---|---:|---:|---:|
+| Backbones | 1,500 | 34.5 | 8.6 h |
+| Sequences designed (600/backbone, T=0.2, omit C/M) | 900,000 | 7.4 | 1.9 h |
+| Unique after dedup | ~293,000 | — | — |
+| Scout docking (6/backbone) | 9,000 | 14.0 | 3.5 h |
+| Deepening (top 50% of backbones, no cap) | 142,275 | 221.4 | 55.3 h |
+| Boltz2 pose agreement (top 5,000 by dG, batched) | 5,000 | 20.8 | 5.2 h |
+| Rosetta (top 40% of survivors) | ~14,500 | 78.5 CPU-h / 64 cores | overlaps GPU |
+| Selectivity | ~200 | 4.8 | 1.2 h |
+| MD confirmation | **deferred** | — | — |
+| Synthesis | 12 | — | — |
 
-**Total ≈ 66 GPU-hours; wall clock ~3.3 days**, set by Rosetta's 78.5 CPU-hours.
-Rosetta is now the critical path, and only overlaps if its CPU workers run
-*alongside* GPU docking — run sequentially the wall clock nearly doubles.
+**Total ≈ 303 GPU-hours = ~76 h wall clock on 4 GPUs (~3.2 days)**, with
+Rosetta's 78.5 CPU-hours on 64 cores running alongside. Rosetta and GPU docking
+are now comparable in length, so Rosetta only stays off the critical path if its
+CPU workers run *alongside* GPU docking — run sequentially the wall clock nearly
+doubles.
+
+> **Units corrected 2026-09-28 (v3.3.3).** This table previously reported a
+> "Cost" column in "GPU-h" that was actually wall-clock hours on four cards —
+> every entry was the true GPU-hours divided by 4. Verified arithmetically
+> against the per-unit rates in `sampling_parameter_derivation.md` §21 on seven
+> independent rows. The old total, "≈ 66 GPU-hours", was ~66 h of wall clock.
+> Scout docking additionally still carried 27.7 s/run while deepening in the same
+> table used 4.6 s; both are now the measured **5.6 s/candidate**
+> (`validation_measurements.json`, `dock_s = 5.597`), which is why the wall clock
+> rises from ~66 h to ~76 h even as the labels are corrected downward.
 
 ---
 

@@ -485,7 +485,7 @@ against a nominal $B \cdot S = 450{,}000$ draws. **Every funnel count downstream
 
 **Starting point this section argues away from:** "dock whatever the BBB filter passes, ranked by BBB probability" — the pilot's inherited behaviour, never derived, and resting on a pass-rate figure that turns out not to match the documented threshold.
 
-**Headline result:** the BBB gate does not set the docking load at all — it was moved out of the gating path entirely (Section 13). The load is set by backbone scouting (Sections 15–17): **27,975 dockings at B = 1500, ~53.8 GPU-hours**, against the ~188 a full-width pass would cost. The BBB gate weakly enriches for binding quality but is useless as a *ranking*, and it discards roughly half of the best-scoring candidates.
+**Headline result:** the BBB gate does not set the docking load at all — it was moved out of the gating path entirely (Section 13). The load is set by backbone scouting (Sections 15–17): **151,275 dockings at B = 1500, ~235 GPU-hours (~59 h wall on 4 GPUs)**, against the ~750 GPU-hours a full-width pass would cost. The BBB gate weakly enriches for binding quality but is useless as a *ranking*, and it discards roughly half of the best-scoring candidates.
 
 ---
 
@@ -675,6 +675,14 @@ The quantity to optimize is not cost but **recovery**: what fraction of genuinel
 | **50%** | **18,975** | **27,975** | **53.8** | **99.2%** |
 | 100% | 37,950 | 46,950 | 90.3 | 100% |
 
+> **Basis note (v3.3.3).** The counts and hours in this table are computed at the
+> S=300 pool (~46,950 unique) and at 27.7 s/run. At the current S=600 pool
+> (~293,000 unique) and the measured 5.6 s/candidate, $f = 0.50$ means 142,275
+> deepening dockings, 151,275 total, ~235 GPU-h / ~59 h wall on 4 GPUs. The
+> *shape* of the recovery curve — and therefore the choice $f = 0.50$ — is
+> unaffected, since it depends on the backbone ranking, not the pool size. The
+> hours column is also wall clock on 4 GPUs, not GPU-hours.
+
 Each additional 10% of backbones costs a flat **7.3 GPU-h**. The recovery curve is steeply concave: 20% → 30% buys 14.8 points for 7.3 h, 40% → 50% buys 2.2 points for the same, and beyond 50% buys nothing measurable.
 
 **$f = 0.50$ is the production value.** At 99.2% recovery the scouting cut is no longer a meaningful source of loss, which removes it as a variable needing defence. A 20% cut, by contrast, silently discards roughly a quarter of the backbones worth deepening — the failure mode this whole section exists to avoid.
@@ -684,18 +692,28 @@ Each additional 10% of backbones costs a flat **7.3 GPU-h**. The recovery curve 
 
 ## 18. Recommendation — locked production specification
 
+> **Refreshed 2026-09-28 (v3.3.3).** This table had never been updated past
+> v2.0.0 — it still read $S = 53$, $T = 0.1$, ~46,800 unique and
+> $N_{\text{dock}} = 27{,}975$, contradicting `SOP.md` on every one of them while
+> presenting itself as the locked spec. The values below are the current ones;
+> `SOP.md` and `CHANGELOG.md` remain the authority if they ever disagree again.
+> The *derivations* in §§9–17 were not re-run — they are sound at their own
+> sample sizes, and their conclusions ($k = 6$, $f = 0.50$) are unchanged — but
+> their absolute counts predate uncapped deepening and S=600. See the notes there.
+
 | Parameter | Value | Derived in |
 |---|---|---|
 | Backbones $B$ | **1,500** | §14 note — a budget choice, not a derived optimum |
-| Draws per backbone $S$ | **53** | Part I §7 |
-| Sampling temperature $T$ | **0.1** | Part I §7 |
+| Draws per backbone $S$ | **600** | Part I §7, revised v3.2.0 |
+| Sampling temperature $T$ | **0.2** | Part I §7, revised v3.2.0 |
+| Design pool | **omit C and M** | v3.2.0 |
 | Deduplication | **within backbone, then global** | §9 |
-| Expected unique sequences | **~46,800** | §9 |
+| Expected unique sequences | **~293,000** | §9, revised v3.2.0 |
 | Scout depth $k$ | **6, drawn at random** | §16 |
 | Backbone ranking statistic | **mean $i_{\text{ptm}}$** | §15 |
 | Keep fraction $f$ | **50%** | §17 |
-| Total docked $N_{\text{dock}}$ | **27,975** | §17 |
-| Boltz2 | **after Rosetta, top 1,000 by $dG_{\text{separated}}$** | §12, §21 |
+| Total docked $N_{\text{dock}}$ | **151,275** | §17, revised v3.2.0 |
+| Boltz2 | **after Rosetta, top 5,000 by $dG_{\text{separated}}$, batched** | §12, §21 |
 | BBB filter | **router after Rosetta, never a gate** | §13 |
 
 **Execution order.** Generate all 1,500 backbones → design 300 sequences each → deduplicate → dock 6 random unique sequences per backbone (9,000) → rank backbones by mean $i_{\text{ptm}}$ → deepen the top 750 backbones (18,975) → disulfide-forcing check → **Rosetta on every survivor, uncapped (~6,714)** → **Boltz2 pose agreement on the top 1,000 by dG** → **then** apply BBB as an annotation → N-methylation scan and selectivity → MD confirmation → Wave 1.
@@ -738,19 +756,34 @@ Sensitivity to $c_A$, $c_B$ and $G$ is linear and well-characterized; $c_B$ is o
 
 Every rate below is measured on this hardware (4 × GPU, 64 CPU cores) from pilot output, except where marked.
 
-| Stage | Unit cost | Basis | Count under the locked plan | Cost |
-|---|---|---|---:|---:|
-| RFdiffusion | 85.8 s/backbone | 991 pilot backbones | 1,500 | 8.9 GPU-h |
-| ProteinMPNN + dedup | 10.7 s/backbone at S=300 | measured | 450,000 draws → ~46,800 unique | 1.1 GPU-h |
-| AfCycDesign scout | 27.7 s/run | 39 pilot runs | 9,000 | 17.3 GPU-h |
-| AfCycDesign deepen | 27.7 s/run | as above | 18,975 | 36.5 GPU-h |
-| Boltz2 pose agreement | 42.1 s/run | 39 pilot runs | top 1,000 by dG | 2.9 GPU-h |
-| Rosetta relax + InterfaceAnalyzer | 1,245 s/candidate | 65 pilot structures | **all ~6,714 survivors** | 36.3 h / 64 cores |
-| Stage 7 selectivity | 29 s/run × 3 receptors | 81 pilot runs | ~200 | 1.2 GPU-h |
-| MD, 20 ns | 4,718 s (1 h 18 m), 366 ns/day | `out_70_sample2` production log | 24 | 7.9 GPU-h |
-| MM/GBSA | **not measured** — blocked | `gmx_MMPBSA` 1.6.5 bug | 24 | est. ~12 CPU-h |
+> **Units corrected 2026-09-28 (v3.3.3).** The `Cost` column previously divided
+> by the 4 GPUs and called the result "GPU-h". It now reports true GPU-hours,
+> with wall clock alongside. Two rates were also superseded: AfCycDesign is
+> **5.6 s/candidate** length-grouped, not 27.7, and ProteinMPNN now runs at S=600.
 
-**Total ≈ 75–90 hours, roughly 3–4 days**, with the Rosetta CPU work overlapping the GPU stages rather than adding serially to them.
+| Stage | Unit cost | Basis | Count under the locked plan | GPU-h | Wall, 4 GPUs |
+|---|---|---|---:|---:|---:|
+| RFdiffusion | 82.8 s/backbone (measured 1.38 min) | `stage1/shard0.log`, 25 designs in 35.5 min | 1,500 | 34.5 | 8.6 h |
+| ProteinMPNN + dedup | ~17 s/backbone at S=600 | validation shard, 100 backbones in 7.4 min on 4 GPUs | 900,000 draws → ~293,000 unique | 7.4 | 1.9 h |
+| AfCycDesign scout | 5.6 s/candidate | `validation_measurements.json`, `dock_s = 5.597` | 9,000 | 14.0 | 3.5 h |
+| AfCycDesign deepen | 5.6 s/candidate | as above | 142,275 | 221.4 | 55.3 h |
+| Boltz2 pose agreement | ~15 s/run batched | 39 pilot runs, batched | top 5,000 by dG | 20.8 | 5.2 h |
+| Rosetta relax + InterfaceAnalyzer | 1,245 s/candidate | 65 pilot structures | **all ~6,714 survivors** | 2,322 CPU-h / 64 cores | 36.3 h |
+| Stage 7 selectivity | 29 s/run × 3 receptors | 81 pilot runs | ~200 | 4.8 | 1.2 h |
+| MD, 20 ns | 4,718 s (1 h 18 m), 366 ns/day | `out_70_sample2` production log | **deferred** (was 24) | 31.5 | 7.9 h |
+| MM/GBSA | **not measured** — blocked | `gmx_MMPBSA` 1.6.5 bug | 24 | est. ~12 CPU-h | — |
+
+**Total ≈ 303 GPU-hours = ~76 h wall clock on 4 GPUs (~3.2 days)** with MD
+deferred, and the Rosetta CPU work overlapping the GPU stages rather than adding
+serially to them. GPU docking (~59 h wall) and Rosetta (36.3 h wall on 64 cores)
+are both long enough that the overlap has to be real, not assumed.
+
+> **Survivor-count discrepancy, unresolved.** This row sizes Rosetta on ~6,714
+> survivors (2,322 CPU-h, 36.3 h wall); `METHODS_AND_RESULTS.md` §11 sizes it on
+> ~14,500 (5,014 CPU-h, 78.5 h wall). Both are internally consistent at 1,245
+> s/candidate, so one of the two survivor counts is stale. This does not affect
+> Stages 1–2 and has been left for whoever settles the Rosetta top-fraction
+> question, but it should be settled before Stage 4 is launched.
 
 ![Projected v3.0.0 funnel](figures/fig_funnel_v3.png)
 

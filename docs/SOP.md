@@ -32,7 +32,8 @@ those are labeled by which pipeline version produced them):
 | **v2.0.0** | 2026-09-22 | Full pipeline restructuring (this document). Boltz2 `iptm` dropped as a signal (structure kept for pose-agreement only); i_ptm demoted from gate to prior; disulfide-forcing and pose-agreement checks promoted to standard per-candidate; MD protocol corrected (`DispCorr`, `refcoord_scaling`) for the water-only/restrained-receptor system (**scale-up MD protocol for this version** — membrane+physiological mini-G/Gβ complex is proven buildable but its full graduated-restraint simulation protocol is deferred to v2.1, a deliberate scope decision to launch the scale-up on schedule), confirmation-only for a small post-filter set, with replicates; B/S/T sampling parameters validated empirically (B=750, S=53, T=0.1) — see `sampling_parameter_derivation.md` Section 7; job queue infrastructure added for scale-up orchestration. |
 | **v3.0.0** | 2026-09-24 | **MAJOR: the BBB permeability filter changes from a gate to a router**, which changes what gates advancement. Also: a Stage 2 cysteine gate added after ProteinMPNN was found to silently drop the motif cysteines when its fixed-positions file is absent (the disulfide is the cyclization mechanism, so those molecules cannot cyclize); S raised 53 → 300 after measuring that a backbone costs 3,178× a sequence; docking allocation changed from "everything that passes BBB" to backbone scout-and-deepen (ICC = 0.562); Boltz2 staged behind AfCycDesign rather than run at full width; RFdiffusion inter-cysteine spacer tightened 4-8 → 4-6 on measured disulfide strain. B/S/T re-derived on Cys-constrained, receptor-aware output — **T = 0.1 survived re-derivation**. See `sampling_parameter_derivation.md` v3.0.0 and `LIMITATIONS.md`. |
 | **v3.1.0** | 2026-09-25 | B raised 750 → 1500 (a budget choice — chemical space is linear in B with no optimum to find, since D_b is unidentifiable). **Rosetta uncapped**: it now runs on every Stage-3 survivor rather than the top 2,000 by i_ptm, because that cut discarded ~32% of the best binders by Rosetta energy and the 64 CPU cores are idle during GPU docking anyway. Deepening yield corrected to the measured 25.3 per backbone. Not a MAJOR bump: nothing changed about what *gates* advancement. |
-| **v3.2.0** | 2026-09-28 | T 0.1→0.2, S 300→600, `--omit_AAs CM`, MPNN quality bar removed, deepening uncapped, Stage 3 docking 9.7× faster (length-grouped). **Boltz2 batched and widened to the top 5,000.** **Rosetta concurrency made explicit** — it must run on CPU workers alongside GPU docking or the wall clock nearly doubles. **MD deferred** out of the scale-up: it predicts neither i_ptm nor dG, and the negative control is more stable than five candidates that passed every gate. |
+| **v3.2.0** | 2026-09-28 | T 0.1→0.2, S 300→600, `--omit_AAs CM`, MPNN quality bar removed, deepening uncapped, Stage 3 docking 8.0× faster (length-grouped, 45.0 → 5.6 s/candidate). **Boltz2 batched and widened to the top 5,000.** **Rosetta concurrency made explicit** — it must run on CPU workers alongside GPU docking or the wall clock nearly doubles. **MD deferred** out of the scale-up: it predicts neither i_ptm nor dG, and the negative control is more stable than five candidates that passed every gate. |
+| **v3.3.0–v3.3.3** | 2026-09-28 | **v3.3.0 (MAJOR): disulfide demoted from Stage 3 gate to diagnostic, q = 0.360 → 0.465** — AfCycDesign's open predictions are an artifact of it never being told the bond exists, and all 100 parent backbones are bond-compatible (CB–CB median 4.13 Å). Enforced downstream instead (AF3 `bondedAtomPairs`, Rosetta under constraint). v3.3.1–v3.3.3 (PATCH): eleven code-review fixes before any production compute — Stage 1 shards share one `out/`, `HOTSPOTS` actually applied in the Stage 3 gate, ProteinMPNN failures made fatal and visible, docking checkpointed and resumable, truncated FASTAs no longer mistaken for complete, and GPU-hours separated from wall clock throughout. Full detail and every superseded value in [`CHANGELOG.md`](CHANGELOG.md). |
 | v3.1.0 (planned) | — | Membrane + physiological mini-G/Gβ complex as the production MD system, replacing the water-only/restrained-receptor approach — system building already proven (see below); needs the full graduated-restraint equilibration protocol built and validated. Not yet started. (Was numbered v2.1.0 before the v3.0.0 bump.) |
 
 ## Goal
@@ -229,7 +230,10 @@ source /scratch/drewdog/denovo_binder_100_pilot/activate_rfpeptides.sh
 scripts/stage1_backbones/OXTR_Stage1_ScaleUp_shard.sh <shard 0-3> <n_designs> <gpu>
 ```
 
-Contig spacer is `4-6` (cysteine separations 5–7). ~8.9 GPU-h for 1,500 backbones.
+Contig spacer is `4-6` (cysteine separations 5–7). **~34.5 GPU-h** for 1,500
+backbones — **~8.6 h wall clock** with the four shards in parallel. Measured at
+1.38 min/design (`stage1/shard0.log`, 25 designs in 35.5 min). This read
+"~8.9 GPU-h", which was the wall-clock figure mislabelled as GPU-hours.
 
 **Verify before proceeding:** every backbone's chain L must contain exactly two
 CYS residues. `make_fixed_positions.py` refuses any that do not.
@@ -254,7 +258,8 @@ Generates one `fixed_<stem>.jsonl` per backbone pinning the two motif cysteines.
 A backbone without exactly two chain-L cysteines gets no file and is skipped by
 Stage 2, so it can never be designed with its cysteines unpinned. The script
 aborts only if more than `--max-bad-frac` (default 1%) are refused — a systematic
-Stage 1 problem — rather than discarding 8.9 GPU-h over a single outlier.
+Stage 1 problem — rather than discarding Stage 1's 34.5 GPU-h over a single
+outlier.
 
 ### 2. Stage 2, all four steps in one command
 
@@ -330,7 +335,7 @@ the median for any single backbone).
 > **If the unique count matters more than the backbone count, generate until you
 > hit it.** Simulated: the median run reaches 46,800 at **1,502 backbones** and
 > 90% finish by 1,543, so the expected RFdiffusion cost is identical to fixed
-> B=1500 (8.9 GPU-h). Generating in batches and stopping on the deduplicated
+> B=1500 (34.5 GPU-h, ~8.6 h wall on 4 GPUs). Generating in batches and stopping on the deduplicated
 > total converts a ±29% output uncertainty into a guaranteed output with slightly
 > variable cost. `dedupe_sequences.py` prints the running total for exactly this.
 
@@ -345,14 +350,27 @@ rank:    backbones by MEAN i_ptm (not max — the reliability maths applies to
 deepen:  the top 50% of backbones, all their remaining unique sequences
 ```
 
-**9,000 scout + 18,975 deepening = 27,975 dockings, ~53.8 GPU-h** at 27.7 s/run
-on 4 GPUs.
+**9,000 scout + 142,275 deepening = 151,275 dockings, ~235 GPU-h** at 5.6
+s/candidate — **~59 h wall clock on 4 GPUs**.
 
-Deepening yield is the measured **25.3 sequences per backbone remaining after the
-6 scouts**, not the 30.9 a naive D_s calculation gives. Note that ~9% of
-backbones have nothing left to deepen (their whole unique pool is ≤ 6) and ~31%
-yield fewer than 10 more — flag these at the dedup step so the funnel projection
-stays honest.
+> **Superseded figures removed (2026-09-28).** This block read "18,975 deepening
+> = 27,975 dockings, ~53.8 GPU-h at 27.7 s/run". All four numbers were
+> pre-v3.2.0: 27.7 s/run is the pre-length-grouping docking time (measured 5.6 s,
+> `validation_measurements.json`), and the deepening count assumed S=300 yields.
+> `CHANGELOG.md` v3.2.0 already records the docked count moving 27,975 → 151,275,
+> and `METHODS_AND_RESULTS.md` §11 already carried 142,275 deepening; this section
+> had not been updated to match either of them. The "~53.8 GPU-h" was also wall
+> clock on 4 GPUs, not GPU-hours — see v3.3.3.
+
+Deepening yield at S=600 is the measured **192.3 unique sequences per backbone**
+(median 163, min 14, max 548, n=100 validation backbones), so the top 50% of
+1,500 backbones contribute ~186 each beyond their 6 scouts. The older "25.3 per
+backbone" was measured at S=300. Likewise the old warning that ~9% of backbones
+have nothing left to deepen and ~31% yield fewer than 10 more does not hold at
+S=600: **0 of 100** validation backbones had a unique pool ≤ 6.
+
+`dedupe_sequences.py` prints this projection from the actual pool, separating
+GPU-hours from wall clock. Trust its output over any number written here.
 
 **Pre-registered checkpoint:** after the first completed shard, re-estimate ICC
 and the unique-sequence yield. ICC was fitted at S=4 and is applied at S=600; if

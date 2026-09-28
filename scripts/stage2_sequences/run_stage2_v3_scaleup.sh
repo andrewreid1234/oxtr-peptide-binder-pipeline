@@ -73,6 +73,25 @@ mkdir -p "$OUT_DIR/seqs" "$OUT_DIR/mpnn_logs"
 # the skip count and mask a real shortfall.
 rm -f "$OUT_DIR/skipped_backbones.txt"
 
+# A FASTA counts as complete only if it holds ProteinMPNN's native record plus
+# NSEQ designs. ProteinMPNN opens it with mode 'w' -- truncating it immediately --
+# and then appends one record per sequence over the ~17 s it spends on a
+# backbone, so a killed or preempted run leaves a SHORT but syntactically valid
+# file behind. Testing existence alone meant a re-run treated that as finished:
+# the thinned backbone then passed validate_cys (which counts sequences but never
+# compares its own total against NSEQ x backbones), passed dedupe, and reached
+# docking with the pool quietly short. Measured: truncating one of 100 backbones
+# to 100 of 600 designs left the hard gate printing "PASS: all 58900 sequences"
+# and exiting 0, naming nothing.
+WANT_RECORDS=$((NSEQ + 1))
+fasta_complete () {
+  local fa=$1 n
+  [[ -s "$fa" ]] || return 1
+  n=$(grep -c '^>' "$fa" 2>/dev/null || true)
+  [[ -n "$n" ]] || n=0
+  (( n == WANT_RECORDS ))
+}
+
 run_shard () {
   local shard=$1
   local i=0 n_run=0
@@ -92,7 +111,10 @@ run_shard () {
         i=$((i+1))
         continue
       fi
-      if [[ ! -f "$OUT_DIR/seqs/${stem}.fa" ]]; then
+      # Redesign anything whose FASTA is absent OR incomplete -- not merely
+      # absent. A short file is what a killed run leaves; re-designing it costs
+      # ~17 s, keeping it costs a silently thinned pool.
+      if ! fasta_complete "$OUT_DIR/seqs/${stem}.fa"; then
         # Respect a caller's GPU mask (the job queue masks to one physical GPU
         # and re-indexes it as device 0; setting the raw shard index here would
         # point shards 1-3 at devices that do not exist inside that mask).
@@ -112,8 +134,13 @@ run_shard () {
           tail -20 "$OUT_DIR/mpnn_logs/${stem}.log" >&2 || true
           return 1
         fi
-        if [[ ! -s "$OUT_DIR/seqs/${stem}.fa" ]]; then
-          echo "  [shard $shard] FATAL: $stem exited 0 but wrote no sequences" >&2
+        # Exit 0 is not evidence of a full FASTA: check the record count, not
+        # just that the file is non-empty.
+        if ! fasta_complete "$OUT_DIR/seqs/${stem}.fa"; then
+          local got
+          got=$(grep -c '^>' "$OUT_DIR/seqs/${stem}.fa" 2>/dev/null || true)
+          echo "  [shard $shard] FATAL: $stem exited 0 but its FASTA holds" >&2
+          echo "    ${got:-0} record(s), expected $WANT_RECORDS (native + $NSEQ designs)" >&2
           return 1
         fi
         n_run=$((n_run+1))
@@ -164,6 +191,26 @@ if (( N_FA != N_FIXED )); then
 fi
 if (( N_FA == 0 )); then
   echo "FATAL: no sequences were designed at all." >&2
+  exit 1
+fi
+
+# Reconcile the SEQUENCE count, not just the file count. The check above counts
+# files, so a set of short FASTAs passes it; this is the check that a truncated
+# file cannot survive. Each file carries one native record that is not a design.
+N_RECORDS=$(cat "$OUT_DIR"/seqs/*.fa | grep -c '^>' || true)
+N_DESIGNED=$(( N_RECORDS - N_FA ))
+N_EXPECTED=$(( N_FIXED * NSEQ ))
+echo "  designed sequences  : $N_DESIGNED / $N_EXPECTED expected ($N_FIXED x $NSEQ)"
+if (( N_DESIGNED != N_EXPECTED )); then
+  echo "FATAL: expected $N_EXPECTED designed sequences, found $N_DESIGNED" >&2
+  echo "       ($(( N_EXPECTED - N_DESIGNED )) missing). At least one FASTA is" >&2
+  echo "       short, which is what a killed ProteinMPNN run leaves behind." >&2
+  echo "       Re-run: incomplete backbones are now re-designed, complete ones" >&2
+  echo "       are skipped." >&2
+  for fa in "$OUT_DIR"/seqs/*.fa; do
+    n=$(grep -c '^>' "$fa" || true)
+    (( n == WANT_RECORDS )) || echo "         $(basename "$fa" .fa): $n of $WANT_RECORDS records" >&2
+  done
   exit 1
 fi
 

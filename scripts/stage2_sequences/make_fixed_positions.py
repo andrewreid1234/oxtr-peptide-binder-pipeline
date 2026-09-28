@@ -102,7 +102,7 @@ def main():
         # A refused backbone simply gets no fixed-position file, and Stage 2
         # skips it -- so it can never be designed without its cysteines pinned,
         # which is the whole point of this check. Aborting the entire run over
-        # one bad backbone out of 1500 threw away Stage 1's 8.9 GPU-h for a
+        # one bad backbone out of 1500 threw away Stage 1's 34.5 GPU-h for a
         # 0.07% loss, so tolerate a small fraction and fail on a systematic one.
         if frac > args.max_bad_frac:
             print("\nFATAL: %.2f%% refused exceeds --max-bad-frac %.2f%%. That is "
