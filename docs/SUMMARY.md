@@ -188,21 +188,22 @@ an explicit model; the derivations are in
 | Quantity | Value | Basis |
 |---|---|---|
 | Backbones | **1,500** | A budget choice, not an optimum — see caveat below |
-| Sequences per backbone | **300** | RFdiffusion costs 3,178× a ProteinMPNN sequence, so sequences are effectively free; 300 harvests a backbone almost completely |
-| Sampling temperature | **0.1** | Peak distinct-and-good output, measured across 32 backbones × 7 temperatures × 300 draws |
+| Sequences per backbone | **600** | 94% of the measured saturation ceiling at T=0.2 |
+| Sampling temperature | **0.2** | Binding quality flat across 0.1–0.3; 2.1× the distinct sequences |
+| Design pool | **omit C and M** | Exactly 2 sulfur atoms per sequence — no disulfide scrambling |
 | Scout depth | **6 per backbone** | Estimates a backbone's quality at reliability 0.82 |
 | Backbones deepened | **top 50%** | Recovers 99.2% of the genuinely best backbones |
-| Docked | **~28,000** | Follows from the above |
-| Rosetta | **all ~6,700 survivors** | Uncapped — pre-filtering on i_ptm would lose a third of the best binders |
+| Docked | **~151,000** | Follows from the above |
+| Rosetta | **top 40% of ~36,300 survivors** | Bounded by the GPU floor; recovers 78% of the top decile by dG |
 | MD | **24** | Confirmation only |
-| Synthesised | **12** | 8 top-ranked plus 4 spanning the score range, so the ranking itself can be calibrated against real affinity |
+| Synthesised | **~150** | Parallel synthesiser handles 192 per batch. At this size hit-confidence is no longer the constraint and a real score-vs-affinity calibration becomes possible (needs ~85 compounds for 80% power at ρ=0.3). **Assay throughput must be confirmed** — Part V assumed assay, not synthesis, was the bottleneck. |
 
 **The idea that makes this affordable.** Binding quality turns out to be largely
 a property of the *backbone*, not the sequence — 56% of the variance in
 interface score sits between backbones rather than between sequences sharing
 one. So rather than docking everything, the pipeline docks six sequences per
 backbone to find which backbones are good, then concentrates the remaining
-compute on the best half. Total cost is roughly 76 GPU-hours instead of the ~250 a full-width pass would take.
+compute on the best half. Total cost is roughly 71 GPU-hours.
 
 **The honest caveat on backbone count.** The textbook way to set it requires
 knowing how many *distinct* backbones RFdiffusion can produce. That quantity
@@ -248,7 +249,7 @@ A 100-backbone pilot ran the full funnel and produced a 27-candidate shortlist.
 ## 8. What happens next
 
 1. **Launch.** No blockers remain — see [`LIMITATIONS.md`](LIMITATIONS.md).
-2. **Run the scale-up** — roughly 76 GPU-hours (~3.2 days) across generation, docking and
+2. **Run the scale-up** — roughly 71 GPU-hours (~3.3 days wall clock) across generation, docking and
    scoring, with an early checkpoint on the first shard to confirm the backbone
    statistics hold at scale.
 3. **Select 12 compounds** for synthesis: 8 top-ranked, 4 spread across the

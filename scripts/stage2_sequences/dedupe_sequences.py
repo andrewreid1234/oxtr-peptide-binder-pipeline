@@ -63,9 +63,13 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--scout-depth", type=int, default=6)
     ap.add_argument("--min-cys", type=int, default=2)
-    ap.add_argument("--no-quality-bar", action="store_true",
-                    help="keep all distinct sequences, not just those at or "
-                         "below the backbone's median MPNN score")
+    ap.add_argument("--quality-bar", action="store_true",
+                    help="OFF by default. Applies the backbone's median MPNN "
+                         "score as a cut. Measured not to predict binding "
+                         "(within-backbone rho -0.095 vs i_ptm; keeps 46%% of "
+                         "the top binding quartile against 50%% by chance), so "
+                         "it discards ~58%% of distinct molecules for nothing. "
+                         "Retained only for reproducing the D_s measurement."),
     args = ap.parse_args()
 
     files = sorted(glob.glob(os.path.join(args.seq_dir, "*.fa")))
@@ -82,11 +86,11 @@ def main():
         if not recs:
             continue
 
-        if args.no_quality_bar:
-            kept = recs
-        else:
+        if args.quality_bar:
             bar = st.median([s for _, s in recs])
             kept = [(q, s) for q, s in recs if s <= bar]
+        else:
+            kept = recs
 
         best = {}
         for q, s in kept:
@@ -126,7 +130,7 @@ def main():
 
     print("backbones            : %d" % len(per_bb))
     print("raw draws            : %d" % draws)
-    print("after quality bar    : %d  (%.1f%% of draws)"
+    print("after within-backbone dedup : %d  (%.1f%% of draws)"
           % (local, 100 * local / draws if draws else 0))
     print("after global dedup   : %d  (%.1f%% of draws kept)"
           % (uniq, 100 * uniq / draws if draws else 0))

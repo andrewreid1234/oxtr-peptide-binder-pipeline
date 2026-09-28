@@ -1,11 +1,12 @@
 #!/bin/bash
-# Pipeline v3.1.0 — Stage 2 at scale-up size. Closes LIMITATIONS B1.
+# Pipeline v3.2.0 — Stage 2 at scale-up size.
 #
 # Runs the full Stage 2 in the order the SOP requires, with the cysteine guard
 # as a HARD GATE rather than an advisory:
 #
 #   1. generate fixed-position files (pins the two motif cysteines)
-#   2. ProteinMPNN, S=300, T=0.1, receptor-aware, cysteines pinned
+#   2. ProteinMPNN, S=600, T=0.2, receptor-aware, cysteines pinned,
+#      with C and M omitted from the design pool
 #   3. validate_cys.py  <-- exits non-zero if the disulfide was lost
 #   4. deduplicate within backbone, then globally
 #
@@ -18,6 +19,14 @@
 # This is what produced the pilot's 1/400 and the original D_s experiment's
 # 0/2400 non-cyclizable output. Never let a batch past this check.
 #
+# WHY --omit_AAs CM
+# The two motif cysteines are the cyclization mechanism. Left free, ProteinMPNN
+# adds extra cysteines (and occasional methionines), giving molecules with 3-4
+# sulfur atoms that can form a disulfide other than the designed one. Measured
+# at T=0.2: one backbone produced 93.3% extra-sulfur sequences. Omitting C and M
+# from the DESIGN pool leaves the pinned pair untouched (verified 900/900) and
+# yields exactly 2 sulfur atoms per sequence, at a cost of ~1% of unique output.
+#
 # Usage:
 #   run_stage2_v3_scaleup.sh <backbone_pdb_dir> <out_dir> [n_gpus] [n_seq] [temp]
 set -euo pipefail
@@ -25,15 +34,15 @@ set -euo pipefail
 PDB_DIR="${1:?usage: run_stage2_v3_scaleup.sh <backbone_pdb_dir> <out_dir> [n_gpus] [n_seq] [temp]}"
 OUT_DIR="${2:?missing out_dir}"
 NGPU="${3:-4}"
-NSEQ="${4:-300}"
-TEMP="${5:-0.1}"
+NSEQ="${4:-600}"
+TEMP="${5:-0.2}"
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PY=/scratch/drewdog/rfdiffusion/env_rfd/bin/python
 MPNN=/scratch/drewdog/ProteinMPNN/protein_mpnn_run.py
 
 mkdir -p "$OUT_DIR"
-echo "=== Stage 2 v3.1.0 ==="
+echo "=== Stage 2 v3.2.0 ==="
 echo "  backbones : $PDB_DIR"
 echo "  output    : $OUT_DIR"
 echo "  S=$NSEQ  T=$TEMP  GPUs=$NGPU"
@@ -67,7 +76,8 @@ run_shard () {
           --pdb_path "$pdb" --pdb_path_chains L \
           --out_folder "$OUT_DIR" \
           --num_seq_per_target "$NSEQ" --sampling_temp "$TEMP" \
-          --batch_size 50 --fixed_positions_jsonl "$fixed" >/dev/null 2>&1
+          --batch_size 50 --fixed_positions_jsonl "$fixed" \
+          --omit_AAs CM >/dev/null 2>&1
       fi
     fi
     i=$((i+1))

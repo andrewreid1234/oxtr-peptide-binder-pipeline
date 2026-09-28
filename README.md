@@ -69,7 +69,13 @@ A living register of known limitations, open questions and unvalidated
 assumptions, each with a status. Versioned alongside the project. Read it before
 trusting any result.
 
-**5. [`docs/SOP.md`](docs/SOP.md) — how to run it.**
+**5. [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what changed and why.**
+Version history for the pipeline and its documents. The other documents describe
+only the current working version; superseded values and the reasoning that
+replaced them live here, so an old number can be traced without cluttering the
+live docs.
+
+**6. [`docs/SOP.md`](docs/SOP.md) — how to run it.**
 The operational runbook: exact commands, environment activation, scratch paths,
 per-stage configuration, and every gotcha encountered. Read while typing, not
 while trying to understand the project.
