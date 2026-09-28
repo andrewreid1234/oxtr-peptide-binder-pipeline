@@ -4,7 +4,7 @@
 **Automation scripts:** `/home/drewdog/projects/OXTR_peptides/`
 **Host:** Woody (`drewdog@sn4622111116`)
 **Last updated:** 2026-09-25
-**Pipeline version:** v3.1.0 (see Versioning and Version History below)
+**Pipeline version:** v3.2.0 (see Versioning and Version History below)
 
 > **Reading note.** This document has two halves. The **Pipeline v3.0.0**
 > section and the **Scale-up execution procedure** are the authoritative
@@ -32,6 +32,7 @@ those are labeled by which pipeline version produced them):
 | **v2.0.0** | 2026-09-22 | Full pipeline restructuring (this document). Boltz2 `iptm` dropped as a signal (structure kept for pose-agreement only); i_ptm demoted from gate to prior; disulfide-forcing and pose-agreement checks promoted to standard per-candidate; MD protocol corrected (`DispCorr`, `refcoord_scaling`) for the water-only/restrained-receptor system (**scale-up MD protocol for this version** — membrane+physiological mini-G/Gβ complex is proven buildable but its full graduated-restraint simulation protocol is deferred to v2.1, a deliberate scope decision to launch the scale-up on schedule), confirmation-only for a small post-filter set, with replicates; B/S/T sampling parameters validated empirically (B=750, S=53, T=0.1) — see `sampling_parameter_derivation.md` Section 7; job queue infrastructure added for scale-up orchestration. |
 | **v3.0.0** | 2026-09-24 | **MAJOR: the BBB permeability filter changes from a gate to a router**, which changes what gates advancement. Also: a Stage 2 cysteine gate added after ProteinMPNN was found to silently drop the motif cysteines when its fixed-positions file is absent (the disulfide is the cyclization mechanism, so those molecules cannot cyclize); S raised 53 → 300 after measuring that a backbone costs 3,178× a sequence; docking allocation changed from "everything that passes BBB" to backbone scout-and-deepen (ICC = 0.562); Boltz2 staged behind AfCycDesign rather than run at full width; RFdiffusion inter-cysteine spacer tightened 4-8 → 4-6 on measured disulfide strain. B/S/T re-derived on Cys-constrained, receptor-aware output — **T = 0.1 survived re-derivation**. See `sampling_parameter_derivation.md` v3.0.0 and `LIMITATIONS.md`. |
 | **v3.1.0** | 2026-09-25 | B raised 750 → 1500 (a budget choice — chemical space is linear in B with no optimum to find, since D_b is unidentifiable). **Rosetta uncapped**: it now runs on every Stage-3 survivor rather than the top 2,000 by i_ptm, because that cut discarded ~32% of the best binders by Rosetta energy and the 64 CPU cores are idle during GPU docking anyway. Deepening yield corrected to the measured 25.3 per backbone. Not a MAJOR bump: nothing changed about what *gates* advancement. |
+| **v3.2.0** | 2026-09-28 | T 0.1→0.2, S 300→600, `--omit_AAs CM`, MPNN quality bar removed, deepening uncapped, Stage 3 docking 9.7× faster (length-grouped). **Boltz2 batched and widened to the top 5,000.** **Rosetta concurrency made explicit** — it must run on CPU workers alongside GPU docking or the wall clock nearly doubles. **MD deferred** out of the scale-up: it predicts neither i_ptm nor dG, and the negative control is more stable than five candidates that passed every gate. |
 | v3.1.0 (planned) | — | Membrane + physiological mini-G/Gβ complex as the production MD system, replacing the water-only/restrained-receptor approach — system building already proven (see below); needs the full graduated-restraint equilibration protocol built and validated. Not yet started. (Was numbered v2.1.0 before the v3.0.0 bump.) |
 
 ## Goal
@@ -225,7 +226,7 @@ failure described above.
 ```bash
 source /scratch/drewdog/denovo_binder_100_pilot/activate_rfpeptides.sh
 # sharded across 4 GPUs:
-scripts/stage1_backbones/OXTR_Stage1_v2_ScaleUp_shard.sh <shard 0-3> <n_designs> <gpu>
+scripts/stage1_backbones/OXTR_Stage1_ScaleUp_shard.sh <shard 0-3> <n_designs> <gpu>
 ```
 
 Contig spacer is `4-6` (cysteine separations 5–7). ~8.9 GPU-h for 1,500 backbones.
@@ -330,12 +331,26 @@ parameter.
 
 **Order: Rosetta first, then Boltz2 pose agreement on the best.**
 
+> **Rosetta MUST run concurrently with docking, not after it.** Its ~78.5 CPU-h
+> only "overlap" if CPU workers are started alongside the GPU workers and
+> consume candidates as they clear Stage 3. Run sequentially it *stacks*:
+> 71 + 78 = **150 h (6.2 days)** instead of **78.5 h (3.3 days)**. The job queue
+> supports this — workers claim by `resource_type` (`gpu`/`cpu`) independently,
+> with WAL mode for safe concurrency — but nothing enforces it. Enqueue Rosetta
+> jobs as `resource_type=cpu` and start those workers at the same time as the
+> GPU workers.
+
 Boltz2's only remaining job is pose agreement, which is a *confirmatory* check on
 candidates that would otherwise advance — so it belongs after the ranking, not
 before it. Rosetta scores the AfCycDesign structure and does not need Boltz2.
 
-Running it on the **top 1,000 by `dG_separated`** costs **2.9 GPU-h** against
-19.6 h for all ~6,714 survivors — a saving of ~17 GPU-h, about 18% of the run.
+Run it on the **top 5,000 by `dG_separated`**, batched: **~5.2 GPU-h**.
+
+`boltz predict` accepts a *directory* of YAMLs and processes them with a single
+model load. Invoked per-YAML it costs 42.1 s/candidate of which only ~13 s is
+prediction; batched it is ~15 s. Use `run_boltz_batched.sh`, not
+`run_boltz_shard.sh`. Batched, top-5,000 coverage costs less than top-1,000 did
+unbatched — pose agreement on ~14% of survivors rather than 2.8%.
 
 Checked for loss: the `out_39` design family, which pose agreement caught when MD
 could not, had dG −29.4 — among the weakest of the 27 — so Rosetta filters it
@@ -364,9 +379,19 @@ them.
 
 ### 6. MD and synthesis
 
-MD on the confirmation set (~24, 1 h 18 m each). Synthesis wave = 12 compounds:
-8 top-ranked plus 4 spanning the score range so the ranking itself can be
-calibrated against measured affinity.
+**MD is deferred out of the scale-up.** Measured across the full 8-candidate
+v2 MD set, RMSD predicts nothing: ρ(RMSD, i_ptm) = −0.19, ρ(RMSD, dG) = −0.29 —
+the latter the *wrong sign*, since dG is negative-is-better. The negative
+control ranks 3rd of 8 on stability, more stable than five candidates that
+cleared every earlier gate. At 7.9 GPU-h (23.6 with the specified replicates)
+that is 11–33% of the run for no measurable discrimination.
+
+The protocol is retained and unchanged; run it on the actual synthesis wave,
+where it is a handful of candidates and may still catch a gross failure.
+
+Synthesis wave: sized against the parallel synthesiser (192/batch) rather than
+the 12 derived in Part V — **assay throughput must be confirmed**, since Part V
+assumed assay, not synthesis, was the constraint.
 
 ### Job queue infrastructure
 

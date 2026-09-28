@@ -13,7 +13,18 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ## Pipeline v3.2.0 — 2026-09-28
 
-**Current.** Four changes, each measured rather than assumed.
+**Current.** Six changes, each measured rather than assumed.
+
+| change | why |
+|---|---|
+| **Boltz2 batched, widened to top 5,000** | `boltz predict` accepts a directory and loads the model once: 42.1 s/candidate per-YAML vs ~15 s batched. Batched top-5,000 costs less than unbatched top-1,000. |
+| **Rosetta concurrency made explicit** | Its 78.5 CPU-h only overlap if CPU workers run alongside GPU docking. Sequentially it stacks: 150 h instead of 78.5. Nothing previously enforced this. |
+| **MD deferred** | ρ(RMSD, i_ptm) = −0.19, ρ(RMSD, dG) = −0.29 (wrong sign). The negative control ranks 3rd of 8 on stability. 11–33% of the run for no measurable discrimination. |
+| **BBB removed from projections** | See the correction table below. |
+
+### Earlier v3.2.0 changes
+
+**Four changes, each measured rather than assumed.**
 
 | parameter | v3.1.0 | **v3.2.0** | why |
 |---|---|---|---|
@@ -31,7 +42,7 @@ GPU 75.8 h → **71.4 h**. Roughly 6× the chemical space at slightly less compu
 
 | figure | was | now | cause |
 |---|---|---|---|
-| BBB+ pass rate | 8.0% | **37.4%** | The 8.0% was measured on the v1 binder-only batch — 0/400 cyclizable, charge-rich (`EGVTEEEAKKLKTKI`). Cys-constrained receptor-aware designs behave completely differently. |
+| BBB+ pass rate | 8.0% | **not a planning number** | The 8.0% came from the v1 binder-only batch. Cys-constrained designs gave 37.4% — but 95% of those BBB+ calls have a known non-permeant as nearest reference at 0.98 similarity, while oxytocin itself scores BBB−. The classifier is not usable on this molecule class; see `LIMITATIONS.md` O1. |
 | Deepening yield/backbone | 30.9 | 25.3 (at S=300) | Taken from the mean D_s; the distribution is strongly right-skewed (2–105, median 24), so the mean overstated a typical backbone. |
 | ρ(p_BBB, i_ptm) | +0.116 | **−0.014** | Re-measured on 447 Cys-constrained designs. BBB and binding are independent, which is *cleaner* support for applying BBB as a late router. |
 | Full-run total | "~36 GPU-h" | 71.4 GPU-h | The 36 was docking-only, quoted as if it were the whole pipeline. |

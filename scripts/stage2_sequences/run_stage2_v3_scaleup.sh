@@ -56,8 +56,14 @@ echo "--- [1/4] fixed-position files (pinning the motif cysteines) ---"
 # ---------------------------------------------------------------- 2. ProteinMPNN
 echo
 echo "--- [2/4] ProteinMPNN (receptor-aware, cysteines pinned) ---"
-mapfile -t PDBS < <(find "$PDB_DIR" -maxdepth 1 -name 'out_*.pdb' | sort)
+# Match any PDB, not 'out_*.pdb': Stage 1 shards across GPUs and prefixes each
+# shard's output (shard0_out_0.pdb), which the narrower pattern missed.
+mapfile -t PDBS < <(find "$PDB_DIR" -maxdepth 1 -name '*.pdb' | sort)
 echo "  ${#PDBS[@]} backbones to design"
+if [[ ${#PDBS[@]} -eq 0 ]]; then
+  echo "FATAL: no .pdb files in $PDB_DIR" >&2
+  exit 1
+fi
 
 run_shard () {
   local shard=$1

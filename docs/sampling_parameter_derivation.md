@@ -40,7 +40,7 @@ Semantic versioning matching `SOP.md`'s convention, applied to the *derivations*
 | **v4.0.0** | 2026-09-25 | **Two production parameters changed.** **B: 750 → 1500** — B is not derivable (D_b unidentifiable), so it is a budget choice; chemical space scales linearly at ~746 unique sequences per GPU-hour with no knee, and 1,500 doubles the space for ~1.8 extra days. **Rosetta uncapped** — the top-2,000-by-i_ptm cut recovers only 68% of the true top-10% by dG (ρ = 0.53 between them), and Rosetta is CPU-bound so it overlaps GPU docking at no wall-clock cost. Also corrects the deepening yield from 30.9 to the measured 25.3 per backbone, and adds the ProteinMPNN cost that had been omitted. |
 
 **Note on external references.** Part I's section numbers (0–8) are unchanged in
-v3.0.0 because `SOP.md`, `README.md` and `OXTR_Stage1_v2_ScaleUp.sh` cite
+v3.0.0 because `SOP.md`, `README.md` and `OXTR_Stage1_ScaleUp.sh` cite
 "Section 7" and "Section 3.3" directly. References to the old "Part II" for
 synthesis selection now point to **Part V**.
 
@@ -322,7 +322,7 @@ provisional B/S/T guidance with numbers anchored in actual ProteinMPNN output.
   (no receptor context) — this measures the sequence-design step's own raw
   designability/diversity curve, independent of downstream receptor-aware
   filtering. Total: 8 × 7 × 300 = 16,800 sequences generated
-  (`scripts/stage0_controls/ds_t_experiment.py`, sharded 4-way across GPUs via
+  (`scripts/stage0_controls/superseded/ds_t_experiment.py`, sharded 4-way across GPUs via
   `ds_t_shard.py`).
 - **Quality threshold — fixed per backbone, not per (backbone, T).** For each
   backbone, the median ProteinMPNN score of its own T=0.1 batch was taken as

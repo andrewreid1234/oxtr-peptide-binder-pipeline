@@ -1,6 +1,6 @@
 # Known Limitations, Open Questions and Unvalidated Assumptions
 
-**Document version:** v4.1.0
+**Document version:** v5.0.0
 **Last updated:** 2026-09-25
 
 A living register, not a dated snapshot. Every known weakness in this project
@@ -25,6 +25,7 @@ clarifications, added evidence.
 | **v3.0.0** | 2026-09-25 | **Blocker closed:** the Stage 2 scale-up script now exists (was B1, now R6), along with the deduplication step the SOP specified but nothing implemented. One blocker remains, renumbered to B1. Also records that the 46,800 unique-sequence projection carries a 95% CI of [33,000, 60,500] — the per-backbone mean is estimated from 32 backbones with a 4-fold spread. |
 | **v4.0.0** | 2026-09-25 | **Last blocker closed.** The v1/v2 ID collision is resolved (was B1, now R7): the hazard was not the archived directory but the superseded v1 Stage 3 runner that would recreate it, which now refuses to run. **No open blockers.** |
 | **v4.1.0** | 2026-09-28 | Adds O12 (the 99.2% recovery figure is about backbones; the sequence-level equivalent is 95.8% of the top decile) and O13 (q = 0.24 is carried from the pilot's superseded filter set and drives every count below docking — added to the first-shard checkpoint). |
+| **v5.0.0** | 2026-09-28 | **O1 escalated:** the BBB classifier is not usable on this molecule class — 95% of its BBB+ calls have a known non-permeant as nearest reference at 0.98 similarity, while oxytocin itself scores BBB−, and its own hard-negative flag catches none of them. BBB pass rates removed from all funnel projections; the metric is retained as a re-scorable annotation. |
 
 **Status key:** 🔴 blocker · 🟠 open · 🟡 accepted limitation · 🟢 resolved
 
@@ -39,16 +40,42 @@ against both a passing and a failing batch.
 
 ## 🟠 Open — known, not yet resolved, not blocking
 
-### O1. The BBB-gate control was run on non-cyclizable sequences
-The 120-candidate BBB− control (and therefore the finding that the gate discards
-47% of the top i_ptm decile, and the ~93 expected dual-positives) was computed
-on the v1 pilot batch, of which **0/159 carry two cysteines**. Those molecules
-cannot cyclize and are not valid candidates.
+### O1. The BBB classifier is not usable on this molecule class
+**Escalated 2026-09-28 — this is now stronger than "needs re-measuring".**
 
-*Status:* the conclusion's direction is probably safe — the same analysis on
-Cys-constrained v2 data gave a *higher* ICC, not a lower one — but the specific
-numbers in `sampling_parameter_derivation.md` §13 and §22 are not trustworthy.
-*Needs:* ~1 GPU-hour to re-dock a Cys-constrained BBB− control.
+B3BPFN v1.2 was run on 447 Cys-constrained, receptor-aware designs. Of the 167
+BBB+ calls, **158 (95%) have a known NON-PERMEANT as their nearest reference
+peptide** — oxytocin, Met-enkephalin or Leu-enkephalin — at cosine similarities
+of 0.98:
+
+| sequence | p(BBB) | cosine sim. to oxytocin | NN-flagged? |
+|---|---:|---:|---|
+| `PARCGYTGFCPR` | **0.905** | 0.984 | no |
+| `RTCPGFPPCLY` | 0.702 | 0.984 | no |
+| `GCGAILPTELCRR` | 0.649 | 0.985 | no |
+
+**Oxytocin itself scores 0.182 (BBB−).** Molecules sitting at 0.98 similarity to
+it in the model's own embedding space are called BBB+ at 0.9. The model's
+nearest-neighbour hard-negative flag does not catch this: 41 sequences are
+flagged, and **none of them are among the 167 BBB+ calls** — it fires only on
+candidates the classifier had already rejected.
+
+*Consequence:* **BBB probabilities are not planning numbers.** The measured pass
+rates (8.0% on the v1 batch, 37.4% on Cys-constrained designs) should be treated
+as uninterpretable rather than merely uncertain, and are no longer used to
+project the funnel.
+
+*Why this is not a blocker:* BBB is applied as an annotation after Rosetta, not
+as a gate, and it is computed **from sequence alone**. Every sequence is stored
+in `unique_sequences.csv`, so it can be re-scored at any time — with a retrained
+model, a different tool, or experimental data — at zero cost and with no
+recomputation of any upstream stage. This is the payoff from the v3.0.0
+gate-to-router change; under the old design 92% of candidates would have been
+discarded on this classifier before docking.
+
+*Needs:* a permeability model validated on disulfide-cyclized peptides, or
+experimental permeability data on the first synthesis wave. Until then,
+rank on binding and carry BBB as an unweighted column.
 
 ### O2. D_b is not identifiable, so B has no derived optimum
 B\* = √(K·D_b/D_s) requires D_b. A bin-width sweep moves the estimate from 34 to

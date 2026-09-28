@@ -1,43 +1,49 @@
 # Scripts
 
-Organized to mirror the pipeline stage numbers in `../docs/SOP.md` — if you're
-looking for "the script that does Stage N," it's in `stageN_*/`.
+Folders mirror the pipeline stage numbers in `../docs/SOP.md` — if you want "the
+script that does Stage N", it's in `stageN_*/`.
 
-**For the current run procedure, follow `../docs/SOP.md` → *Scale-up execution
-procedure (v3.0.0)*.** This file says what each script is; the SOP says what
-order to run them in.
+**Each stage folder contains only the CURRENT scripts.** Anything replaced lives
+in that stage's `superseded/` subfolder with a README saying what replaced it and
+why. Nothing in a `superseded/` folder should be run.
+
+**For the run procedure, follow `../docs/SOP.md` → *Scale-up execution procedure*.**
+This file says what each script is; the SOP says what order to run them in.
 
 ## Required guards — do not skip
 
-Two scripts exist because ProteinMPNN fails **silently** when misconfigured: it
-exits 0, prints no warning, and designs away the cysteines that form the
-cyclization bond. Verified directly:
+ProteinMPNN fails **silently** when misconfigured: it exits 0, prints no warning,
+and designs away the cysteines that form the cyclisation bond.
 
 ```
 with    fixed positions -> PCVTPPALQLCREA   (2 Cys)
 without fixed positions -> PPVTPPAFQLRREA   (0 Cys, exit code 0)
 ```
 
-| Script | Role |
+| script | role |
 |---|---|
-| `stage2_sequences/make_fixed_positions.py` | Generates one `fixed_out_N.jsonl` per backbone pinning the two motif cysteines. Refuses any backbone not carrying exactly two. Run **before** ProteinMPNN. |
-| `stage2_sequences/validate_cys.py` | Stage 2 gate. Verifies every designed sequence carries ≥2 cysteines at the pinned positions; exits non-zero otherwise. Run **after** ProteinMPNN and **before** any docking compute. Also flags sequences with >2 cysteines (disulfide-scrambling risk). |
+| `stage2_sequences/make_fixed_positions.py` | Generates one `fixed_<backbone>.jsonl` pinning the two motif cysteines. Refuses any backbone not carrying exactly two. Run **before** ProteinMPNN. |
+| `stage2_sequences/validate_cys.py` | Stage 2 gate. Verifies every sequence carries ≥2 cysteines at the pinned positions; exits non-zero otherwise. Run **after** ProteinMPNN, **before** any docking compute. |
 
 ## By stage
 
-| Folder | Stage | Contents |
+| folder | stage | current scripts |
 |---|---|---|
-| `stage0_controls/` | 0.1 — Controls | Oxytocin/negative-control spot checks (`forced_disulfide.py`); full-shortlist disulfide-forcing batch (`fastrelax_batch.py`); the Rosetta relax+IA worker used by both (`rosetta_control_worker.sh`). **Sampling experiments:** `ds_t_cys_experiment.py` is the **current** D_s(T) measurement — Cys-constrained and receptor-aware, 32 backbones × 7 temperatures × 300 draws, writing `analysis/stage_0_controls/ds_t_cys_experiment_results.csv`. `ds_t_experiment.py` / `ds_t_shard.py` are its **superseded** predecessors: they ran without the fixed-positions constraint, so 0 of their 2,400 sequences could cyclize. Retained for provenance only. `plot_sampling_figures.py` draws the derivation-document figures and now defaults to the Cys-constrained dataset (pass a CSV path as `argv[1]` to plot another run). |
-| `stage1_backbones/` | 1 — RFdiffusion | Pilot scripts (`OXTR_Stage1_Disulfide_Prototype.sh`, `OXTR_Stage1_Disulfide_100.sh`, combined `OXTR_Stage1_2_5_Automation.sh`) and the scale-up launcher (`OXTR_Stage1_v2_ScaleUp.sh` single-process, `OXTR_Stage1_v2_ScaleUp_shard.sh` 4-GPU sharded — the sharded one is what the job queue stages). Both now use the `4-6` inter-cysteine spacer; the rationale for that value is written into the single-process script. |
-| `stage2_sequences/` | 2 — ProteinMPNN | The two guards above, plus GPU-sharded batch runners: `run_mpnn_shard.sh` (v1) and `run_mpnn_v2_shard.sh` (receptor-aware, the `--pdb_path_chains` fix). **Note:** `run_mpnn_v2_shard.sh` is hardcoded to the pilot directory with `--num_seq_per_target 4`; a scale-up equivalent at S=300 does not exist yet (`LIMITATIONS.md` B1). |
-| `stage3_docking/` | 3 — AfCycDesign / Boltz2 | `OXTR_Stage3a_Docking.sh` / `OXTR_Stage3b_AfCycDesign.sh` (original automation), plus GPU-sharded runners for both tools, v1 and v2 receptor-aware (`run_afcyc_shard.py`, `run_afcyc_v2_shard.py`, `run_boltz_shard.sh`). Under v3.0.0 Boltz2 runs only on candidates clearing the AfCycDesign and disulfide checks. |
-| `stage4_rosetta/` | 4 — Rosetta | `rosetta_stage4_worker.sh` — relax + InterfaceAnalyzer + `dslf_fa13` scoring, one candidate at a time (called by a sharding wrapper, see SOP Stage 4). |
-| `stage5_md/` | 5 (ext) — GROMACS MD | `run_md_pipeline_v1_water.sh` (original pilot protocol) and `run_md_pipeline_v2_water.sh` (adds the `DispCorr` / `refcoord_scaling` fixes; `.mdp` templates in `mdp_v2_water/`). The v2 protocol is the current production MD — see SOP for why membrane + G-protein (v3.1.0) is not yet the production system. |
-| `stage6_nmethyl/` | 6 — N-methylation scan | `run_stage6_nmethyl_scan.py` — structure-based backbone-amide exposure analysis (not a re-run of AfCycDesign/B3BPFN, neither of which can represent the modification). Under v3.0.0 this is the **rescue path** for strong binders that score BBB−. |
-| `stage7_selectivity/` | 7 — Selectivity | `OXTR_Stage7_Selectivity.sh` (single candidate) and `run_stage7_shard.py` (GPU-sharded, 27×3 off-target cofolds). Deferred and not gating — it has no control experiment, see `LIMITATIONS.md` O5. |
-| `queue/` | infrastructure | `job_queue.py` — SQLite-backed, resumable, GPU/CPU-aware job queue for the scale-up. Not a pipeline stage. Use `--stage` on the worker whenever more than one stage is queued. |
-| `viz/` | infrastructure | `make_display_pdb.py` converts a raw cofold output into a display PDB where the peptide is a distinct ligand entity (`HETATM` on its own chain), so viewers auto-select ligand vs polymer representation. `plot_methods_figures.py` draws the `METHODS_AND_RESULTS.md` figures — BBB gate control, backbone ICC effect, scout/keep curves, disulfide ring size, and the v3.0.0 funnel — reading only committed CSVs from `analysis/stage_0_controls/`. |
+| `stage0_controls/` | 0.1 — controls | `ds_t_cys_experiment.py` (the **current** D_s(T) measurement: Cys-constrained, receptor-aware, 32 backbones × 7 temperatures × 300 draws), `forced_disulfide.py`, `fastrelax_batch.py`, `rosetta_control_worker.sh`, `plot_sampling_figures.py` (defaults to the Cys-constrained dataset). |
+| `stage1_backbones/` | 1 — RFdiffusion | `OXTR_Stage1_ScaleUp.sh` (single process) and `OXTR_Stage1_ScaleUp_shard.sh` (4-GPU sharded — what the queue runs). Both use the `4-6` inter-cysteine spacer; the rationale is written into the single-process script. |
+| `stage2_sequences/` | 2 — ProteinMPNN | `run_stage2_v3_scaleup.sh` runs all four steps with the cysteine check as a hard abort. Components: `make_fixed_positions.py`, `validate_cys.py`, `dedupe_sequences.py`. |
+| `stage3_docking/` | 3 — docking | `select_scouts.py` (k random per backbone — never the first or best k, since the dedup CSV is score-sorted), `run_afcyc_v3_shard.py` (grouped by peptide length: 4.6 s/candidate vs 45.0 ungrouped), `check_pocket_occupancy.py`, `run_boltz_batched.sh` (pose agreement, one model load per directory). |
+| `stage4_rosetta/` | 4 — Rosetta | `rosetta_stage4_worker.sh` — relax + InterfaceAnalyzer + `dslf_fa13`, one candidate at a time. **Must run on CPU workers concurrently with GPU docking**, or the wall clock nearly doubles. |
+| `stage5_md/` | 5 (ext) — MD | `run_md_pipeline_v2_water.sh`, `mdp_v2_water/`. **Deferred out of the scale-up** — MD predicts neither i_ptm nor dG. Retained for the shortlist. |
+| `stage6_nmethyl/` | 6 — N-methylation | `run_stage6_nmethyl_scan.py` — backbone-amide exposure. The rescue path for strong binders that score BBB−. |
+| `stage7_selectivity/` | 7 — selectivity | `OXTR_Stage7_Selectivity.sh`, `run_stage7_shard.py`. Deferred, not gating — **no control experiment**, see `LIMITATIONS.md` O5. |
+| `queue/` | infrastructure | `job_queue.py` (SQLite-backed, resumable, claims by `resource_type` so CPU and GPU workers run concurrently — use `--stage` whenever more than one stage is queued). `run_validation_shard.sh` + `measure_validation.py` run the pre-launch gate. |
+| `viz/` | infrastructure | `make_display_pdb.py` (peptide as a distinct ligand entity for viewers), `plot_methods_figures.py` (figures for `METHODS_AND_RESULTS.md`, from committed CSVs only). |
 
-Most of these lived only in `/tmp` on Woody until 2026-09-22 — a real durability
-risk, since `/tmp` is not guaranteed to survive a reboot — and were moved here as
-part of that cleanup pass.
+## Pre-launch gate
+
+`queue/run_validation_shard.sh` runs ~100 backbones through the whole chain
+(~1.5 GPU-h) and `measure_validation.py` reports the five quantities the full
+run's sizing depends on — ICC, unique yield, Stage-3 pass rate, docking
+throughput and BBB rate — each against plan, with explicit thresholds for when
+a value forces a change.

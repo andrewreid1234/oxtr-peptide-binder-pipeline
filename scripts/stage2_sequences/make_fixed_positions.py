@@ -56,7 +56,10 @@ def main():
     ap.add_argument("--chain", default="L", help="designed (binder) chain")
     ap.add_argument("--expect", type=int, default=2,
                     help="required number of cysteines per backbone")
-    ap.add_argument("--glob", default="out_*.pdb")
+    # Stage 1 shards RFdiffusion across GPUs and prefixes each shard's output
+    # (shard0_out_0.pdb, shard1_out_0.pdb, ...). An "out_*.pdb" default silently
+    # matched nothing and killed the run at Stage 2 — match any PDB instead.
+    ap.add_argument("--glob", default="*.pdb")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
