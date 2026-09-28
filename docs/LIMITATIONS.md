@@ -1,6 +1,6 @@
 # Known Limitations, Open Questions and Unvalidated Assumptions
 
-**Document version:** v4.0.0
+**Document version:** v4.1.0
 **Last updated:** 2026-09-25
 
 A living register, not a dated snapshot. Every known weakness in this project
@@ -24,6 +24,7 @@ clarifications, added evidence.
 | **v2.0.0** | 2026-09-24 | **Blocker closed:** `SOP.md` bumped to v3.0.0, so the runbook no longer describes a superseded pipeline (was B2, now R5). Remaining blockers renumbered. Adds O10 — the funnel figure withheld because it plots the erroneous BBB counts. |
 | **v3.0.0** | 2026-09-25 | **Blocker closed:** the Stage 2 scale-up script now exists (was B1, now R6), along with the deduplication step the SOP specified but nothing implemented. One blocker remains, renumbered to B1. Also records that the 46,800 unique-sequence projection carries a 95% CI of [33,000, 60,500] — the per-backbone mean is estimated from 32 backbones with a 4-fold spread. |
 | **v4.0.0** | 2026-09-25 | **Last blocker closed.** The v1/v2 ID collision is resolved (was B1, now R7): the hazard was not the archived directory but the superseded v1 Stage 3 runner that would recreate it, which now refuses to run. **No open blockers.** |
+| **v4.1.0** | 2026-09-28 | Adds O12 (the 99.2% recovery figure is about backbones; the sequence-level equivalent is 95.8% of the top decile) and O13 (q = 0.24 is carried from the pilot's superseded filter set and drives every count below docking — added to the first-shard checkpoint). |
 
 **Status key:** 🔴 blocker · 🟠 open · 🟡 accepted limitation · 🟢 resolved
 
@@ -125,6 +126,38 @@ figures are — so the docs do not carry a known-wrong image. Regenerate it once
 The five D_s(T) figures were regenerated on 2026-09-24 from the Cys-constrained,
 receptor-aware experiment (`ds_t_cys_experiment_results.csv`, 32 backbones).
 `plot_sampling_figures.py` now defaults to that dataset.
+
+### O12. "99.2% recovery" is a backbone figure, quoted where a sequence figure belongs
+The scouting design recovers **99.2% of top-quintile backbones**. That is not the
+same as recovering 99.2% of good sequences: a dropped backbone still contributes
+its 6 scouts but loses the rest, so only ~59.5% of sequences are docked at all.
+
+Simulated at B=1500 on the measured per-backbone yield distribution, the
+sequence-level figures are:
+
+| true top X% of sequences | fraction docked |
+|---|---|
+| top 5% | 97.9% |
+| top 10% | **95.8%** |
+| top 25% | 89.7% |
+
+*Needs:* the headline in `SUMMARY.md` and `METHODS_AND_RESULTS.md` should quote
+**95.8% of the top decile of sequences**, which is the quantity that matters,
+with 99.2% retained only where backbones are explicitly the subject.
+
+### O13. The Stage-3 pass rate q = 0.24 is the weakest number in the run plan
+Every count below docking — ~6,714 survivors, the Boltz2 load, the 36.3 h of
+Rosetta — derives from $q = 0.24$, which is the pilot's 27 shortlisted from 112
+docked. **That ratio was measured under the old i_ptm-gated filter set**, not the
+disulfide-forcing + pose-agreement checks that gate now. They are different
+filters and there is no reason their pass rates should match.
+
+Sensitivity: at q = 0.15 Rosetta drops to ~4,200 candidates; at q = 0.40 it rises
+to ~11,200 and 60 CPU-h.
+
+*Needs:* it cannot be measured in advance. **Add it to the first-shard
+checkpoint** alongside ICC and unique yield — measure the actual Stage-3 pass
+rate before sizing the Rosetta stage.
 
 ### O11. Housekeeping
 - `biopython` was pip-installed into the dashboard venv but is absent from
