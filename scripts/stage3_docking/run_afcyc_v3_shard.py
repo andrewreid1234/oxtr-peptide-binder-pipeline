@@ -42,13 +42,32 @@ import sys
 import time
 from collections import defaultdict
 
-from colabdesign import mk_afdesign_model, clear_mem
-
 gpu_id, shard_idx, num_shards, workdir = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+
+# gpu_id must be applied BEFORE colabdesign/jax is imported -- jax reads the
+# device list at import and cannot be redirected afterwards. Until 2026-09-28
+# this argument was accepted and used only in log prefixes, so launching without
+# `CUDA_VISIBLE_DEVICES=n` in front put all four shards on GPU 0 while the logs
+# claimed otherwise. Only run_validation_shard.sh happened to get this right.
+# An existing mask wins: the job queue masks to one physical GPU and re-indexes
+# it as device 0, so overriding with the raw id would point outside the mask.
+if "CUDA_VISIBLE_DEVICES" not in os.environ:
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+
+from colabdesign import mk_afdesign_model, clear_mem  # noqa: E402
 
 TARGET_PDB = "/scratch/drewdog/denovo_binder_100_pilot/project_files/pdb_references/7RYC.pdb"
 OUT_DIR = os.path.join(workdir, "afcyc_out")
 os.makedirs(OUT_DIR, exist_ok=True)
+RESULTS = os.path.join(OUT_DIR, "results_shard%d.json" % shard_idx)
+
+
+def checkpoint(rows):
+    """Write results atomically so a crash mid-write cannot corrupt the file."""
+    tmp = RESULTS + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(rows, fh)
+    os.replace(tmp, RESULTS)
 
 # input: scouts.csv if present, else the full unique pool
 src = os.path.join(workdir, "scouts.csv")
@@ -60,14 +79,36 @@ if not os.path.exists(src):
 rows = list(csv.DictReader(open(src)))
 mine = rows[shard_idx::num_shards]
 
+# RESUME. At production width a shard is 10+ h; an OOM or preemption used to
+# discard every i_ptm/plddt for that shard, because results were written once at
+# the very end. The per-candidate PDBs survived (save_pdb), but the scores that
+# drive ranking did not, and a restart re-docked from zero.
+results = []
+if os.path.exists(RESULTS):
+    try:
+        results = json.load(open(RESULTS))
+        print("[GPU %s] resuming: %d candidate(s) already scored"
+              % (gpu_id, len(results)), flush=True)
+    except (ValueError, OSError) as e:
+        print("[GPU %s] WARNING: could not read %s (%s) - starting fresh"
+              % (gpu_id, RESULTS, e), flush=True)
+        results = []
+
+# Keyed on the scored results, not on PDB existence: a PDB written without a
+# corresponding result means the process died before the checkpoint, and
+# re-docking is cheaper than losing the score.
+done = {r["sequence_id"] for r in results}
+todo = [r for r in mine if r["sequence_id"] not in done]
+
 by_len = defaultdict(list)
-for r in mine:
+for r in todo:
     by_len[len(r["sequence"])].append(r)
 
-print("[GPU %s] %d candidates from %s, %d distinct lengths: %s"
-      % (gpu_id, len(mine), os.path.basename(src), len(by_len), sorted(by_len)), flush=True)
+print("[GPU %s] %d candidates from %s (%d to do, %d already done), "
+      "%d distinct lengths: %s"
+      % (gpu_id, len(mine), os.path.basename(src), len(todo), len(mine) - len(todo),
+         len(by_len), sorted(by_len)), flush=True)
 
-results = []
 t_start = time.time()
 
 for L in sorted(by_len):
@@ -97,12 +138,18 @@ for L in sorted(by_len):
             print("[GPU %s] FAILED %s: %s" % (gpu_id, r["sequence_id"], str(e)[:140]),
                   flush=True)
     dt = time.time() - t0
-    print("[GPU %s] len %2d: %4d done, %.2f s/candidate"
-          % (gpu_id, L, len(group), dt / max(1, len(group))), flush=True)
+    # Checkpoint per length group, not once at the end: bounds the loss from a
+    # crash to the group in flight rather than the whole shard.
+    checkpoint(results)
+    print("[GPU %s] len %2d: %4d done, %.2f s/candidate  (checkpointed %d)"
+          % (gpu_id, L, len(group), dt / max(1, len(group)), len(results)), flush=True)
 
-with open(os.path.join(OUT_DIR, "results_shard%d.json" % shard_idx), "w") as fh:
-    json.dump(results, fh)
+checkpoint(results)
 
 el = time.time() - t_start
-print("[GPU %s] DONE %d/%d in %.1f min (%.2f s/candidate overall)"
-      % (gpu_id, len(results), len(mine), el / 60, el / max(1, len(results))), flush=True)
+n_new = len(results) - (len(mine) - len(todo))
+print("[GPU %s] DONE %d/%d scored (%d this run) in %.1f min (%.2f s/candidate)"
+      % (gpu_id, len(results), len(mine), n_new, el / 60, el / max(1, n_new)), flush=True)
+if len(results) < len(mine):
+    print("[GPU %s] WARNING: %d candidate(s) unscored - re-run to retry them"
+          % (gpu_id, len(mine) - len(results)), flush=True)

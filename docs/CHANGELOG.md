@@ -11,9 +11,38 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.2 — 2026-09-28
+
+**Current.** PATCH: the remaining seven code-review findings, none of which
+blocked the launch but all of which cost either compute or trust in a number.
+
+| fix | file | why |
+|---|---|---|
+| **Docking results checkpointed per length group, and shards resume** | `run_afcyc_v3_shard.py` | Results were written once at the very end. At production width a shard is 10+ h, so an OOM or preemption discarded every `i_ptm`/`plddt` for that shard — the PDBs survived via `save_pdb`, the scores that drive ranking did not, and a restart re-docked from zero. Now checkpointed after each length group (atomically, via temp + `os.replace`) and already-scored candidates are skipped on restart. |
+| **`gpu_id` is actually applied** | `run_afcyc_v3_shard.py` | The argument was accepted and used only in log prefixes. Launching without `CUDA_VISIBLE_DEVICES=n` in front put all four shards on GPU 0 while the logs claimed otherwise; only `run_validation_shard.sh` got this right. Now set before the `colabdesign` import (jax reads the device list at import), with an existing mask winning. |
+| **Zero-yield backbones counted, not silently dropped** | `dedupe_sequences.py` | Backbones with an empty FASTA `continue`d before `per_bb.append`, so the mean-unique-per-backbone statistic excluded them — biased upward *exactly* when a ProteinMPNN shard had died, and that mean is what the whole unique-sequence pool projection rests on. Now included at zero and reported loudly. |
+| **Printed projection uses measured throughput** | `dedupe_sequences.py` | Said `27.7 s/run`, the pre-grouping figure, overstating GPU-h by ~5× at a decision point. Now a single `DOCK_SECONDS = 5.6` constant. |
+| **Docstring matches the code on the quality bar** | `dedupe_sequences.py` | Docstring said the bar is applied and the usage line advertised `--no-quality-bar`, but v3.2.0 made it opt-in via `--quality-bar`. The code was right, the docs were not. |
+| **One bad backbone no longer discards Stage 1's 8.9 GPU-h** | `make_fixed_positions.py`, `run_stage2_v3_scaleup.sh` | It exited 1 if *any* backbone lacked exactly two chain-L cysteines, killing all of Stage 2 for a 0.07% loss. Now refused backbones simply get no fixed-position file and Stage 2 skips them — so a backbone can still never be designed with its cysteines unpinned — and it aborts only above `--max-bad-frac` (default 1%), which indicates a systematic Stage 1 problem. |
+| **Scout bias check tolerance scales with sample size** | `select_scouts.py` | The fixed 0.40–0.60 window is sound at production width (~4,500 ranks, sd 0.004) but at 18 ranks the sd is 0.068, so a legitimately random sample failed ~10% of the time — aborting a shard that had already spent Stage 1 and Stage 2 compute, and doing so *after* writing `scouts.csv`. Now ±max(0.10, 3·0.289/√n), identical to the old window at production scale. Also distinguishes "not checkable" (every pool ≤ k) from "passed". |
+
+`SOP.md` step 2a also had `--out_dir .../mpnn_out` while step 2 looks for
+`$OUT_DIR/fixed_<stem>.jsonl` — harmless only because step 2 regenerates them,
+which made the step look effective while contributing nothing. Corrected, and
+noted that step 2 runs 2a itself so it need not be run separately.
+
+**Verified:** all eight modified scripts syntax-check; `q` reproduces at 0.465;
+`select_scouts` passes at 0.513 with n=600; `dedupe` reproduces mean 192.3 unique
+per backbone and now projects 3.9 GPU-h rather than ~19; `make_fixed_positions`
+tested at 0/101 bad (exit 0), 1/101 = 0.99% (exit 0, continues) and 20/120 =
+16.7% (exit 1, FATAL); docking resume tested at 2/2 done (no model build) and
+1/2 done (docks only the missing candidate, checkpoints to 2).
+
+---
+
 ## Pipeline v3.3.1 — 2026-09-28
 
-**Current.** PATCH: four pre-launch defects fixed, no methodology change. All
+PATCH: four pre-launch defects fixed, no methodology change. All
 four were found by code review after the v3.3.0 commit and before any production
 compute was spent.
 

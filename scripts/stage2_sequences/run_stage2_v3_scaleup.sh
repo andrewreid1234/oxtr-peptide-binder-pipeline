@@ -69,6 +69,9 @@ fi
 # shards start with it absent: the loser raises FileExistsError, which under
 # `set -e` killed that shard's whole remaining share. Create it once, up front.
 mkdir -p "$OUT_DIR/seqs" "$OUT_DIR/mpnn_logs"
+# Truthful on a re-run: this file is appended to, so a stale copy would inflate
+# the skip count and mask a real shortfall.
+rm -f "$OUT_DIR/skipped_backbones.txt"
 
 run_shard () {
   local shard=$1
@@ -79,8 +82,15 @@ run_shard () {
       stem="$(basename "$pdb" .pdb)"
       fixed="$OUT_DIR/fixed_${stem}.jsonl"
       if [[ ! -f "$fixed" ]]; then
-        echo "  [shard $shard] FATAL: missing $fixed" >&2
-        return 1
+        # No fixed-position file means make_fixed_positions.py refused this
+        # backbone (not exactly two chain-L cysteines) and stayed within its
+        # --max-bad-frac tolerance. Skipping is correct and is what keeps the
+        # disulfide guarantee: a backbone is never designed unpinned. The
+        # reconciliation after `wait` catches it if these are numerous.
+        echo "  [shard $shard] SKIP $stem (refused by make_fixed_positions)" >&2
+        echo "$stem" >> "$OUT_DIR/skipped_backbones.txt"
+        i=$((i+1))
+        continue
       fi
       if [[ ! -f "$OUT_DIR/seqs/${stem}.fa" ]]; then
         # Respect a caller's GPU mask (the job queue masks to one physical GPU
@@ -133,12 +143,27 @@ if (( MPNN_FAILED )); then
   exit 1
 fi
 
-# Every backbone must have produced a FASTA. Catches a shard that died before
-# its first design as well as any silent skip.
+# Every backbone that HAS a fixed-position file must have produced a FASTA.
+# Catches a shard that died before its first design as well as any silent skip.
+# Backbones refused by make_fixed_positions.py are excluded from the expectation
+# -- they were deliberately skipped, and it already enforced its own tolerance.
+N_FIXED=$(find "$OUT_DIR" -maxdepth 1 -name 'fixed_*.jsonl' | wc -l)
 N_FA=$(find "$OUT_DIR/seqs" -maxdepth 1 -name '*.fa' | wc -l)
-echo "  ${N_FA} / ${#PDBS[@]} backbones have sequences"
-if (( N_FA != ${#PDBS[@]} )); then
-  echo "FATAL: ${#PDBS[@]} backbones but only $N_FA FASTA files." >&2
+N_SKIP=0
+if [[ -f "$OUT_DIR/skipped_backbones.txt" ]]; then
+  N_SKIP=$(sort -u "$OUT_DIR/skipped_backbones.txt" | wc -l)
+fi
+echo "  backbones found     : ${#PDBS[@]}"
+echo "  with fixed positions: $N_FIXED"
+echo "  skipped (refused)   : $N_SKIP"
+echo "  with sequences      : $N_FA"
+if (( N_FA != N_FIXED )); then
+  echo "FATAL: $N_FIXED backbones have fixed-position files but only $N_FA" >&2
+  echo "       produced sequences. ProteinMPNN lost $((N_FIXED - N_FA))." >&2
+  exit 1
+fi
+if (( N_FA == 0 )); then
+  echo "FATAL: no sequences were designed at all." >&2
   exit 1
 fi
 

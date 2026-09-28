@@ -7,7 +7,7 @@ WHY THIS MATTERS
 ProteinMPNN at T=0.1 repeats itself heavily. Measured on 32 backbones at
 S=300: only ~31.2 of the 300 draws are distinct AND above the quality bar,
 and the spread is 4-fold (2 to 105). Redundancy is expensive here because
-every duplicate that reaches Stage 3 costs a full 27.7 s docking run for
+every duplicate that reaches Stage 3 costs a full 5.6 s docking run for
 information already held.
 
 Deduplication is therefore not tidy-up, it is a cost control. It runs after
@@ -17,8 +17,12 @@ WHAT IT DOES
 ------------
 1. Reads each backbone's ProteinMPNN FASTA (skipping the poly-glycine
    reference record ProteinMPNN writes first).
-2. Applies the quality bar: sequences whose MPNN score is above the
-   backbone's own median are dropped. This matches how D_s was measured.
+2. OPTIONALLY applies the quality bar (--quality-bar, OFF by default):
+   sequences whose MPNN score is above the backbone's own median are dropped.
+   It is off because it does not predict binding -- within-backbone rho between
+   MPNN score and i_ptm is -0.095, and the bar keeps 46% of the top binding
+   quartile against 50% for a coin flip (v3.2.0 decision, see CHANGELOG.md).
+   Retained only for reproducing how D_s was originally measured.
 3. Deduplicates within the backbone, keeping the best-scoring instance.
 4. Deduplicates globally across backbones (~3% of the pilot's sequences were
    duplicated across backbones), keeping the first occurrence.
@@ -29,7 +33,7 @@ WHAT IT DOES
 
 Usage:
     dedupe_sequences.py --seq_dir <mpnn out>/seqs --out unique_sequences.csv
-                        [--scout-depth 6] [--min-cys 2] [--no-quality-bar]
+                        [--scout-depth 6] [--min-cys 2] [--quality-bar]
 """
 import argparse
 import csv
@@ -38,6 +42,10 @@ import os
 import re
 import statistics as st
 import sys
+
+# Measured on the validation shard with run_afcyc_v3_shard.py (length-grouped).
+# Keep in step with SOP.md's funnel timings; the pre-grouping value was 27.7 s.
+DOCK_SECONDS = 5.6
 
 
 def read_fasta(path):
@@ -80,10 +88,18 @@ def main():
     rows = []
     per_bb, thin, no_cys = [], [], 0
 
+    empty_bb = []
     for fa in files:
         bb = os.path.basename(fa)[:-3]
         recs = read_fasta(fa)
         if not recs:
+            # Do NOT drop these silently. A backbone with no designed sequences
+            # is a ProteinMPNN shard that died, and excluding it from per_bb
+            # biased the mean-unique-per-backbone statistic UPWARD exactly when
+            # something had gone wrong upstream -- while that mean is what the
+            # whole unique-sequence pool projection rests on.
+            empty_bb.append(bb)
+            per_bb.append((bb, 0, 0, 0))
             continue
 
         if args.quality_bar:
@@ -129,6 +145,16 @@ def main():
     counts = sorted(r[3] for r in per_bb)
 
     print("backbones            : %d" % len(per_bb))
+    if empty_bb:
+        print("  !! %d BACKBONE(S) PRODUCED NO SEQUENCES - a ProteinMPNN shard"
+              % len(empty_bb))
+        print("     probably died. Every statistic below is computed over all")
+        print("     %d backbones including these, so the mean is not inflated," % len(per_bb))
+        print("     but the pool is incomplete. Investigate before docking.")
+        for bb in empty_bb[:10]:
+            print("       %s" % bb)
+        if len(empty_bb) > 10:
+            print("       ... and %d more" % (len(empty_bb) - 10))
     print("raw draws            : %d" % draws)
     print("after within-backbone dedup : %d  (%.1f%% of draws)"
           % (local, 100 * local / draws if draws else 0))
@@ -152,9 +178,12 @@ def main():
     print("  scout  : %d backbones x %d = %d"
           % (len(per_bb), args.scout_depth, len(per_bb) * args.scout_depth))
     print("  deepen : 50%% of backbones -> ~%d" % (deepen // 2))
-    print("  total  : ~%d dockings, ~%.1f GPU-h at 27.7 s/run on 4 GPUs"
-          % (len(per_bb) * args.scout_depth + deepen // 2,
-             (len(per_bb) * args.scout_depth + deepen // 2) * 27.7 / 3600 / 4))
+    # 5.6 s/candidate, measured on the validation shard with the v3 length-grouped
+    # runner. This line read 27.7 s/run -- the pre-grouping figure -- and so
+    # overstated the GPU-h by ~5x at a decision point.
+    n_dock = len(per_bb) * args.scout_depth + deepen // 2
+    print("  total  : ~%d dockings, ~%.1f GPU-h at %.1f s/candidate on 4 GPUs"
+          % (n_dock, n_dock * DOCK_SECONDS / 3600 / 4, DOCK_SECONDS))
     print("\nwrote %s" % args.out)
 
 

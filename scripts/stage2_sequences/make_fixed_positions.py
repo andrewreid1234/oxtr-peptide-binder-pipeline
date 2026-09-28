@@ -60,6 +60,12 @@ def main():
     # (shard0_out_0.pdb, shard1_out_0.pdb, ...). An "out_*.pdb" default silently
     # matched nothing and killed the run at Stage 2 — match any PDB instead.
     ap.add_argument("--glob", default="*.pdb")
+    ap.add_argument("--max-bad-frac", type=float, default=0.01,
+                    help="abort if more than this fraction of backbones lack "
+                         "exactly two chain-L cysteines. Below it, the offenders "
+                         "are skipped (they get no fixed-position file, so Stage 2 "
+                         "cannot design them unpinned) and the run continues "
+                         "rather than discarding Stage 1's GPU-hours.")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -85,13 +91,30 @@ def main():
 
     print("wrote %d fixed-position files to %s" % (written, args.out_dir))
     if bad:
-        print("\nREFUSED %d backbone(s) -- these would silently lose the "
-              "disulfide if designed:" % len(bad), file=sys.stderr)
+        frac = len(bad) / len(pdbs)
+        print("\nREFUSED %d/%d backbone(s) (%.2f%%) -- these would silently lose "
+              "the disulfide if designed:" % (len(bad), len(pdbs), 100 * frac),
+              file=sys.stderr)
         for stem, why in bad[:20]:
             print("   %-20s %s" % (stem, why), file=sys.stderr)
         if len(bad) > 20:
             print("   ... and %d more" % (len(bad) - 20), file=sys.stderr)
-        sys.exit(1)
+        # A refused backbone simply gets no fixed-position file, and Stage 2
+        # skips it -- so it can never be designed without its cysteines pinned,
+        # which is the whole point of this check. Aborting the entire run over
+        # one bad backbone out of 1500 threw away Stage 1's 8.9 GPU-h for a
+        # 0.07% loss, so tolerate a small fraction and fail on a systematic one.
+        if frac > args.max_bad_frac:
+            print("\nFATAL: %.2f%% refused exceeds --max-bad-frac %.2f%%. That is "
+                  "a systematic problem with Stage 1 output, not a few outliers."
+                  % (100 * frac, 100 * args.max_bad_frac), file=sys.stderr)
+            sys.exit(1)
+        print("\nContinuing: %.2f%% is within --max-bad-frac %.2f%%. These "
+              "backbones have no fixed-position file and Stage 2 will skip them."
+              % (100 * frac, 100 * args.max_bad_frac), file=sys.stderr)
+
+    if written == 0:
+        sys.exit("FATAL: no usable backbones - nothing to design.")
 
 
 if __name__ == "__main__":

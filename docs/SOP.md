@@ -239,11 +239,22 @@ CYS residues. `make_fixed_positions.py` refuses any that do not.
 ```bash
 python scripts/stage2_sequences/make_fixed_positions.py \
     --pdb_dir <scale-up>/stage_1_backbones/run/out \
-    --out_dir <scale-up>/stage_2_sequences/mpnn_out
+    --out_dir <scale-up>/stage_2_sequences
 ```
 
-Generates one `fixed_out_N.jsonl` per backbone pinning the two motif cysteines.
-Exits non-zero if any backbone does not carry exactly two.
+Generates one `fixed_<stem>.jsonl` per backbone pinning the two motif cysteines.
+
+> **`--out_dir` must be the same directory you pass as Stage 2's `<out_dir>`.**
+> This read `.../stage_2_sequences/mpnn_out` until 2026-09-28, while step 2 looks
+> for the files at `$OUT_DIR/fixed_<stem>.jsonl` — harmless only because step 2
+> regenerates them, which made this step look like it worked while contributing
+> nothing. **In practice you do not need to run 2a at all: step 2 runs it as
+> step 1 of 4.** It is documented here for running the stages separately.
+
+A backbone without exactly two chain-L cysteines gets no file and is skipped by
+Stage 2, so it can never be designed with its cysteines unpinned. The script
+aborts only if more than `--max-bad-frac` (default 1%) are refused — a systematic
+Stage 1 problem — rather than discarding 8.9 GPU-h over a single outlier.
 
 ### 2. Stage 2, all four steps in one command
 

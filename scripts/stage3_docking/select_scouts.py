@@ -39,6 +39,7 @@ Usage:
 """
 import argparse
 import csv
+import math
 import random
 import sys
 from collections import defaultdict
@@ -98,14 +99,31 @@ def main():
     print("scouts selected      : %d" % len(scouts))
     print("  from full pools    : %d backbones" % len(full))
     print("  thin (<=k, whole pool taken, nothing to deepen): %d" % len(thin))
+    # Tolerance scaled to the sample, not fixed at 0.40-0.60. A normalised rank
+    # is ~U(0,1), sd 1/sqrt(12) = 0.289, so the sd of the mean is 0.289/sqrt(n).
+    # The fixed window was sound at production width (~4,500 ranks, sd 0.004)
+    # but at 18 ranks the sd is 0.068 and a legitimately random sample fell
+    # outside it ~10% of the time -- aborting a shard that had already spent
+    # Stage 1 and Stage 2 compute, and doing so AFTER writing scouts.csv.
+    n_r = len(ranks)
+    tol = max(0.10, 3 * 0.289 / math.sqrt(n_r)) if n_r else float("inf")
     print("\nBIAS CHECK — mean normalised score-rank of the chosen scouts")
-    print("  observed : %.3f" % mean_rank)
-    print("  expected : 0.500 for an unbiased sample (0.0 would mean we took the best)")
-    if mean_rank < 0.40 or mean_rank > 0.60:
-        print("\n  WARNING: the scout sample looks biased. Check the seed and that")
-        print("  sampling is random rather than positional.", file=sys.stderr)
+    print("  observed : %.3f  (n=%d ranks)" % (mean_rank, n_r))
+    print("  expected : 0.500 +/- %.3f  (3 sd for this sample size)" % tol)
+    if n_r == 0:
+        print("  -> not checkable: every backbone's pool is <= k, so there was no")
+        print("     choice to make. This is not a pass.")
+    elif abs(mean_rank - 0.5) > tol:
+        print("\n  WARNING: the scout sample looks biased (%.3f is %.1f sd from "
+              "0.500)." % (mean_rank, abs(mean_rank - 0.5) / (0.289 / math.sqrt(n_r))),
+              file=sys.stderr)
+        print("  Check the seed and that sampling is random rather than "
+              "positional.", file=sys.stderr)
+        print("  %s was written; inspect it rather than docking it."
+              % args.out, file=sys.stderr)
         sys.exit(1)
-    print("  -> unbiased")
+    else:
+        print("  -> unbiased")
     print("\nwrote %s" % args.out)
     print("\nNext: dock these, then rank backbones by MEAN i_ptm (not max — the")
     print("reliability maths applies to the mean) and deepen the top 50%.")
