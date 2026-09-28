@@ -251,7 +251,20 @@ Exits non-zero if any backbone does not carry exactly two.
 scripts/stage2_sequences/run_stage2_v3_scaleup.sh \
     <scale-up>/stage_1_backbones/run/out \
     <scale-up>/stage_2_sequences  4  600  0.2
+#                                  ^  ^^^  ^^^
+#                                  |  |    temperature T
+#                                  |  sequences per backbone S
+#                                  number of GPUs
 ```
+
+> **The `4` is the GPU count, not a number of designs.** The backbone count is
+> never passed to Stage 2 — the script globs every `*.pdb` in the input
+> directory and designs all of them. That is deliberate (it designs whatever
+> Stage 1 actually produced), but it means **a wrong input directory fails
+> silently rather than loudly**: point it at one shard's output and it designs
+> 375 backbones, prints success, and the unique-sequence projection is quietly
+> quartered. Check the "N backbones to design" line it prints — it must read
+> 1500. Stage 2 also now aborts if any backbone produces no FASTA.
 
 This runs fixed-position generation → ProteinMPNN (S=600, T=0.2,
 receptor-aware, cysteines pinned, `--omit_AAs CM`) → **the cysteine gate as a
