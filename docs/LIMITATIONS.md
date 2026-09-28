@@ -1,6 +1,6 @@
 # Known Limitations, Open Questions and Unvalidated Assumptions
 
-**Document version:** v5.1.0
+**Document version:** v5.2.0
 **Last updated:** 2026-09-28
 
 A living register, not a dated snapshot. Every known weakness in this project
@@ -25,6 +25,7 @@ clarifications, added evidence.
 | **v3.0.0** | 2026-09-25 | **Blocker closed:** the Stage 2 scale-up script now exists (was B1, now R6), along with the deduplication step the SOP specified but nothing implemented. One blocker remains, renumbered to B1. Also records that the 46,800 unique-sequence projection carries a 95% CI of [33,000, 60,500] — the per-backbone mean is estimated from 32 backbones with a 4-fold spread. |
 | **v4.0.0** | 2026-09-25 | **Last blocker closed.** The v1/v2 ID collision is resolved (was B1, now R7): the hazard was not the archived directory but the superseded v1 Stage 3 runner that would recreate it, which now refuses to run. **No open blockers.** |
 | **v4.1.0** | 2026-09-28 | Adds O12 (the 99.2% recovery figure is about backbones; the sequence-level equivalent is 95.8% of the top decile) and O13 (q = 0.24 is carried from the pilot's superseded filter set and drives every count below docking — added to the first-shard checkpoint). |
+| **v5.2.0** | 2026-09-28 | **Code review, pre-launch.** Four blockers fixed before any production compute: (B1) Stage 1 shards wrote four unmerged `shard_N/out/` directories while `SOP.md` told the operator to pass `run/out`, which nothing created — fatal after 8.9 GPU-h, or silently 375/1500 backbones; all shards now share one `out/`. (B2) `SOP.md`'s Stage 2 copy-paste command carried the superseded `S=300 T=0.1`. (B3) ProteinMPNN ran with output discarded and exit status unchecked behind a bare `wait`, so a dead shard left a partial pool silently; plus an unconditional `CUDA_VISIBLE_DEVICES` clobber and a `seqs/` mkdir race. (B4) q was mislabelled — `HOTSPOTS` was declared and never used, so the gate measured receptor contact, not pocket occupancy. **q = 0.465** with the hotspot check applied. `validate_cys.py` no longer passes vacuously on a batch with zero designed sequences. |
 | **v5.1.0** | 2026-09-28 | **O13 resolved:** the Stage-3 pass rate is measured at q = 0.463 on the 600 validation-shard scouts. The disulfide criterion is demoted from gate to diagnostic — all 100 parent backbones are bond-compatible (CB–CB median 4.13 Å) and parent geometry does not predict AfCycDesign's SG–SG (r = +0.100), so the 48% open predictions are a prediction artifact of AfCycDesign never being told the bond exists. Gating on it understated q as 0.360 and discarded ~48% of viable designs. RFdiffusion exonerated. |
 | **v5.0.0** | 2026-09-28 | **O1 escalated:** the BBB classifier is not usable on this molecule class — 95% of its BBB+ calls have a known non-permeant as nearest reference at 0.98 similarity, while oxytocin itself scores BBB−, and its own hard-negative flag catches none of them. BBB pass rates removed from all funnel projections; the metric is retained as a re-scorable annotation. |
 
@@ -93,7 +94,7 @@ clustering rather than three binned scalars) would be needed to fix this.
 ICC = 0.562 on Cys-constrained data, 95% CI **[0.363, 0.736]**, from 30
 backbones with ~3 samples each. The scout depth k=6 is sized on the point
 estimate; at the CI lower bound its reliability is 0.773 rather than 0.885.
-It was also fitted at S=4 and is applied at S=300, where larger within-backbone
+It was also fitted at S=4 and is applied at S=600, where larger within-backbone
 diversity could lower it.
 
 *Status:* pre-registered check — re-estimate ICC on the first completed scale-up
@@ -173,7 +174,7 @@ sequence-level figures are:
 **95.8% of the top decile of sequences**, which is the quantity that matters,
 with 99.2% retained only where backbones are explicitly the subject.
 
-### O13. 🟢 RESOLVED — the Stage-3 pass rate is measured: q = 0.463
+### O13. 🟢 RESOLVED — the Stage-3 pass rate is measured: q = 0.465
 Every count below docking derived from $q = 0.24$, the pilot's 27 shortlisted
 from 112 docked, measured under the old i_ptm-gated filter set. It has now been
 measured directly on the 600 validation-shard scouts by
@@ -181,9 +182,37 @@ measured directly on the 600 validation-shard scouts by
 
 | criterion | rate | role |
 |---|---|---|
-| in the orthosteric pocket (≥1 buried contact) | 46.3% | **gate** |
-| disulfide drawn closed (SG–SG ≤ 4 Å) | 52.2% | diagnostic only |
-| **q (pocket occupancy)** | **0.463** | sizes every downstream stage |
+| **at the hotspots** (≥1 peptide CA within 8 Å of a hotspot heavy atom) | 46.5% | **gate** |
+| touches the receptor anywhere (≥1 atom pair < 5 Å) | 46.3% | diagnostic |
+| disulfide drawn closed (SG–SG ≤ 4 Å) | 52.2% | diagnostic |
+| **q** | **0.465** | sizes every downstream stage |
+
+The gate is contact with the eight residues RFdiffusion was conditioned on
+(`O96, O295, O299, O38, O188, O34, O200, O316`), not contact with the receptor
+anywhere. It is deliberately *not* referenced to oxytocin's own pose: a de novo
+binder need not reproduce the native binding mode, so gating on centroid
+distance to 7RYC chain L would penalise exactly the novelty being designed for.
+Centroid distance is recorded as a diagnostic instead.
+
+**The distribution is strongly bimodal**, which is why the gate is a clean cut
+rather than a threshold choice:
+
+| | n | centroid dist to native pose |
+|---|---|---|
+| pass | 279 | median **3.50 Å** (q1 2.46, q3 5.30) |
+| fail | 321 | median **45.05 Å** (minimum 19.76) |
+
+199 of the 279 passers sit within 5 Å of the native centroid. There is no
+population in between, so the 8 Å hotspot threshold is not load-bearing.
+
+> **An earlier version of this entry reported q = 0.463 as "pocket occupancy."**
+> That gate counted contacts to the whole receptor — `HOTSPOTS` was declared in
+> `stage3_gate.py` and never referenced — so it measured a receptor-contact rate
+> and would have passed a peptide on the lipid-facing surface. Found by code
+> review 2026-09-28. With the hotspot check actually applied the two criteria
+> differ on 11 of 600 structures and q moves 0.463 → 0.465: **the label was
+> wrong, the number was very nearly right**, because off-pocket-but-touching
+> poses barely exist in practice (5 structures).
 
 **Why the disulfide is not a gate.** Gating on both gave q = 0.360, and that was
 wrong. AfCycDesign draws the bond closed in only 52.2% of predictions, but the

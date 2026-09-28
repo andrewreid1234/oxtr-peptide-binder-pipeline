@@ -88,6 +88,30 @@ def main():
     print("with >2 Cys (scrambling risk): %d (%.1f%%)"
           % (n_extra, 100 * n_extra / total if total else 0))
 
+    # A gate that passes on an empty batch is not a gate. read_fasta returns []
+    # for a FASTA holding only ProteinMPNN's native record, which is exactly
+    # what a killed or partial MPNN run leaves behind -- so nothing incremented
+    # n_bad and this printed "PASS: all 0 sequences" and exited 0.
+    if not files:
+        print("\nFAIL: no FASTA files in %s - nothing was designed."
+              % args.seq_dir, file=sys.stderr)
+        sys.exit(1)
+    if total == 0:
+        print("\nFAIL: %d FASTA file(s) but 0 designed sequences. ProteinMPNN "
+              "produced nothing usable (a partial or killed run leaves files "
+              "holding only the native record)." % len(files), file=sys.stderr)
+        sys.exit(1)
+
+    # A backbone with no sequences is a silent shard failure upstream.
+    if args.fixed_dir:
+        n_expected = len(glob.glob(os.path.join(args.fixed_dir, "fixed_*.jsonl")))
+        if n_expected and len(files) != n_expected:
+            print("\nFAIL: %d backbones have fixed-position files but only %d "
+                  "have sequences - %d backbone(s) produced nothing."
+                  % (n_expected, len(files), n_expected - len(files)),
+                  file=sys.stderr)
+            sys.exit(1)
+
     if n_bad or bad_pos:
         print("\nFAIL: %d sequence(s) below %d Cys, %d with cysteines at the "
               "wrong positions." % (n_bad, args.min_cys, bad_pos), file=sys.stderr)

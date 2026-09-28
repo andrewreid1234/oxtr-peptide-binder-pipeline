@@ -250,13 +250,22 @@ Exits non-zero if any backbone does not carry exactly two.
 ```bash
 scripts/stage2_sequences/run_stage2_v3_scaleup.sh \
     <scale-up>/stage_1_backbones/run/out \
-    <scale-up>/stage_2_sequences  4  300  0.1
+    <scale-up>/stage_2_sequences  4  600  0.2
 ```
 
-This runs fixed-position generation → ProteinMPNN (S=300, T=0.1,
-receptor-aware, cysteines pinned) → **the cysteine gate as a hard abort** →
-deduplication, and writes `unique_sequences.csv`. The individual steps are
-documented below if you need to run them separately.
+This runs fixed-position generation → ProteinMPNN (S=600, T=0.2,
+receptor-aware, cysteines pinned, `--omit_AAs CM`) → **the cysteine gate as a
+hard abort** → deduplication, and writes `unique_sequences.csv`. The individual
+steps are documented below if you need to run them separately.
+
+> **S=600, T=0.2 — not 300 and 0.1.** This command read `4 300 0.1` until
+> 2026-09-28. Those are the pre-v3.2.0 values; copy-pasting them ran production
+> Stage 2 at half the draws and the wrong temperature, for 2.1× fewer distinct
+> sequences, silently invalidating the unique-sequence projection. Binding
+> quality is flat across T = 0.1–0.3 (p = 0.17) while distinct yield is not, so
+> the higher temperature is free diversity. See `CHANGELOG.md` v3.2.0. The
+> script's own defaults are already 600 / 0.2 — these positional arguments only
+> matter because they override them.
 
 ### 2b. Sequence design, then the cysteine gate — REQUIRED
 
@@ -322,7 +331,7 @@ yield fewer than 10 more — flag these at the dedup step so the funnel projecti
 stays honest.
 
 **Pre-registered checkpoint:** after the first completed shard, re-estimate ICC
-and the unique-sequence yield. ICC was fitted at S=4 and is applied at S=300; if
+and the unique-sequence yield. ICC was fitted at S=4 and is applied at S=600; if
 it comes back materially below 0.43, raise k or the keep fraction before
 committing the deepening stage. This is the one input that can reopen a locked
 parameter.

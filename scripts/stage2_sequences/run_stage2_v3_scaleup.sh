@@ -65,9 +65,14 @@ if [[ ${#PDBS[@]} -eq 0 ]]; then
   exit 1
 fi
 
+# ProteinMPNN's own check-then-makedirs on out_folder/seqs races when four
+# shards start with it absent: the loser raises FileExistsError, which under
+# `set -e` killed that shard's whole remaining share. Create it once, up front.
+mkdir -p "$OUT_DIR/seqs" "$OUT_DIR/mpnn_logs"
+
 run_shard () {
   local shard=$1
-  local i=0
+  local i=0 n_run=0
   for pdb in "${PDBS[@]}"; do
     if (( i % NGPU == shard )); then
       local stem fixed
@@ -75,24 +80,67 @@ run_shard () {
       fixed="$OUT_DIR/fixed_${stem}.jsonl"
       if [[ ! -f "$fixed" ]]; then
         echo "  [shard $shard] FATAL: missing $fixed" >&2
-        exit 1
+        return 1
       fi
       if [[ ! -f "$OUT_DIR/seqs/${stem}.fa" ]]; then
-        CUDA_VISIBLE_DEVICES=$shard "$PY" "$MPNN" \
-          --pdb_path "$pdb" --pdb_path_chains L \
-          --out_folder "$OUT_DIR" \
-          --num_seq_per_target "$NSEQ" --sampling_temp "$TEMP" \
-          --batch_size 50 --fixed_positions_jsonl "$fixed" \
-          --omit_AAs CM >/dev/null 2>&1
+        # Respect a caller's GPU mask (the job queue masks to one physical GPU
+        # and re-indexes it as device 0; setting the raw shard index here would
+        # point shards 1-3 at devices that do not exist inside that mask).
+        # Matches OXTR_Stage1_ScaleUp_shard.sh's guard.
+        local dev="${CUDA_VISIBLE_DEVICES:-$shard}"
+        # Keep MPNN's output: a failure here used to vanish into /dev/null with
+        # its exit status unchecked, so a dead shard left a partial pool and no
+        # error in the log.
+        if ! CUDA_VISIBLE_DEVICES="$dev" "$PY" "$MPNN" \
+            --pdb_path "$pdb" --pdb_path_chains L \
+            --out_folder "$OUT_DIR" \
+            --num_seq_per_target "$NSEQ" --sampling_temp "$TEMP" \
+            --batch_size 50 --fixed_positions_jsonl "$fixed" \
+            --omit_AAs CM > "$OUT_DIR/mpnn_logs/${stem}.log" 2>&1; then
+          echo "  [shard $shard] FATAL: ProteinMPNN failed on $stem" >&2
+          echo "  [shard $shard] see $OUT_DIR/mpnn_logs/${stem}.log" >&2
+          tail -20 "$OUT_DIR/mpnn_logs/${stem}.log" >&2 || true
+          return 1
+        fi
+        if [[ ! -s "$OUT_DIR/seqs/${stem}.fa" ]]; then
+          echo "  [shard $shard] FATAL: $stem exited 0 but wrote no sequences" >&2
+          return 1
+        fi
+        n_run=$((n_run+1))
       fi
     fi
     i=$((i+1))
   done
-  echo "  [shard $shard] done"
+  echo "  [shard $shard] done ($n_run designed)"
 }
 
-for ((s=0; s<NGPU; s++)); do run_shard "$s" & done
-wait
+# Collect PIDs and wait on each: a bare `wait` returns 0 whatever the children
+# did, so a shard's `return 1` (or its inherited set -e death) was invisible and
+# the run continued to Stage 3 on a partial pool.
+declare -a SHARD_PIDS=()
+for ((s=0; s<NGPU; s++)); do run_shard "$s" & SHARD_PIDS+=("$!"); done
+
+MPNN_FAILED=0
+for idx in "${!SHARD_PIDS[@]}"; do
+  if ! wait "${SHARD_PIDS[$idx]}"; then
+    echo "FATAL: Stage 2 shard $idx failed" >&2
+    MPNN_FAILED=1
+  fi
+done
+if (( MPNN_FAILED )); then
+  echo "FATAL: at least one ProteinMPNN shard failed - pool is incomplete." >&2
+  echo "       Fix the cause and re-run; completed backbones are skipped." >&2
+  exit 1
+fi
+
+# Every backbone must have produced a FASTA. Catches a shard that died before
+# its first design as well as any silent skip.
+N_FA=$(find "$OUT_DIR/seqs" -maxdepth 1 -name '*.fa' | wc -l)
+echo "  ${N_FA} / ${#PDBS[@]} backbones have sequences"
+if (( N_FA != ${#PDBS[@]} )); then
+  echo "FATAL: ${#PDBS[@]} backbones but only $N_FA FASTA files." >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------- 3. HARD GATE
 echo

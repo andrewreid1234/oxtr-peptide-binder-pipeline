@@ -11,9 +11,40 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.1 — 2026-09-28
+
+**Current.** PATCH: four pre-launch defects fixed, no methodology change. All
+four were found by code review after the v3.3.0 commit and before any production
+compute was spent.
+
+| fix | what it would have cost |
+|---|---|
+| **B1. Stage 1 shards now share one `out/` directory** | Each shard `cd`'d into `run/shard_$SHARD/` and wrote `run/shard_$SHARD/out/`; nothing merged the four, and `SOP.md` step 2 told the operator to pass `run/out`, which no shard created. Fatal after Stage 1's 8.9 GPU-h — or, if "fixed" by pointing at one shard directory, Stage 2 silently runs on 375 of 1,500 backbones. `run_validation_shard.sh` `cd`s once into a shared directory, which is why the end-to-end shard never exercised this. |
+| **B2. `SOP.md` Stage 2 command corrected to `4 600 0.2`** | It read `4 300 0.1`, the pre-v3.2.0 values. Copy-pasting ran production Stage 2 at half the draws and the wrong temperature — 2.1× fewer distinct sequences — invalidating the unique-sequence projection. |
+| **B3. ProteinMPNN failures are now fatal and visible** | MPNN ran with `>/dev/null 2>&1` and its exit status unchecked; a bare `wait` returns 0 regardless, so a dead shard left a partial pool with no error in the log. Now: output kept per backbone, exit checked, per-PID waits, and a FASTA count reconciled against the backbone count. Also fixes an unconditional `CUDA_VISIBLE_DEVICES` clobber (broke the job queue's GPU mask) and a `seqs/` mkdir race that killed whichever shard lost. |
+| **B4. `q = 0.463 → 0.465`, and the label corrected** | `HOTSPOTS` was declared in `stage3_gate.py` and never referenced: the gate counted contacts to the whole receptor, so "pocket occupancy" was really a receptor-contact rate that would pass a peptide on the lipid-facing surface. Now gates on ≥1 peptide CA within 8 Å of a hotspot heavy atom. |
+
+`validate_cys.py` also no longer passes vacuously: it exited 0 printing "PASS:
+all 0 sequences" when every FASTA held only ProteinMPNN's native record, which
+is exactly what B3's silent failure left behind.
+
+**On B4's magnitude.** The mislabelling was real but the number barely moved,
+because the two criteria differ on 11 of 600 structures. Centroid distance to
+the native pose is bimodal — passers median 3.50 Å, failers median 45.05 Å with
+no population between — so off-pocket-but-touching poses are 5 structures, not a
+systematic inflation. The 8 Å threshold is not load-bearing.
+
+### Superseded values
+
+| value | superseded | replaced by | why |
+|---|---|---|---|
+| Stage 3 pass rate q | 0.463 (receptor contact, mislabelled "pocket occupancy") | **0.465** | Hotspot check actually applied. |
+
+---
+
 ## Pipeline v3.3.0 — 2026-09-28
 
-**Current.** MAJOR by `SOP.md`'s convention: this changes what gates candidate
+MAJOR by `SOP.md`'s convention: this changes what gates candidate
 advancement at Stage 3.
 
 | change | why |
