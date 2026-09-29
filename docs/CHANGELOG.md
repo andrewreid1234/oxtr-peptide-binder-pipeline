@@ -11,6 +11,44 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.4 — 2026-09-29
+
+**Current.** PATCH: two reporting corrections, no methodology change. S stays at
+600 and T stays at 0.2 — neither value moves; what changes is the stated reason
+for S, which could not be reproduced.
+
+| fix | file | why |
+|---|---|---|
+| **"94% of the T=0.2 saturation ceiling" removed** | `CHANGELOG.md`, `SUMMARY.md` | S=600 was justified as sitting at 94% of a saturation ceiling. The rarefaction curve does not support that. Measured on the validation shard's 100 backbones at the production settings, the marginal yield at S=600 is **+22.5 unique sequences per 100 extra draws** — about ten times what a 94%-saturated curve allows, since 94% of a ceiling would leave only ~12 unique sequences to collect in total. A single coupon-collector `D` also fails to fit: the S=300/S=600 two-point fit gives D≈643 and predicts 390 unique/backbone at S=600 against **192.3 observed**. The reason is heterogeneity — unique/backbone runs min 14, max 548, sd 126 around a mean of 192.3 — so the pool is a mixture of backbones with very different effective diversity and no single ceiling summarises it. **S=600 is a budget choice, like B.** It stops while diversity is still accumulating, which is defensible (Stage 2 is 7.4 of ~303 GPU-h, but each extra unique sequence becomes a 5.6 s Stage 3 docking) but is not what "94% of the ceiling" claims. |
+| **T=0.2's 2.1× confirmed from raw data** | — | No change, recorded because it was checked. Re-measured from `ds_t_experiment_cys` (32 Cys-constrained backbones, S=300 each): T=0.1 → 74.4 unique, T=0.2 → **159.5 unique = 2.14×**. The documented 2.1× reproduces to two decimals. |
+
+### Measured rarefaction, S=600 / T=0.2, 100 validation backbones
+
+| draws/bb | unique/bb | % unique | pool at B=1500 | marginal per 100 |
+|---:|---:|---:|---:|---:|
+| 25 | 17.8 | 71.2% | 26,685 | — |
+| 50 | 30.9 | 61.9% | 46,425 | +52.6 |
+| 100 | 52.6 | 52.6% | 78,885 | +43.3 |
+| 200 | 88.0 | 44.0% | 131,925 | +33.2 |
+| 300 | 118.2 | 39.4% | 177,330 | +30.3 |
+| 500 | 169.9 | 34.0% | 254,790 | +25.1 |
+| **600** | **192.3** | **32.1%** | **288,510** | **+22.5** |
+
+**On the "only ~30% unique" reading.** The percentage-unique column falls with S
+by construction and is not a quality signal: at S=300 the same setting reads 39%,
+at S=600 it reads 32%, while the absolute count rises 118.2 → 192.3. The
+numerator keeps growing; the denominator grows faster. The planning quantity is
+unique sequences per backbone and the resulting pool (~288,500 at B=1500, against
+the ~293,000 previously projected), not the fraction of draws that survive dedup.
+
+### Superseded values
+
+| value | superseded | replaced by | why |
+|---|---|---|---|
+| Basis for S=600 | "94% of the T=0.2 saturation ceiling" | **a budget choice; marginal yield +22.5 unique/100 draws at S=600** | The curve has not plateaued; no single ceiling fits the heterogeneous pool. |
+
+---
+
 ## Pipeline v3.3.3 — 2026-09-28
 
 **Current.** PATCH: one silent-failure fix, plus three reporting corrections. No
@@ -157,7 +195,7 @@ Six changes, each measured rather than assumed.
 | parameter | v3.1.0 | **v3.2.0** | why |
 |---|---|---|---|
 | Sampling temperature | 0.1 | **0.2** | 450 dockings: binding quality is flat across T=0.1–0.3 (largest gap p = 0.17), while distinct sequences rise 2.1×. T=0.1 had been chosen on the MPNN quality bar, which does not predict binding. |
-| Draws per backbone | 300 | **600** | 94% of the T=0.2 saturation ceiling; MPNN costs 7.4 GPU-h (~1.9 h wall on 4 GPUs). Recorded here as "2.2 GPU-h", which was the wall-clock figure; see v3.3.3. |
+| Draws per backbone | 300 | **600** | A budget choice, not a saturation point — see v3.3.4. Yields 192.3 unique/backbone (~288,500 at B=1500). MPNN costs 7.4 GPU-h (~1.9 h wall on 4 GPUs). Recorded here as "94% of the T=0.2 saturation ceiling" and "2.2 GPU-h"; both wrong, see v3.3.3 and v3.3.4. |
 | Design pool | all 20 AA | **omit C, M** | Leaves exactly 2 sulfur atoms per sequence. Without it one backbone produced 93.3% extra-sulfur sequences, which can form a disulfide other than the designed one. Costs ~1% of unique output at T=0.2. Pinned cysteines verified untouched, 900/900. |
 | MPNN quality bar | median cut | **removed** | Within-backbone ρ = −0.095 against i_ptm; kept 46% of the top binding quartile against 50% by chance. It discarded ~58% of distinct molecules for no gain. |
 | Deepening cap | — | **none** | Capping at 30 would dock only 15% of a kept backbone. ICC = 0.562 means 44% of variance is *within* backbones, so deeper sampling is not redundant. |

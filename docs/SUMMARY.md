@@ -188,7 +188,7 @@ an explicit model; the derivations are in
 | Quantity | Value | Basis |
 |---|---|---|
 | Backbones | **1,500** | A budget choice, not an optimum — see caveat below |
-| Sequences per backbone | **600** | 94% of the measured saturation ceiling at T=0.2 |
+| Sequences per backbone | **600** | A budget choice. Yields 192.3 unique/backbone; marginal yield is still +22.5 unique per 100 extra draws, so this is not a saturation point — see `CHANGELOG.md` v3.3.4 |
 | Sampling temperature | **0.2** | Binding quality flat across 0.1–0.3; 2.1× the distinct sequences |
 | Design pool | **omit C and M** | Exactly 2 sulfur atoms per sequence — no disulfide scrambling |
 | Scout depth | **6 per backbone** | Estimates a backbone's quality at reliability 0.82 |
