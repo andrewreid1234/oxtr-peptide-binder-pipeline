@@ -41,4 +41,12 @@ python $RFD_REPO/scripts/run_inference.py \
   diffuser.T=50 \
   > "$RUN/shard${SHARD}.log" 2>&1
 
-echo "[shard $SHARD] done: $(find "$RUN/out" -name "shard${SHARD}_out_*.pdb" | wc -l) backbones"
+# -maxdepth 1 is REQUIRED. RFdiffusion also writes two 50-frame trajectory PDBs
+# per design into out/traj/ (_Xt-1_traj and _pX0_traj), so a recursive count
+# reports 3x the truth: this line printed "done: 1125 backbones" for a shard
+# asked to make 375. Cosmetic -- it fires after all work is done and gates
+# nothing -- but it is the same depth-1-vs-recursive trap as code-review B1, in
+# the line that reports success. Downstream consumers were already depth-safe
+# (run_stage2_v3_scaleup.sh uses -maxdepth 1; make_fixed_positions.py uses a
+# non-recursive glob), so nothing acted on the inflated number.
+echo "[shard $SHARD] done: $(find "$RUN/out" -maxdepth 1 -name "shard${SHARD}_out_*.pdb" | wc -l) backbones"
