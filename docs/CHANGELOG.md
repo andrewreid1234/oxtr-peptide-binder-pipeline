@@ -11,6 +11,70 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Stage 4 cost benchmark — 2026-09-29
+
+**Not a pipeline version change.** Measured, not adopted — no Stage 4 parameter
+moves on this entry. Recorded because the scale-up's Rosetta estimate moved from
+~2 days to ~14 days and the cause needed pinning down. Data:
+`analysis/stage4_benchmark/rosetta_benchmark.csv`; harness:
+`scripts/stage4_rosetta/bench_relax_variants.py`.
+
+**The estimate moved because of the Stage 3 pass rate `q`, not because of
+Rosetta.** Cost is `survivors × 1,245 s ÷ 64 cores`, and survivors =
+deepening set × `q`. With the run's real deepening set (~134,100 = top 750
+backbones × 178.8 unique):
+
+| assumed `q` | Rosetta N | wall @ 1,245 s | source of that assumption |
+|---:|---:|---:|---|
+| 0.05 | 6,705 | 1.5 d | `sampling_parameter_derivation.md` §21 |
+| 0.10 | 13,410 | 3.0 d | `METHODS_AND_RESULTS.md` §11 |
+| 0.24 | 32,184 | 7.2 d | pilot's measured q |
+| 0.44 | 59,004 | **13.3 d** | the 14-day estimate |
+
+The §21-vs-§11 discrepancy already flagged as unresolved is exactly this: 5% vs
+10%. **Measuring `q` on the scout dockings is the largest single lever and
+should happen before any Stage 4 optimisation.**
+
+### Protocol benchmark, all 27 pilot candidates re-run
+
+| protocol | s/candidate | speedup | ρ vs pilot dG | top-5 kept |
+|---|---:|---:|---:|---:|
+| production worker (3 processes) | 1,245 | 1× | — | — |
+| **same protocol, single process** | **326** | **3.8×** | **0.824** | **4/5** |
+| 8 Å interface-shell movemap | 131 | 9.5× | 0.548 | 2/5 |
+
+**A 3.8× speedup is available with no scientific change.**
+`rosetta_stage4_worker.sh` launches three Rosetta processes per candidate — the
+`relax` binary, then the `InterfaceAnalyzer` binary, then a third PyRosetta
+process that re-`init()`s and re-reads the PDB. Doing the identical work in one
+process is 326 s. InterfaceAnalyzer itself is only ~1.8 s; the rest is startup
+and re-parsing.
+
+**The obvious further optimisation does not work.** The receptor is identical
+across candidates (CA RMSD 0.02–0.04 Å over 285 residues), so restricting
+FastRelax to an 8 Å shell around the peptide looks free and is 9.5×. It is not
+free: ρ falls to 0.548 and it keeps only 2 of the top 5 by dG. That is the same
+failure the top-2,000-by-i_ptm cut is rejected for in §21 (ρ = 0.53, 68%
+recovery). **Do not adopt the shell.** Reducing FastRelax repeats fails the same
+way (1 repeat: dG −38.4 against a −52.8 reference on the same structure).
+
+### Control: the protocol against itself
+
+Re-running the **unchanged** whole-complex protocol with a different random seed
+gives **ρ = 0.824, MAD 4.14 REU, 4/5 of the top 5**. That is the reproducibility
+ceiling, and it is not 1.0 — single-pose `dG_separated` carries ~4 REU of
+protocol noise before any approximation is introduced. Two consequences: the
+shell's ρ = 0.548 is genuinely below the noise floor rather than an artefact of
+it, and dG differences of a few REU between candidates should not be treated as
+real. This control had not previously been run.
+
+**Not tested:** using Rosetta as its own pre-filter (cheap pass over all
+survivors, full relax on the top fraction). This avoids the i_ptm objection
+because it is the same score function, and is the recommended next avenue if
+3.8× proves insufficient.
+
+---
+
 ## Production run v3 launched — 2026-09-29
 
 **Not a pipeline version change.** The first production-size run executed at
