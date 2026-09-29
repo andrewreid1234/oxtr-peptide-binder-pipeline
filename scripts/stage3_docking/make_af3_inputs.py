@@ -104,6 +104,8 @@ def main():
     # has already started.
     ap.add_argument("--host-root", default="/home/drewdog/af3/input")
     ap.add_argument("--container-root", default="/root/af_input")
+    ap.add_argument("--no-amide", action="store_true",
+                    help="omit the C-terminal NH2 cap (free acid). Default is\n                         to include it, since that is the molecule made.")
     args = ap.parse_args()
 
     def as_container(p):
@@ -193,6 +195,24 @@ def main():
             "dialect": "alphafold3",
             "version": 4,
         }
+        if not args.no_amide:
+            # C-TERMINAL AMIDE. Oxytocin is CYIQNCPLG-NH2 and 7RYC models the cap
+            # explicitly as chain L residue 10 (SEQRES ... PRO LEU GLY NH2), whose
+            # nitrogen sits 3.02 A from the nearest receptor heavy atom -- it makes
+            # a pocket contact. These designs are synthesised as amides too.
+            #
+            # DO NOT use the `modifications` field for this. Tested: ptmType "NH2"
+            # at the last position is accepted, runs clean, and SILENTLY REPLACES
+            # the terminal residue --  AECLLSYHACRRA became AECLLSYHACRRX, i.e. a
+            # 12-mer plus a cap rather than a 13-mer plus a cap. A different
+            # molecule, reported as success. ("CCD_NH2" is rejected outright:
+            # 'Protein ptms must not contain the "CCD_" prefix'.)
+            #
+            # The correct representation is the one the crystal structure uses: NH2
+            # as its own entity, bonded to the terminal carbonyl carbon. Verified to
+            # leave the peptide sequence intact.
+            job["sequences"].append({"ligand": {"id": "C", "ccdCodes": ["NH2"]}})
+            job["bondedAtomPairs"].append([["B", len(seq), "C"], ["C", 1, "N"]])
         p = os.path.join(out, "pose_%s.json" % cand)
         json.dump(job, open(p, "w"))
         manifest.append({"candidate": cand, "sequence": seq,
