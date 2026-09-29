@@ -342,7 +342,7 @@ the median for any single backbone).
 ### 3. Docking — scout, then deepen
 
 ```
-scout:   6 sequences per backbone, drawn AT RANDOM under a fixed seed
+scout:   10 sequences per backbone, drawn AT RANDOM under a fixed seed
          (not the first 6, not the best 6 by MPNN score — the estimand is the
           backbone MEAN, so the sample must be unbiased)
 rank:    backbones by MEAN i_ptm (not max — the reliability maths applies to
@@ -350,8 +350,10 @@ rank:    backbones by MEAN i_ptm (not max — the reliability maths applies to
 deepen:  the top 50% of backbones, all their remaining unique sequences
 ```
 
-**9,000 scout + 142,275 deepening = 151,275 dockings, ~235 GPU-h** at 5.6
-s/candidate — **~59 h wall clock on 4 GPUs**.
+**14,987 scout + 125,356 deepening = 140,343 dockings, ~218 GPU-h** at 5.6
+s/candidate — **~55 h wall clock on 4 GPUs**. Computed at k=10 from the
+*realised* pool of 265,700 (`unique_sequences.csv`), not from the pre-run
+estimate. See `PRODUCTION_RUN_v3.md` §4 for the k=4–14 cost/reliability table.
 
 > **Superseded figures removed (2026-09-28).** This block read "18,975 deepening
 > = 27,975 dockings, ~53.8 GPU-h at 27.7 s/run". All four numbers were
@@ -364,7 +366,7 @@ s/candidate — **~59 h wall clock on 4 GPUs**.
 
 Deepening yield at S=600 is the measured **192.3 unique sequences per backbone**
 (median 163, min 14, max 548, n=100 validation backbones), so the top 50% of
-1,500 backbones contribute ~186 each beyond their 6 scouts. The older "25.3 per
+1,500 backbones contribute ~167 each beyond their 10 scouts. The older "25.3 per
 backbone" was measured at S=300. Likewise the old warning that ~9% of backbones
 have nothing left to deepen and ~31% yield fewer than 10 more does not hold at
 S=600: **0 of 100** validation backbones had a unique pool ≤ 6.

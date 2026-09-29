@@ -38,7 +38,7 @@ without fixed positions -> PPVTPPAFQLRREA   (0 Cys, exit code 0)
 | `stage6_nmethyl/` | 6 — N-methylation | `run_stage6_nmethyl_scan.py` — backbone-amide exposure. The rescue path for strong binders that score BBB−. |
 | `stage7_selectivity/` | 7 — selectivity | `OXTR_Stage7_Selectivity.sh`, `run_stage7_shard.py`. Deferred, not gating — **no control experiment**, see `LIMITATIONS.md` O5. |
 | `queue/` | infrastructure | `job_queue.py` (SQLite-backed, resumable, claims by `resource_type` so CPU and GPU workers run concurrently — use `--stage` whenever more than one stage is queued). `run_validation_shard.sh` + `measure_validation.py` run the pre-launch gate. |
-| `viz/` | infrastructure | `make_display_pdb.py` (peptide as a distinct ligand entity for viewers), `plot_methods_figures.py` (figures for `METHODS_AND_RESULTS.md`, from committed CSVs only). |
+| `viz/` | infrastructure | `make_display_pdb.py` (peptide as a distinct ligand entity for viewers), `plot_methods_figures.py` (figures for `METHODS_AND_RESULTS.md`, from committed CSVs only), `analyze_stage1_production.py` / `analyze_stage2_production.py` (production-run analysis: read `/scratch`, write the CSVs under `analysis/production_v3/`; the Stage 2 one is safe to run mid-run), `plot_production_run.py` (figures for `PRODUCTION_RUN_v3.md`, from those CSVs only — run it with `/scratch/drewdog/afcyc/env/bin/python`). |
 
 ## Pre-launch gate
 

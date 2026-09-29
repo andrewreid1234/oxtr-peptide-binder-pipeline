@@ -19,7 +19,19 @@
 # This is what produced the pilot's 1/400 and the original D_s experiment's
 # 0/2400 non-cyclizable output. Never let a batch past this check.
 #
-# WHY --omit_AAs CM
+# WHY --omit_AAs CMX
+#
+# X ADDED 2026-09-29. ProteinMPNN's alphabet is 'ACDEFGHIKLMNPQRSTVWYX' -- 21
+# tokens, X at index 20 -- and omit_AAs_np masks only the characters passed here
+# (protein_mpnn_run.py:64,67). Passing only "CM" therefore left X samplable, and
+# at T=0.2 it fired once in the production run's 900,000 draws:
+# shard1_out_288_u303 = PCLGXSVPCR, score 2.1647 against a typical ~0.7, so a
+# low-confidence outlier rather than a systematic effect. It passed validate_cys
+# legitimately (it has two cysteines), so nothing caught it -- X has no side
+# chain, is not synthesizable, and cannot be docked. One character here makes the
+# case impossible rather than merely rare.
+#
+# WHY C AND M ARE OMITTED
 # The two motif cysteines are the cyclization mechanism. Left free, ProteinMPNN
 # adds extra cysteines (and occasional methionines), giving molecules with 3-4
 # sulfur atoms that can form a disulfide other than the designed one. Measured
@@ -128,7 +140,7 @@ run_shard () {
             --out_folder "$OUT_DIR" \
             --num_seq_per_target "$NSEQ" --sampling_temp "$TEMP" \
             --batch_size 50 --fixed_positions_jsonl "$fixed" \
-            --omit_AAs CM > "$OUT_DIR/mpnn_logs/${stem}.log" 2>&1; then
+            --omit_AAs CMX > "$OUT_DIR/mpnn_logs/${stem}.log" 2>&1; then
           echo "  [shard $shard] FATAL: ProteinMPNN failed on $stem" >&2
           echo "  [shard $shard] see $OUT_DIR/mpnn_logs/${stem}.log" >&2
           tail -20 "$OUT_DIR/mpnn_logs/${stem}.log" >&2 || true
@@ -236,5 +248,5 @@ echo "--- [4/4] deduplication (within backbone, then global) ---"
 echo
 echo "=== Stage 2 complete ==="
 echo "Unique pool: $OUT_DIR/unique_sequences.csv"
-echo "Next: scout-dock 6 RANDOM unique sequences per backbone under a fixed"
+echo "Next: scout-dock 10 RANDOM unique sequences per backbone under a fixed"
 echo "seed, then rank backbones by MEAN i_ptm (not max) — see SOP.md."

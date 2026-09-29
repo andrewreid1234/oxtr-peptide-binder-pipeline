@@ -14,7 +14,7 @@ tempting shortcuts both break it:
   "take the best k"    -- deliberately biased, and worse than it looks.
 
 Measured cost of getting this wrong (simulation on the real per-backbone yield
-distribution, B=1500, k=6):
+distribution, B=1500, k=10):
 
     random k (correct)            rho = 0.959 vs the backbone's true mean
     best k / first k              rho = 0.928
@@ -50,7 +50,7 @@ def main():
     ap.add_argument("--unique", required=True,
                     help="unique_sequences.csv from dedupe_sequences.py")
     ap.add_argument("--out", required=True)
-    ap.add_argument("-k", "--scout-depth", type=int, default=6)
+    ap.add_argument("-k", "--scout-depth", type=int, default=10)
     ap.add_argument("--seed", type=int, default=1234,
                     help="fixed for reproducibility; record it in the run log")
     args = ap.parse_args()

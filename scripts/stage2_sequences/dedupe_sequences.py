@@ -33,7 +33,7 @@ WHAT IT DOES
 
 Usage:
     dedupe_sequences.py --seq_dir <mpnn out>/seqs --out unique_sequences.csv
-                        [--scout-depth 6] [--min-cys 2] [--quality-bar]
+                        [--scout-depth 10] [--min-cys 2] [--quality-bar]
 """
 import argparse
 import csv
@@ -72,7 +72,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seq_dir", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--scout-depth", type=int, default=6)
+    ap.add_argument("--scout-depth", type=int, default=10)
     ap.add_argument("--min-cys", type=int, default=2)
     ap.add_argument("--quality-bar", action="store_true",
                     help="OFF by default. Applies the backbone's median MPNN "

@@ -11,6 +11,39 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Production run v3 launched — 2026-09-29
+
+**Not a pipeline version change.** The first production-size run executed at
+pipeline v3.3.4, recorded here so the run is traceable from the version
+history. Full results in [`PRODUCTION_RUN_v3.md`](PRODUCTION_RUN_v3.md).
+
+| stage | status | outcome |
+|---|---|---|
+| **Stage 1** | complete 2026-09-29 08:07 | 1500 backbones, 8 h 51 min wall on 4 GPUs, **33.6 GPU-h** (80.6 s/design). Lengths 8–14; cysteine separation uniform over 5/6/7; **1499/1500 (99.9%)** disulfide-compatible at Cβ–Cβ 3.0–5.0 Å. |
+| **Stage 2** | complete 2026-09-29 11:25 | S=600, T=0.2, cysteines pinned, C and M omitted. 900,000 draws → **265,700 unique sequences** (mean 178.8/backbone, range **6–588**, a 98-fold spread). **0** sequences with <2 Cys. Measured yield came within 7% of the validation-shard projection (192.3), confirming the S=600 derivation. One sequence contains an unassigned `X` residue and must be dropped before Stage 3. |
+
+**Epitope recovery, measured for the first time.** The realised interface was
+scored against native oxytocin's own contacts in 7RYC (all heavy atoms, 5 Å).
+The run recovers **29 of 33 native contact residues (88%)** from a hotspot list
+naming only eight of them. The two residues dominating the designed interface —
+**O315 (100% of backbones) and O187 (95.2%)** — are both genuine native
+contacts and neither was requested. Uneven per-hotspot usage (O188 64.3% down
+to O200 1.5%) is therefore not the specification being ignored; the hotspot
+list acted as a regional prior and RFdiffusion filled in the rest of the site.
+
+**Counterpart caveat:** only 58 of 285 receptor residues are ever contacted and
+95% of binder centroids lie within 1.8 Å of the mean. The run is 1500
+variations on one epitope. Scaling B will not produce an alternative site; that
+needs its own run with its own hotspot list.
+
+**New analysis artefacts.** `analysis/production_v3/{stage1_backbones,
+stage1_contact_frequency,stage2_per_backbone,stage2_composition}.csv`, seven figures
+under `docs/figures/prod_fig*.png`, and three scripts in `scripts/viz/`
+(`analyze_stage1_production.py`, `analyze_stage2_production.py`,
+`plot_production_run.py`).
+
+---
+
 ## Pipeline v3.3.4 — 2026-09-29
 
 **Current.** PATCH: two reporting corrections, no methodology change. S stays at

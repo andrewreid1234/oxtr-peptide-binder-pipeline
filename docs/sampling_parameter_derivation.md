@@ -709,7 +709,7 @@ Each additional 10% of backbones costs a flat **7.3 GPU-h**. The recovery curve 
 | Design pool | **omit C and M** | v3.2.0 |
 | Deduplication | **within backbone, then global** | §9 |
 | Expected unique sequences | **~293,000** | §9, revised v3.2.0 |
-| Scout depth $k$ | **6, drawn at random** | §16 |
+| Scout depth $k$ | **10, drawn at random** | §16, revised 2026-09-29 — see `PRODUCTION_RUN_v3.md` §4 |
 | Backbone ranking statistic | **mean $i_{\text{ptm}}$** | §15 |
 | Keep fraction $f$ | **50%** | §17 |
 | Total docked $N_{\text{dock}}$ | **151,275** | §17, revised v3.2.0 |

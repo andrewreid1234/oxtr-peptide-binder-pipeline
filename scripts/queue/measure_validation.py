@@ -18,7 +18,7 @@ from collections import defaultdict
 
 # planned values, with where each came from
 PLAN = {
-    "icc":     (0.562, "30 pilot backbones at S=4; sets k=6 and keep=50%"),
+    "icc":     (0.562, "30 pilot backbones at S=4; measured 0.358 at S=600, which set k=10 and keep=50%"),
     "uniq":    (195.7, "32 backbones at T=0.2 S=600 with omit CM"),
     "q":       (0.24,  "pilot 27/112 under the SUPERSEDED i_ptm-gated filters"),
     "dock_s":  (4.6,   "450 dockings this session, groups of 14-32"),

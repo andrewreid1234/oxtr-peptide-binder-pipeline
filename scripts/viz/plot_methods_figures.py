@@ -111,7 +111,7 @@ rel_lo = ks * lo / (1 + (ks - 1) * lo)
 ax.plot(ks, rel, color=BLUE, lw=2.3, marker="o", ms=5, label="ICC = 0.562")
 ax.plot(ks, rel_lo, color=LIGHT, lw=1.8, ls="--", label="95% CI lower (0.363)")
 ax.scatter([6], [6 * ICC / (1 + 5 * ICC)], s=110, color=ORANGE, zorder=5)
-ax.annotate("k = 6\n(production)", xy=(6, 6 * ICC / (1 + 5 * ICC)),
+ax.annotate("k = 10\n(production)", xy=(10, 10 * ICC / (1 + 9 * ICC)),
             xytext=(6.6, 0.62), fontsize=9.5, color=ORANGE)
 ax.set_xlabel("scout designs docked per backbone (k)")
 ax.set_ylabel("reliability of the backbone estimate")

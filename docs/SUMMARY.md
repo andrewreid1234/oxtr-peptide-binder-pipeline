@@ -191,7 +191,7 @@ an explicit model; the derivations are in
 | Sequences per backbone | **600** | A budget choice. Yields 192.3 unique/backbone; marginal yield is still +22.5 unique per 100 extra draws, so this is not a saturation point — see `CHANGELOG.md` v3.3.4 |
 | Sampling temperature | **0.2** | Binding quality flat across 0.1–0.3; 2.1× the distinct sequences |
 | Design pool | **omit C and M** | Exactly 2 sulfur atoms per sequence — no disulfide scrambling |
-| Scout depth | **6 per backbone** | Estimates a backbone's quality at reliability 0.82 |
+| Scout depth | **10 per backbone** | Reliability 0.848 at the measured ICC = 0.358. Raised from 6 on 2026-09-29: k=6 was set when ICC was believed to be 0.562, where it gave 0.885; at the measured ICC it gives only 0.770, and k=10 costs just +2.2% dockings |
 | Backbones deepened | **top 50%** | Recovers 99.2% of the genuinely best backbones |
 | Docked | **~151,000** | Follows from the above |
 | Rosetta | **top 40% of ~36,300 survivors** | Bounded by the GPU floor; recovers 78% of the top decile by dG |
