@@ -51,7 +51,7 @@ the ~293,000 previously projected), not the fraction of draws that survive dedup
 
 ## Pipeline v3.3.3 — 2026-09-28
 
-**Current.** PATCH: one silent-failure fix, plus three reporting corrections. No
+PATCH: one silent-failure fix, plus three reporting corrections. No
 methodology change and no threshold change — `q` still reproduces at 0.465
 (279/600) on the validation shard's `afcyc_out`.
 
