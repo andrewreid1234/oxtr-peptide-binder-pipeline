@@ -6,8 +6,11 @@ CYS2=$3
 source /home/drewdog/miniforge3/etc/profile.d/conda.sh
 conda activate /scratch/drewdog/rosetta/pyrosetta_env
 
-STAGE4=/scratch/drewdog/denovo_binder_100_pilot/stage_4_rosetta
-INPUT=/scratch/drewdog/denovo_binder_100_pilot/stage_1_backbones/disulfide_100/validation_v2/afcyc_out/${SEQ_ID}.pdb
+# Paths are overridable so the same worker can score the pilot shortlist or a
+# sample of production scouts. Defaults reproduce the pilot behaviour exactly.
+STAGE4=${STAGE4:-/scratch/drewdog/denovo_binder_100_pilot/stage_4_rosetta}
+INPUT_DIR=${INPUT_DIR:-/scratch/drewdog/denovo_binder_100_pilot/stage_1_backbones/disulfide_100/validation_v2/afcyc_out}
+INPUT=$INPUT_DIR/${SEQ_ID}.pdb
 RELAXDIR=$STAGE4/relaxed
 RESDIR=$STAGE4/results
 
