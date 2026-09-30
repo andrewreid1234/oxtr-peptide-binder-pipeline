@@ -67,6 +67,22 @@ r = pose.residue(last)
 if not r.has_variant_type(VariantType.CTERM_AMIDATION):
     sys.exit('FATAL: CTERM_AMIDATION did not apply')
 q1 = sum(r.atomic_charge(a) for a in range(1, r.natoms()+1))
+
+# -in:fix_disulf parses PLAIN INTEGERS as ROSETTA (pose) numbering -- see
+# DisulfideFile.cc:200, 'disulf_stm >> l >> u'. Chain-qualified forms like '4B'
+# are rejected. Translate the PDB numbering the worker receives into pose
+# indices here, where pdb_info() is already available.
+i1 = info.pdb2pose('B', $CYS1)
+i2 = info.pdb2pose('B', $CYS2)
+if i1 == 0 or i2 == 0:
+    sys.exit('FATAL: Cys $CYS1/$CYS2 not found in chain B')
+for idx in (i1, i2):
+    if pose.residue(idx).name3() != 'CYS':
+        sys.exit('FATAL: pose residue %d is %s, not CYS' % (idx, pose.residue(idx).name3()))
+open('disulf.txt', 'w').write('%d %d\n' % (i1, i2))
+sg = (pose.residue(i1).xyz('SG') - pose.residue(i2).xyz('SG')).norm()
+print('disulfide $SEQ_ID: pose %d-%d (PDB ${CYS1}B-${CYS2}B), input SG-SG %.2f A' % (i1, i2, sg))
+
 pose.dump_pdb('$AMIDATED')
 print('amidated $SEQ_ID: terminal residue charge %+.3f -> %+.3f e' % (q0, q1))
 " || { echo "FAILED: $SEQ_ID (amidation)"; exit 1; }
@@ -76,8 +92,33 @@ if [ ! -f "$AMIDATED" ]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------- FORCED DISULFIDE
+# RESTORED 2026-09-30. SOP.md justified demoting the Stage 3 disulfide gate on the
+# grounds that the bond would be "enforced downstream -- AF3 declares it via
+# bondedAtomPairs, Rosetta rebuilds it under constraint". The Rosetta half of that
+# was never wired in: this worker called relax.default with no disulfide handling,
+# so Rosetta fell back to automatic detection by SG-SG distance.
+#
+# Measured on the 200-candidate validation set: AfCycDesign leaves the bond open
+# in 43% of cases (median SG-SG 2.26 A, but 85 of 200 above 2.5 A), and relax
+# closed only 2 of those 85. So 42% of candidates were scored as LINEAR peptides,
+# free to adopt any conformation -- dG_separated for those is not a macrocycle
+# binding energy at all. Those candidates were 1.5x noisier across replicate runs
+# (median sd 4.51 vs 3.10 kcal/mol), and the worst, shard1_out_87_u229 at SG-SG
+# 12.10 A, spread 26.84 kcal/mol over three identical runs.
+#
+# scripts/stage0_controls/forced_disulfide.py already did this correctly with
+# PyRosetta's form_disulfide(), but it lived in the controls folder and was only
+# ever applied to the 27-candidate shortlist.
+#
+# -in:fix_disulf takes plain POSE indices, one pair per line, and calls
+# conformation().fix_disulfides(), which forms the bond REGARDLESS of distance.
+# be done by forming the bond in PyRosetta and dumping a PDB: form_disulfide
+# changes residue types without moving atoms, so the bond would be lost on reload.
+# disulf.txt is written by the PyRosetta step above, in POSE numbering.
 /scratch/drewdog/rosetta/main/source/bin/relax.default.linuxgccrelease \
   -in:file:s "$AMIDATED" \
+  -in:fix_disulf disulf.txt \
   -relax:fast \
   -out:path:all . \
   -out:suffix _relaxed \
@@ -93,8 +134,12 @@ if [ ! -f "$RELAXED_PDB" ]; then
   exit 1
 fi
 
+# Same flag here: InterfaceAnalyzer re-reads the PDB and would otherwise fall
+# back to distance-based detection. Relax should have closed the bond
+# geometrically, but declaring it makes the scoring independent of that.
 /scratch/drewdog/rosetta/main/source/bin/InterfaceAnalyzer.default.linuxgccrelease \
   -in:file:s "$RELAXED_PDB" \
+  -in:fix_disulf disulf.txt \
   -interface A_B \
   -pack_input false \
   -pack_separated true \

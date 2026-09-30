@@ -196,11 +196,43 @@ The recorded "224 BBB+ (56%)" and "docked 112" correspond to thresholds of
 The §8.1 projection of ~22,260 BBB+ candidates inherits the error; the measured
 figure is ~8.0% under B3BPFN v1.2.
 
-### O8. MM/GBSA is blocked by an upstream bug
-`gmx_MMPBSA` 1.6.5's `res2map()`/`list2range()` returns a bare string instead of
-a dict when a residue-classification list comes up empty. Reproduced
-deterministically and confirmed by source inspection. Compute cost is trivial
-(~12 CPU-h for the confirmation set); the blocker is the bug.
+### O8. MM/GBSA — unblocked, then failed its control (2026-09-30)
+**Resolved as a blocker; rejected on the evidence.**
+
+`gmx_MMPBSA` 1.6.5's `list2range()` returned a bare `''` when a residue
+classification list came up empty, while every other return path returns a
+dict, so callers doing `list2range(x)['string']` raised `TypeError`. Patched:
+`scripts/stage5_md/patch_gmx_mmpbsa_1.6.5.sh` (idempotent, re-run after any env
+reinstall). Two further setup requirements were found: the env must be on
+`PATH` (gmx_MMPBSA shells out to `cpptraj`), and the trajectory must be
+PBC-corrected **and water-stripped** — the raw `production.xtc` gives
+`BOND = *******` and a total energy of 1.3×10⁸ kcal/mol.
+
+With it working, MM/GBSA was run on the pilot's existing 20 ns trajectories
+(8 candidates, last 10 ns, 100 frames, igb=5, 0.15 M salt, ~8 CPU-h). **It does
+not discriminate.** `out_39_sample3`, the negative control, ranks **5th of 8**
+at −51.81 kcal/mol — mid-pack, within 4.8 of the best and statistically tied
+with `out_88_sample4` (−51.62). Rosetta ranks the same candidate **8th of 8**.
+MM/GBSA and Rosetta are uncorrelated on this set (ρ = 0.095, p = 0.82).
+Signal-to-noise is also worse: spread 16.0 kcal/mol against a mean
+within-candidate SD of 6.1 (≈2.6:1), versus Rosetta's 22.1 REU against 4.14 REU
+of measured protocol noise (≈5.3:1).
+
+Data: `analysis/mmgbsa_control/mmgbsa_vs_rosetta.csv`.
+
+MM/GBSA therefore joins i_ptm, Boltz2 ranking and MD stability as methods that
+cannot separate this control. Only pose agreement and Rosetta can.
+
+*Caveats:* n = 8; entropy omitted (so this is an effective energy, not ΔG); the
+receptor is position-restrained, so there is no induced fit; the system is
+water-only rather than membrane-embedded; and only the default interior
+dielectric was tried. **Tuning ε_in until the control separates would be
+post-hoc fitting** and is not justifiable without experimental affinities to
+calibrate against — which is the same wall every other scorer here hits.
+
+*Needs, if revisited:* membrane-embedded MD (deferred to v3.1.0) and
+experimental affinity data. Not recommended as a filter on the current system;
+the ~1.4 days per 100 candidates buys no demonstrated discrimination.
 
 ### O9. 6TPK is referenced but not present
 `SOP.md` lists the antagonist-bound OXTR structure as "available, not yet used".
