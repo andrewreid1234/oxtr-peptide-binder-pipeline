@@ -11,6 +11,178 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.5 — 2026-09-30
+
+**Current.** One restored step, one settled decision, and four measurements that
+replace projections. No threshold change at Stage 3.
+
+### RESTORED: Rosetta forces the designed disulfide
+
+v3.3.0 demoted the Stage 3 disulfide from gate to diagnostic *on the stated
+grounds* that it would be "enforced downstream — AF3 declares it via
+`bondedAtomPairs`, Rosetta rebuilds it under constraint". **The Rosetta half was
+never wired in.** `rosetta_stage4_worker.sh` called `relax.default` with no
+disulfide handling, so Rosetta fell back to distance-based auto-detection.
+
+Measured on 200 production candidates: AfCycDesign leaves the bond open in **85
+of 200 (43%)**, and relax closed only **2** of those 85. So **42% of candidates
+were scored as linear peptides**, free to adopt any conformation — their
+`dG_separated` was not a macrocycle binding energy.
+
+`scripts/stage0_controls/forced_disulfide.py` already did this correctly with
+PyRosetta's `form_disulfide()`, but lived in the controls folder and was only
+applied to the 27-candidate shortlist. Now enforced in production via
+`-in:fix_disulf` on both `relax` and `InterfaceAnalyzer`. Verified: **60/60
+replicate jobs close the bond**, including inputs at 12.10 Å and 19.16 Å, all
+landing at 2.0–2.2 Å against the crystal's 2.03 Å.
+
+> `-in:fix_disulf` parses **plain integers as pose numbering**
+> (`DisulfideFile.cc:200`). Chain-qualified forms like `4B` are rejected and
+> crash the run. The worker translates PDB→pose via `pdb_info().pdb2pose()`.
+> `-mute all` suppresses the confirming tracer, so geometry is the only proof.
+
+**This did NOT fix the dG noise, which is what it was tested for** — see below.
+
+### SETTLED: Boltz2 retained for Stage 3b; pose agreement is not a gate
+
+The v3.3.0 preference for AF3 rested on n=2. Re-run paired at **n=27** on
+identical inputs against the same AfCycDesign reference:
+
+| | AF3 | Boltz2 |
+|---|---:|---:|
+| peptide RMSD vs AfCycDesign, median | 6.54 Å | 6.61 Å |
+| AF3 closer in | **14 / 27 (52%)** | — |
+| correlation with `dG_separated` | +0.499 | **+0.612** |
+| receptor-fit residual, median | 3.08 Å | — |
+
+Indistinguishable on pose agreement, Boltz2 marginally better against dG, and
+~4× cheaper batched. AF3 also predicts the receptor de novo (3.08 Å residual
+against AfCycDesign's 0.74 Å), so it is a noisier cross-check by construction.
+The original comparison was not like-for-like: it compared AF3's *pose* against
+Boltz2's *score*.
+
+**Pose agreement stays confirmatory, not a gate.** No threshold enriches without
+heavy loss — a ≤4 Å cut gives 2.25× enrichment but discards 6 of the 9 best
+binders; at ≤8 Å the enrichment is 1.09×. Within the top half by dG the
+correlation falls to 0.249, so it is largely redundant with the ranking it would
+follow.
+
+### MEASURED: production q, ICC, and the k=10 justification
+
+| quantity | projected | **measured** | basis |
+|---|---:|---:|---|
+| Stage 3 pass rate q | 0.465 | **0.494** | all 14,987 production scouts |
+| ICC on i_ptm | 0.358 | **0.331** | 1,500 backbones, 10 scouts each |
+| docking throughput | 5.6 s/cand | **3.38 s/cand** | 7 length groups × 4 shards |
+| scouting cost | 23.3 GPU-h | **14.1 GPU-h / 3.50 h wall** | — |
+
+q = 0.494 is **above** projection, on 25× the validation-shard sample. ICC =
+0.331 gives k=10 a reliability of **0.832**, which confirms the v3.3.4 decision
+to raise k from 6 (which would have given 0.748). This is the pre-registered
+check from `sampling_parameter_derivation.md` §17 and it passes.
+
+ICC rose monotonically as longer peptides entered (0.224 at length 8 → 0.331 at
+all lengths); the early sub-0.30 reading was an artefact of the first length
+group, not a real value.
+
+### MEASURED: `dG_separated` is too noisy to rank on, and the disulfide fix does not repair it
+
+20 candidates × 3 independent runs, spread across the hotspot range:
+
+| | without forced SS | **with forced SS** |
+|---|---:|---:|
+| ICC of a single dG | 0.579 | **0.647** |
+| within-candidate sd, median | 3.34 | 3.48 |
+| max–min spread, median | 5.98 | 6.87 |
+| between-candidate sd | 6.96 | 11.05 |
+| correlation ceiling √ICC | 0.761 | **0.805** |
+| **rank stability (mean Spearman between runs)** | **0.710** | **0.614** |
+| **top-5 overlap between two single runs** | **3.3 / 5** | **3.0 / 5** |
+
+ICC improved only because the between-candidate spread widened; the
+within-candidate noise did not fall. **Rank stability got worse.** Two
+independent `nstruct=1` runs agree on only ~3 of the top 5 candidates either
+way — so a single-shot dG cannot reliably identify the best candidates, which is
+exactly what picking a synthesis list requires.
+
+The extra variance does concentrate in the poor binders (r = +0.309 between mean
+dG and replicate sd; worse half median sd 5.74 against the better half's 3.39),
+which limits the practical harm — but it does not restore the ranking.
+
+**`nstruct` is the binding problem, not the features and not the bond.** The
+3-run mean already recovers 3.7/5 against a single run's 3.3/5.
+
+### MEASURED: `dG_separated` is size-confounded
+
+| | r with `dG_separated` | r with `dG_separated/dSASAx100` |
+|---|---:|---:|
+| `dSASA_int` | **−0.766** | +0.124 |
+| `nres_int` | −0.665 | +0.048 |
+| `length` | −0.276 | +0.136 |
+| `hotspot_contacts` | −0.501 | **−0.023** |
+| `i_ptm` | −0.437 | **−0.114** |
+| `centroid_dist` | +0.526 | **+0.088** |
+
+`dG_separated` is a *total* interface energy, so it scales with interface size
+almost mechanically: mean dG runs −32.77 at length 9 to −43.93 at length 14,
+roughly 2 units per extra residue for being bigger. Every one of the top 12
+ridge models in the selector search contained `length` — the search found size
+because the target rewards it.
+
+`InterfaceAnalyzer` already reports the size-normalised
+`dG_separated/dSASAx100`, which the worker was not capturing. Normalising removes
+the confound (0.766 → 0.124) **and collapses every Stage 3 feature to near
+zero**. So the feature correlations were largely measuring interface size, not
+binding quality.
+
+> Units note: `dG_separated` is in **Rosetta Energy Units**, not kcal/mol, and is
+> a single-structure score difference — no peptide conformational entropy, no
+> explicit solvent, no ensemble. It is a ranking heuristic, not an affinity.
+
+### Also in this version
+
+- **C-terminal amidation at Stage 4** (`CTERM_AMIDATION` before relax). Oxytocin
+  is CYIQNCPLG-NH2 and 7RYC models the cap as chain L residue 10, whose nitrogen
+  sits 3.02 Å from the receptor. Terminal-residue partial charge −1.001 → −0.021 e.
+  Stage 3 stays free-acid: `run_afcyc_v3_shard.py` passes a bare sequence string
+  and cannot represent a cap, and the scouts were scored that way.
+- **AF3 cannot express a C-terminal amide.** `modifications` with `ptmType: NH2`
+  silently *replaces* the terminal residue (`AECLLSYHACRRA` → `AECLLSYHACRRX`)
+  and reports success. The NH2-as-bonded-ligand form keeps the sequence intact
+  but leaves `OXT` in place — five bonds on one carbon, `OXT` and the amide N
+  0.65 Å apart. The pose benchmark was therefore run free-acid.
+- **Deepening selector** `select_deepening.py`, f = 0.50, ranked by **MAX** i_ptm
+  not mean, against `SOP.md`'s instruction. Split-half on 1,495 backbones: max
+  loses 9.9/14.1/15.8% of the best held-out sequences at top 1/5/10% against
+  mean's 16.6/18.3/18.9%, at identical cost. f held at 0.50 because f and Rosetta
+  are coupled — f = 0.70 would cut Stage 3 loss to 7.5% but add ~5.8 days of
+  Rosetta.
+
+### Superseded values
+
+| value | superseded | replaced by | why |
+|---|---|---|---|
+| Stage 3 q | 0.465 (600 validation scouts) | **0.494** | measured on all 14,987 |
+| ICC on i_ptm | 0.358 (validation shard) | **0.331** | measured on 1,500 backbones |
+| Docking throughput | 5.6 s/candidate | **3.38 s/candidate** | production length groups are ~100× larger, so the per-group model build amortises |
+| Scouting cost | 23.3 GPU-h / 5.8 h | **14.1 GPU-h / 3.50 h** | — |
+| Stage 3b cross-check | AF3 favoured (n=2) | **Boltz2 retained** (n=27 paired) | indistinguishable on pose, Boltz2 better against dG and ~4× cheaper |
+| Rosetta disulfide | "enforced under constraint" (claimed) | **actually enforced** via `-in:fix_disulf` | it was never implemented |
+| dG reliability | assumed usable | **ICC 0.647, rank stability 0.614** | 20 × 3 replicates |
+
+### Open, and NOT settled by any of this
+
+1. **Which target picks the synthesis list** — `dG_separated` (predictable but a
+   size measure), `dG_separated/dSASAx100` (chemically right but unpredictable
+   from Stage 3), or a size-capped compromise.
+2. **`nstruct`** — 1 is demonstrably too noisy. Untested whether 5–20 gives usable
+   rank stability, and at what cost.
+3. **The Rosetta cap** — uncapped is ~15.7 days on 64 cores at q = 0.494.
+4. **The 200-candidate selector validation is invalid** for the 42% that had no
+   disulfide. Re-running is ~35 min but pointless until (2) is decided.
+
+---
+
 ## Stage 4 cost benchmark — 2026-09-29
 
 **Not a pipeline version change.** Measured, not adopted — no Stage 4 parameter
@@ -110,7 +282,7 @@ under `docs/figures/prod_fig*.png`, and three scripts in `scripts/viz/`
 
 ## Pipeline v3.3.4 — 2026-09-29
 
-**Current.** PATCH: two reporting corrections, no methodology change. S stays at
+PATCH: two reporting corrections, no methodology change. S stays at
 600 and T stays at 0.2 — neither value moves; what changes is the stated reason
 for S, which could not be reproduced.
 

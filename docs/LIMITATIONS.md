@@ -42,6 +42,68 @@ against both a passing and a failing batch.
 
 ## 🟠 Open — known, not yet resolved, not blocking
 
+### O0. `dG_separated` at `nstruct=1` cannot reliably rank candidates
+**Raised 2026-09-30. This is the tightest constraint on candidate selection and
+it is upstream of every selector question.**
+
+Measured on 20 production candidates × 3 independent Rosetta runs, spread across
+the hotspot range:
+
+| | without forced SS | with forced SS |
+|---|---:|---:|
+| ICC of a single dG | 0.579 | 0.647 |
+| within-candidate sd, median | 3.34 | 3.48 |
+| max–min spread, median | 5.98 | 6.87 |
+| max–min spread, worst | 26.84 | 23.51 |
+| correlation ceiling √ICC | 0.761 | 0.805 |
+| **rank stability (mean Spearman, run vs run)** | **0.710** | **0.614** |
+| **top-5 overlap, two single runs** | **3.3 / 5** | **3.0 / 5** |
+
+**Two independent runs agree on only ~3 of the top 5 candidates.** Since picking
+a synthesis list *is* a top-N problem, a single-shot dG is not fit for it.
+
+Forcing the designed disulfide (v3.3.5) did not repair this. ICC rose, but only
+because the between-candidate spread widened from 6.96 to 11.05; within-candidate
+noise was unchanged and rank stability *fell*. That result contradicted the
+hypothesis it was built to test, which was that the 42% of candidates relaxing
+without a disulfide were the noise source.
+
+Mitigating factors, both partial:
+- The variance concentrates in poor binders (r = +0.309 between mean dG and
+  replicate sd; worse half median sd 5.74 against 3.39 for the better half), so
+  the noisiest candidates are ones that would be discarded anyway.
+- Averaging helps measurably: the 3-run mean recovers 3.7/5 against a single
+  run's 3.3/5.
+
+**Untested and the obvious next step:** `-relax:fast -nstruct 1` is a single
+stochastic trajectory of a reduced protocol. Interface work normally uses
+`nstruct` 5–20. Whether that gives usable rank stability, and at what cost, has
+not been measured. No choice of Stage 3 selector feature can exceed √ICC, so this
+caps the whole selection problem.
+
+### O0b. `dG_separated` is a size measure, so ranking on it favours long peptides
+
+`r(dSASA_int, dG_separated) = −0.766`; `r(nres_int, dG) = −0.665`. Mean dG runs
+−32.77 at length 9 to −43.93 at length 14 — about 2 Rosetta Energy Units per
+extra residue purely for being bigger. In the selector search, **all 12
+top-ranked ridge models contained `length`**: the search found size because the
+target rewards it.
+
+`InterfaceAnalyzer` reports `dG_separated/dSASAx100`, which removes the confound
+(r with dSASA 0.766 → 0.124) — but against that normalised target **every Stage 3
+feature collapses to near zero** (hotspot −0.023, i_ptm −0.114, centroid +0.088).
+So the feature correlations reported for the selector were largely measuring
+interface size, not binding quality.
+
+Which target should pick the synthesis list — total, normalised, or size-capped —
+is a scientific judgement and is **not settled by the data**. It determines what
+gets made.
+
+> `dG_separated` is in Rosetta Energy Units, not kcal/mol, and is a
+> single-structure score difference: no peptide conformational entropy, no
+> explicit solvent, no ensemble. It is a ranking heuristic, not an affinity, and
+> has never been validated against a measured Kd for this target.
+
 ### O1. The BBB classifier is not usable on this molecule class
 **Escalated 2026-09-28 — this is now stronger than "needs re-measuring".**
 

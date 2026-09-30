@@ -384,6 +384,26 @@ parameter.
 
 **Order: Rosetta first, then Boltz2 pose agreement on the best.**
 
+> **Boltz2 confirmed over AF3, 2026-09-30 (v3.3.5).** The v3.3.0 preference for
+> AF3 rested on n=2 and does not survive n=27 paired on identical inputs: median
+> peptide RMSD against AfCycDesign 6.54 Å (AF3) vs 6.61 Å (Boltz2), AF3 closer in
+> only 14 of 27, and Boltz2 correlates better with `dG_separated` (+0.612 vs
+> +0.499) at ~4× lower cost. **Pose agreement is a confirmatory FLAG, not a
+> gate** — no threshold enriches without heavy loss (≤4 Å gives 2.25× enrichment
+> but discards 6 of the 9 best binders), and within the top half by dG its
+> correlation falls to 0.249.
+
+> **Rosetta now forces the designed disulfide (v3.3.5).** This document's claim
+> that the bond is "enforced downstream … Rosetta rebuilds it under constraint"
+> was not implemented until 2026-09-30: 42% of candidates were being relaxed as
+> linear peptides. `rosetta_stage4_worker.sh` passes `-in:fix_disulf` (pose
+> numbering) to both `relax` and `InterfaceAnalyzer`. It also applies
+> `CTERM_AMIDATION` — the molecules are C-terminal amides, as oxytocin is.
+
+> **`dG_separated` at `nstruct=1` is not reliable enough to rank on.** Two
+> independent runs agree on ~3 of the top 5 candidates. See `LIMITATIONS.md` O0
+> before using it to select a synthesis list.
+
 > **Rosetta MUST run concurrently with docking, not after it.** Its ~78.5 CPU-h
 > only "overlap" if CPU workers are started alongside the GPU workers and
 > consume candidates as they clear Stage 3. Run sequentially it *stacks*:

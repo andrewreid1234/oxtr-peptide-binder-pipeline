@@ -1,8 +1,8 @@
 # Production Run v3 — Methods and Results
 
-**Document version:** v1.1.0
-**Last updated:** 2026-09-29
-**Describes pipeline:** v3.3.4
+**Document version:** v1.2.0
+**Last updated:** 2026-09-30
+**Describes pipeline:** v3.3.5
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
 The record of the **scale-up run** — the first execution of the pipeline at
@@ -21,9 +21,10 @@ values actually produced*. [`LIMITATIONS.md`](LIMITATIONS.md) catalogues what is
 still weak. [`SOP.md`](SOP.md) is the runbook. [`CHANGELOG.md`](CHANGELOG.md)
 holds superseded values.
 
-> **Status: Stages 1 and 2 are complete.** Stage 1 finished 2026-09-29 08:07,
-> Stage 2 at 11:25. All numbers below are final, measured on the full 1500
-> backbones and all 900,000 sequence draws. Stages 3–8 have not started.
+> **Status: Stages 1, 2 and Stage 3 scouting are complete; Stage 3 deepening is
+> running.** Stage 1 finished 2026-09-29 08:07, Stage 2 at 11:25, Stage 3
+> scouting at 15:39. Deepening launched 22:27 on 2026-09-29, 128,608 candidates,
+> projected to finish ~01:30 on 2026-10-01. Stages 4–8 have not started.
 
 ---
 
@@ -582,7 +583,104 @@ the binding constraint, which at 53.4 h versus 54.6 h it is not.
 
 ---
 
-## 5. What this run establishes
+## 5. Stage 3 — Scout docking
+
+### Method
+
+AfCycDesign (`run_afcyc_v3_shard.py`), 4 GPUs, candidates grouped by peptide
+length so the model is built once per group. Scouts selected by
+`select_scouts.py` at **k = 10, seed 1234** — raised from 6 in v3.3.4 because ICC
+had been measured well below the value k=6 was chosen on. Free acid: AfCycDesign
+takes a bare amino-acid string and cannot represent a C-terminal cap.
+
+### Results
+
+**Completed 2026-09-29 15:39:32**, having started 12:09:48 — **3.50 h wall**
+across 4 GPUs, **14.1 GPU-h**, **3.38 s/candidate** per GPU (range 2.94–3.67
+across 7 length groups × 4 shards). **14,987 / 14,987** docked and scored, **zero
+failures**.
+
+| measure | projected | measured |
+|---|---:|---:|
+| throughput | 5.6 s/candidate | **3.38** |
+| cost | 23.3 GPU-h | **14.1** |
+| wall clock | 5.8 h | **3.50 h** |
+
+1.66× faster than budgeted: production length groups hold ~2,100 candidates
+against the validation shard's 14–32, so the per-group model build amortises.
+
+**Scout selection was unbiased.** `select_scouts.py`'s bias check returned mean
+normalised score-rank **0.500** (n = 14,920 ranks, tolerance ±0.100) — the scouts
+are a random sample of each backbone's pool, not the best-scoring members, which
+the backbone-mean estimand requires.
+
+### The gate — q = 0.494
+
+| criterion | count | rate | role |
+|---|---:|---:|---|
+| touches receptor anywhere | 7,523 / 14,987 | 50.2% | diagnostic |
+| disulfide drawn closed (≤4 Å) | 7,487 / 14,987 | 50.0% | diagnostic only |
+| **at the hotspots (≥1 within 8 Å)** | **7,408 / 14,987** | **49.4%** | **GATED** |
+
+**q = 0.494**, against 0.465 projected from 600 validation scouts — 6% better, on
+25× the sample. The disulfide diagnostic reproduces its artefact character (50.0%
+closed against the validation shard's 52.2%), re-confirming the v3.3.0 decision
+to demote it from a gate.
+
+### ICC = 0.331 — the pre-registered check passes
+
+`sampling_parameter_derivation.md` §17 requires ICC be re-estimated on the first
+completed scale-up shard before committing to deepening. On all 1,500 backbones
+with 10 scouts each:
+
+| | ICC | reliability at k=6 | at k=10 | at k=14 |
+|---|---:|---:|---:|---:|
+| pilot (S=4) | 0.562 | 0.885 | — | — |
+| validation shard (S=600) | 0.358 | 0.770 | 0.848 | 0.886 |
+| **production (n=1,500)** | **0.331** | 0.748 | **0.832** | 0.874 |
+
+**k = 10 delivers reliability 0.832.** k = 6 would have given 0.748, so the v3.3.4
+decision to raise it was correct.
+
+ICC rose monotonically as longer peptides entered the scored set — 0.224 (length 8
+only) → 0.245 → 0.280 → 0.300 → **0.331** (all lengths). The early sub-0.30
+readings were an artefact of the first and shortest length group, and the i_ptm
+distribution shifted with it (median 0.170 → 0.216; fraction ≥0.30 rising 18.3% →
+42.8%). Longer peptides make more receptor contacts and score higher, and that
+length-driven spread is between-backbone variance.
+
+### Backbone ranking and the deepening set
+
+| percentile | mean i_ptm | backbone |
+|---|---:|---|
+| best | 0.662 | shard2_out_77 |
+| p10 | 0.404 | — |
+| p25 | 0.338 | — |
+| **median (the f=0.50 cut)** | **0.264** | shard2_out_149 |
+| p75 | 0.199 | — |
+| worst | 0.119 | shard0_out_257 |
+
+mean 0.273, sd 0.091.
+
+Deepening selects by **MAX i_ptm, not mean** — see `select_deepening.py` and
+CHANGELOG v3.3.5 for the split-half evidence. At f = 0.50 that is **747
+backbones** (3 of the 750 kept have nothing left to deepen) and **128,608
+candidates**, cut at max i_ptm 0.4589, best 0.7722.
+
+Disk: 2.8 GB. `stage3_gate.csv` holds all 14,987 with `ss_dist`,
+`contact_pairs`, `hotspot_contacts`, `centroid_dist`.
+
+### Verdict
+
+Scouting did what it was designed to do and cost 60% of budget. q came in above
+projection and the pre-registered ICC check passes, so the scout-and-deepen
+allocation is justified on measured production data rather than pilot
+extrapolation. Nothing here speaks to binding — i_ptm is a predicted-alignment
+confidence, not an energy.
+
+---
+
+## 6. What this run establishes
 
 ### Established
 
@@ -647,5 +745,6 @@ the binding constraint, which at 53.4 h versus 54.6 h it is not.
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.2.0** | 2026-09-30 | Added §5 *Stage 3 — Scout docking*: 14,987 candidates in 3.50 h / 14.1 GPU-h (3.38 s/candidate, 1.66x faster than the 5.6 s budget), zero failures; **q = 0.494** against 0.465 projected; **ICC = 0.331** on all 1,500 backbones, which passes derivation §17's pre-registered check and confirms k=10 (reliability 0.832 against k=6's 0.748); scout bias check exactly 0.500; backbone-mean distribution and the f=0.50 / MAX-i_ptm deepening set of 128,608 candidates over 747 backbones. Status block updated: deepening launched 2026-09-29 22:27. Renumbered *What this run establishes* to §6. |
 | **v1.1.0** | 2026-09-29 | Added `prod_fig8_chemical_space.png` (four panels: sampling vs accessible space, per-position entropy with the pins at exactly 0.00 bits, the charge/hydrophobicity density map, and exact-vs-chemical-pattern counts) from the new `scripts/viz/plot_chemical_space.py`, which reads `unique_sequences.csv` directly so the figure cannot drift from the pool. Set scout depth **k = 6 → 10** across `select_scouts.py`, `dedupe_sequences.py`, `SOP.md`, `SUMMARY.md` and the derivation's locked-spec table. Applied **`--omit_AAs CMX`**. Added §3 *Chemical space explored* (27 scaffold classes; coverage 10⁻⁴–10⁻¹¹ of accessible space; designable-position entropy 3.24 of 4.17 bits = 78% of maximum, with the two cysteine positions at exactly 0.00; physicochemical envelope; ~110,845 distinct physicochemical patterns behind the 265,700 exact sequences) and §4 *Stage 3 allocation — scout depth k* (cost/reliability table for k = 4–14 from the realised pool; k = 10 recommended, +2.2% dockings for reliability 0.770 → 0.848 at the measured ICC = 0.358). Corrected Stage 1 cost 33.6 → **35.0 GPU-h** and added Stage 2 at 7.8 GPU-h. Added the cause of the single `X` residue — ProteinMPNN's 21-token alphabet leaves X samplable when `--omit_AAs CM` masks only C and M — with the one-character fix `--omit_AAs CMX`. Recorded that the realised pool of 265,700 makes the Stage 3 projection in `CHANGELOG.md` v3.3.3 (151,275 dockings / 235 GPU-h) ~9% too high. |
 | **v1.0.0** | 2026-09-29 | Created. Stages 1 and 2 complete and final: 1500 backbones in 33.6 GPU-h, then 900,000 sequence draws yielding a pool of 265,700 unique sequences. Seven figures and four analysis CSVs under `analysis/production_v3/`. First report of the epitope-recovery result: the run reproduces 29/33 of native oxytocin's contacts in 7RYC from an eight-residue hotspot hint, with O315 and O187 — both native contacts, neither requested — dominating the designed interface. Also records the 98-fold per-backbone yield spread and one `X`-containing sequence to drop before Stage 3. |
