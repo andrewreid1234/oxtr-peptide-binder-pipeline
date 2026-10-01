@@ -104,6 +104,41 @@ gets made.
 > explicit solvent, no ensemble. It is a ranking heuristic, not an affinity, and
 > has never been validated against a measured Kd for this target.
 
+### O0c. Stage 3 produced 87,338 survivors; Stage 4 cannot run on them
+**Raised 2026-10-01, when Stage 3 completed. This is the critical-path decision.**
+
+Stage 3's realised pass rates were 0.494 (scouting) and **0.622** (deepening),
+combining to **87,338 survivors from 143,595 candidates**. At the measured Stage 4
+cost of 1,245 s per candidate on 64 cores that is **19.7 days** — worse than the
+15.7 days projected when only the scouting q was known, because the deepening
+selector *raised* the pass rate.
+
+So a cap is not optional. Three facts constrain how it can be set:
+
+1. **A flat top-N on global i_ptm selects for length.** Median i_ptm runs 0.177
+   at length 8 to 0.379 at length 14 (§5b of `PRODUCTION_RUN_v3.md`) — a 2.1x
+   spread that is contact count, not binding quality. This is the Stage 3 analogue
+   of O0b's size confound at Stage 4, and it is present in the ranking feature
+   itself.
+2. **A flat top-N also collapses backbone diversity.** The top 500 survivors come
+   from **123 of 747** deepened backbones, the top 1,000 from 188, the top 5,000
+   from 479. Per-backbone q spans 0.000–1.000 (median 0.645) and 3 backbones
+   yielded zero survivors from a complete deepening set.
+3. **The ranking cannot be validated against dG yet.** O0 caps any Stage 3→Stage 4
+   correlation at √ICC ≈ 0.76–0.81, and the 200-candidate selector validation was
+   run before the forced disulfide, so 42% of it scored linear peptides and it
+   needs re-running (~35 min) once the `nstruct` question in O0 is settled.
+
+The two convergent sequence motifs at the top of the pool — a `C[LI]..S[YW]..C`
+12-mer and a `CFSY[HY]EC-RR` 10-mer, both recurring across different backbones —
+mean **diversity has to be an explicit constraint on the shortlist**, not a
+property the i_ptm ranking will supply on its own.
+
+> Stratifying the cap by backbone and by length is the obvious structural fix,
+> but the number of candidates to keep still depends on which Stage 4 target picks
+> the synthesis list (O0b) and on the `nstruct` cost multiplier (O0). **Those two
+> decisions gate this one and are the user's to make.**
+
 ### O1. The BBB classifier is not usable on this molecule class
 **Escalated 2026-09-28 — this is now stronger than "needs re-measuring".**
 

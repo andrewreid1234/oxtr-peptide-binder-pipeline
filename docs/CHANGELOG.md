@@ -11,9 +11,60 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.6 — 2026-10-01
+
+**Current.** No methodology or threshold change. Stage 3 completed, and its
+realised figures replace the last projection in the Stage 3 cost chain.
+
+### Stage 3 is complete: 132.8 GPU-h, not 235
+
+| | documented | realised |
+|---|---:|---:|
+| dockings | 151,275 (v3.3.3) / 137,350 (§4 re-derivation) | **143,595** |
+| GPU-h | 235 (v3.3.3) / 213.7 (§4) | **132.8** |
+| wall clock, 4 GPUs | — | **33.1 h** |
+| failures | — | **0** |
+
+The deepening half came in at **118.7 GPU-h against 120.7 projected — within
+2%**. That projection was the first in this project made from measured production
+throughput rather than pilot extrapolation, and it held. The v3.3.3 figure of 235
+GPU-h was 77% high; it was computed from a pre-run pool estimate of ~289,000 at
+the pilot's 5.6 s/candidate, and both inputs were wrong (realised pool 265,700,
+realised 3.2–3.4 s/candidate).
+
+Docking count exceeds §4's 137,350 because scout depth went to k = 10 (v3.3.4)
+after §4's table was written at k = 6.
+
+### q = 0.622 at deepening, against 0.494 at scouting
+
+Not a gate drift — the same `stage3_gate.py` at the same 8 Å hotspot threshold.
+Deepening ran only on the top 50% of backbones by MAX i_ptm, so a higher
+hotspot-engagement rate is the selector's expected signature. i_ptm median
+0.216 → **0.341**; fraction ≥ 0.30 42.8% → **56.2%**. Combined q = **0.608**,
+**87,338 survivors**.
+
+### The better pass rate makes Stage 4 worse
+
+87,338 survivors × 1,245 s / 64 cores = **19.7 days**, against 15.7 days
+projected at q = 0.494. Stage 4 cannot run uncapped and the cap is now the
+critical-path decision — logged as **`LIMITATIONS.md` O0c**, which also records
+the two structural reasons a flat top-N on i_ptm is the wrong cap: it selects for
+length (median i_ptm 0.177 at length 8 → 0.379 at length 14) and it collapses
+backbone diversity (top 500 survivors from 123 of 747 backbones). O0c is gated on
+O0 (`nstruct`) and O0b (which dG target picks the list), both still open.
+
+### Superseded by this entry
+
+- v3.3.3's Stage 3 projection of 151,275 dockings / ~235 GPU-h.
+- `PRODUCTION_RUN_v3.md` §4's re-derivation of 137,350 dockings / 213.7 GPU-h,
+  which was correct for its stated k = 6 but was superseded by k = 10 in v3.3.4.
+- The 15.7-day Stage 4 estimate, which assumed Stage 3 q = 0.494 throughout.
+
+---
+
 ## Pipeline v3.3.5 — 2026-09-30
 
-**Current.** One restored step, one settled decision, and four measurements that
+One restored step, one settled decision, and four measurements that
 replace projections. No threshold change at Stage 3.
 
 ### RESTORED: Rosetta forces the designed disulfide

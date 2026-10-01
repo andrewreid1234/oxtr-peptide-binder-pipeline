@@ -2,7 +2,7 @@
 
 **Document version:** v1.2.0
 **Last updated:** 2026-09-30
-**Describes pipeline:** v3.3.5
+**Describes pipeline:** v3.3.6
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
 The record of the **scale-up run** — the first execution of the pipeline at
@@ -21,10 +21,12 @@ values actually produced*. [`LIMITATIONS.md`](LIMITATIONS.md) catalogues what is
 still weak. [`SOP.md`](SOP.md) is the runbook. [`CHANGELOG.md`](CHANGELOG.md)
 holds superseded values.
 
-> **Status: Stages 1, 2 and Stage 3 scouting are complete; Stage 3 deepening is
-> running.** Stage 1 finished 2026-09-29 08:07, Stage 2 at 11:25, Stage 3
-> scouting at 15:39. Deepening launched 22:27 on 2026-09-29, 128,608 candidates,
-> projected to finish ~01:30 on 2026-10-01. Stages 4–8 have not started.
+> **Status: Stages 1, 2 and 3 are complete.** Stage 1 finished 2026-09-29 08:07,
+> Stage 2 at 11:25, Stage 3 scouting at 15:39, Stage 3 deepening at **04:04 on
+> 2026-10-01**. Stage 3 total: 143,595 candidates docked, 33.1 h wall,
+> 132.8 GPU-h, zero failures, **87,338 survivors** (q = 0.608). Stages 4–8 have
+> not started. **Stage 4 is blocked on the cap decision** — 87,338 survivors is
+> 19.7 days of Rosetta on 64 cores (§5b).
 
 ---
 
@@ -680,6 +682,118 @@ confidence, not an energy.
 
 ---
 
+## 5b. Stage 3 — Deepening docking
+
+Launched 2026-09-29 22:27, completed **2026-10-01 04:04:15**. The 747 backbones
+selected at f = 0.50 by MAX i_ptm (§5), all remaining sequences on each.
+
+| | |
+|---|---:|
+| candidates docked and scored | **128,608 / 128,608** |
+| failures | **0** |
+| per shard | 32,152 x 4, exact |
+| wall clock | **29.62 h** on 4 GPUs (1738.3 / 1765.7 / 1750.5 / 1777.0 min) |
+| cost | **118.7 GPU-h** |
+| throughput | 3.24-3.32 s per candidate per GPU |
+| disk | 24 GB |
+
+Shard spread is 2.2% end-to-end, so the sequence-count sharding balanced the
+work as intended; no shard needed a restart.
+
+The projection going in was 120.7 GPU-h. Realised 118.7 — **within 2%**, which
+is the first time a Stage 3 cost estimate in this project has been made from
+measured production throughput rather than pilot extrapolation.
+
+### Gate
+
+```
+centroid dist to native pose     : median 5.22  min 0.07  max 69.04
+touches receptor anywhere        :  81136 / 128608  (63.1%)   diagnostic
+disulfide drawn closed (<= 4.0 A):  78659 / 128608  (61.2%)   diagnostic only
+AT THE HOTSPOTS (>= 1 within 8 A):  79930 / 128608  (62.2%)   GATED
+pass rate q                      : 0.622
+```
+
+**q = 0.622, against scouting's 0.494.** The gap is the deepening selector
+working, not a drift in the gate: deepening ran only on the top half of
+backbones by max i_ptm, so a higher hotspot-engagement rate is the expected
+signature. i_ptm moved with it — median 0.216 -> **0.341**, fraction >= 0.30
+42.8% -> **56.2%**.
+
+### The length confound persists, and widens
+
+| length | n | median i_ptm | >= 0.30 |
+|---:|---:|---:|---:|
+| 8 | 1,340 | 0.177 | 27.7% |
+| 9 | 6,387 | 0.183 | 37.2% |
+| 10 | 21,171 | 0.207 | 43.4% |
+| 11 | 34,157 | 0.339 | 55.7% |
+| 12 | 32,465 | 0.359 | 59.8% |
+| 13 | 23,373 | 0.369 | 65.2% |
+| 14 | 9,715 | 0.379 | 68.5% |
+
+A 14-mer's median i_ptm is **2.1x** an 8-mer's. This is the same monotonic
+length effect seen in scouting's ICC decomposition (§5) and it is not evidence
+that long peptides bind better — more residues make more contacts, and i_ptm is
+a contact-supported confidence. Any selection that ranks the combined pool on
+raw i_ptm will therefore select for length. See `LIMITATIONS.md` O0.
+
+### Backbone identity matters more than the pool average suggests
+
+Over the 747 deepened backbones, per-backbone q spans the full range:
+
+```
+median 0.645    p10 0.256    p90 0.937    min 0.000    max 1.000
+survivors per backbone: median 81, min 0, max 448
+3 backbones produced zero survivors from a full deepening set
+```
+
+A backbone that passed the f = 0.50 cut on its single best scout can still fail
+every one of its remaining sequences. That is an argument for stratifying any
+Stage 4 cap by backbone rather than taking a flat top-N off the global i_ptm
+ranking, which concentrates hard: the **top 500 survivors come from just 123 of
+the 747 backbones**, the top 1,000 from 188, the top 5,000 from 479.
+
+### Stage 3 combined
+
+| | scouting | deepening | **combined** |
+|---|---:|---:|---:|
+| candidates | 14,987 | 128,608 | **143,595** |
+| wall clock | 3.50 h | 29.62 h | **33.1 h** |
+| cost | 14.1 GPU-h | 118.7 GPU-h | **132.8 GPU-h** |
+| q | 0.494 | 0.622 | **0.608** |
+| survivors | 7,408 | 79,930 | **87,338** |
+
+**132.8 GPU-h against the 235 GPU-h carried in `CHANGELOG.md` v3.3.3 — 43%
+under**, and 38% under the 213.7 GPU-h re-derived in §4 from the realised pool.
+The scout-and-deepen allocation is now validated on its own completed run.
+
+Best candidates in the combined pool:
+
+| sequence_id | i_ptm | len | sequence |
+|---|---:|---:|---|
+| shard0_out_276_u334 | 0.834 | 12 | GACLLSWYLCVV |
+| shard0_out_276_u318 | 0.811 | 12 | GSCLLSYALCVV |
+| shard0_out_136_u222 | 0.810 | 10 | GCFSYHECRR |
+| shard3_out_349_u525 | 0.809 | 12 | APICLAGSCVAY |
+| shard1_out_250_u209 | 0.794 | 12 | GICASYHECRRA |
+
+Two sequence families dominate the top of the list — a `C[LI]..S[YW]..C` 12-mer
+motif and a `CFSY[HY]EC-RR` 10-mer motif — and they recur across different
+backbones. Convergent motifs are encouraging as a signal but a liability as a
+synthesis list; **diversity has to be an explicit constraint on the Stage 4
+shortlist**, not something the i_ptm ranking will supply.
+
+### What this costs at Stage 4
+
+87,338 survivors at the measured 1,245 s per candidate on 64 cores is
+**19.7 days**. At q = 0.494 the same arithmetic gave 15.7 days; the better
+deepening pass rate made the Rosetta problem worse, not better. Stage 4
+**cannot run uncapped** and the cap is now the critical-path decision — see
+`LIMITATIONS.md` O0/O0b and the open items in §6.
+
+---
+
 ## 6. What this run establishes
 
 ### Established
@@ -745,6 +859,7 @@ confidence, not an energy.
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.3.0** | 2026-10-01 | Added §5b *Stage 3 — Deepening docking*, which completes the Stage 3 record: 128,608 candidates in 29.62 h / **118.7 GPU-h** (within 2% of the 120.7 projected from measured scouting throughput), zero failures, 2.2% shard spread; **q = 0.622** against scouting's 0.494, with i_ptm median 0.216 → 0.341 and the ≥0.30 fraction 42.8% → 56.2%; the length confound tabulated per length (14-mer median i_ptm 2.1x an 8-mer's); per-backbone q spanning 0.000–1.000 over the 747 deepened backbones with 3 producing zero survivors, which argues for backbone-stratified rather than flat top-N capping at Stage 4; **Stage 3 combined — 143,595 docked, 33.1 h, 132.8 GPU-h, 87,338 survivors, q = 0.608**, 43% under the 235 GPU-h in `CHANGELOG.md` v3.3.3 and 38% under §4's 213.7; the top-5 candidates and the two convergent sequence motifs that make diversity an explicit shortlist constraint; and the Stage 4 arithmetic — **19.7 days uncapped**, worse than the 15.7 days at q = 0.494. Status block updated to Stages 1–3 complete, Stage 4 blocked on the cap decision. |
 | **v1.2.0** | 2026-09-30 | Added §5 *Stage 3 — Scout docking*: 14,987 candidates in 3.50 h / 14.1 GPU-h (3.38 s/candidate, 1.66x faster than the 5.6 s budget), zero failures; **q = 0.494** against 0.465 projected; **ICC = 0.331** on all 1,500 backbones, which passes derivation §17's pre-registered check and confirms k=10 (reliability 0.832 against k=6's 0.748); scout bias check exactly 0.500; backbone-mean distribution and the f=0.50 / MAX-i_ptm deepening set of 128,608 candidates over 747 backbones. Status block updated: deepening launched 2026-09-29 22:27. Renumbered *What this run establishes* to §6. |
 | **v1.1.0** | 2026-09-29 | Added `prod_fig8_chemical_space.png` (four panels: sampling vs accessible space, per-position entropy with the pins at exactly 0.00 bits, the charge/hydrophobicity density map, and exact-vs-chemical-pattern counts) from the new `scripts/viz/plot_chemical_space.py`, which reads `unique_sequences.csv` directly so the figure cannot drift from the pool. Set scout depth **k = 6 → 10** across `select_scouts.py`, `dedupe_sequences.py`, `SOP.md`, `SUMMARY.md` and the derivation's locked-spec table. Applied **`--omit_AAs CMX`**. Added §3 *Chemical space explored* (27 scaffold classes; coverage 10⁻⁴–10⁻¹¹ of accessible space; designable-position entropy 3.24 of 4.17 bits = 78% of maximum, with the two cysteine positions at exactly 0.00; physicochemical envelope; ~110,845 distinct physicochemical patterns behind the 265,700 exact sequences) and §4 *Stage 3 allocation — scout depth k* (cost/reliability table for k = 4–14 from the realised pool; k = 10 recommended, +2.2% dockings for reliability 0.770 → 0.848 at the measured ICC = 0.358). Corrected Stage 1 cost 33.6 → **35.0 GPU-h** and added Stage 2 at 7.8 GPU-h. Added the cause of the single `X` residue — ProteinMPNN's 21-token alphabet leaves X samplable when `--omit_AAs CM` masks only C and M — with the one-character fix `--omit_AAs CMX`. Recorded that the realised pool of 265,700 makes the Stage 3 projection in `CHANGELOG.md` v3.3.3 (151,275 dockings / 235 GPU-h) ~9% too high. |
 | **v1.0.0** | 2026-09-29 | Created. Stages 1 and 2 complete and final: 1500 backbones in 33.6 GPU-h, then 900,000 sequence draws yielding a pool of 265,700 unique sequences. Seven figures and four analysis CSVs under `analysis/production_v3/`. First report of the epitope-recovery result: the run reproduces 29/33 of native oxytocin's contacts in 7RYC from an eight-residue hotspot hint, with O315 and O187 — both native contacts, neither requested — dominating the designed interface. Also records the 98-fold per-backbone yield spread and one `X`-containing sequence to drop before Stage 3. |
