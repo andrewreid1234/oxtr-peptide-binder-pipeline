@@ -41,9 +41,18 @@ structure at no extra cost:
      anywhere on a 285-residue receptor. Measured on pilot structures: 45% of
      predictions had NO atom within 5 A of the receptor.
 
-     Criterion: >= 1 peptide CA within 8 A of a heavy atom of the eight residues
-     RFdiffusion was conditioned on (HOTSPOTS). 8 A because the peptide is
-     represented by CA only here, so a sidechain reaching in is not modelled.
+     Criterion: >= 1 (peptide CA, hotspot heavy atom) PAIR closer than 8 A,
+     over the eight residues RFdiffusion was conditioned on (HOTSPOTS). 8 A
+     because the peptide is represented by CA only here, so a sidechain reaching
+     in is not modelled.
+
+     The reported hotspot_contacts is a count of ATOM PAIRS, ceiling
+     len(peptide) x 78, typically 80-100 for a passer -- not a count of residues
+     and not a count of peptide CA atoms. At the default threshold of 1 all three
+     readings are the same boolean so the gate is unaffected, but they diverge
+     the moment --min-hotspot is raised. hotspot_residues (0-8) is also reported
+     from 2026-10-02 as a bounded, length-insensitive alternative for selector
+     work; it does not gate.
 
      Until 2026-09-28 this counted contacts to the WHOLE receptor -- HOTSPOTS was
      declared below and never referenced -- so it measured a receptor-contact
@@ -98,10 +107,13 @@ def main():
                     help="max SG-SG distance to count the disulfide as formable "
                          "(crystal 2.03; generous default allows a relaxable pose)")
     ap.add_argument("--min-hotspot", type=int, default=1,
-                    help="min peptide CA atoms within 8 A of a hotspot heavy atom. "
-                         "THIS IS THE GATE. Replaces --min-buried, which counted "
-                         "contacts to the whole receptor and so passed peptides "
-                         "sitting anywhere on the 7TM bundle.")
+                    help="min number of (peptide CA, hotspot heavy atom) PAIRS "
+                         "closer than 8 A. THIS IS THE GATE. Replaces --min-buried, "
+                         "which counted contacts to the whole receptor and so passed "
+                         "peptides sitting anywhere on the 7TM bundle. "
+                         "NOTE the unit is ATOM PAIRS, not residues and not peptide "
+                         "CA atoms -- see the comment at hot_contacts below before "
+                         "raising this above 1.")
     ap.add_argument("--gate-disulfide", action="store_true",
                     help="also require the disulfide to be drawn closed. OFF by "
                          "default: all 100 parent backbones are bond-compatible "
@@ -165,11 +177,45 @@ def main():
         # lipid-facing surface and the extracellular loops.
         contact_pairs = int((np.linalg.norm(pep[:, None, :] - allO[None, :, :],
                                             axis=2) < 5).sum())
-        # THE GATE: peptide CAs within 8 A of any hotspot heavy atom. 8 A on CA
-        # because the peptide is represented by CA only here, so a sidechain
-        # reaching into the pocket is not modelled.
+        # THE GATE. 8 A on CA because the peptide is represented by CA only here,
+        # so a sidechain reaching into the pocket is not modelled.
+        #
+        # UNITS: this is a count of ATOM PAIRS -- (peptide CA, hotspot heavy atom)
+        # combinations closer than 8 A -- because .sum() runs over the whole
+        # len(pep) x len(hot) boolean matrix. For a 10-mer against the 78 hotspot
+        # heavy atoms the ceiling is 780, and a passing candidate typically scores
+        # 80-100. It is NOT a count of contacting residues and NOT a count of
+        # peptide CA atoms; the help text claimed the latter until 2026-10-02.
+        #
+        # At --min-hotspot 1 all three definitions are the same boolean, so the
+        # production gate (q = 0.622, 87,338 survivors) is unaffected. RAISING the
+        # threshold is where they diverge: --min-hotspot 3 reads as "three residues
+        # must touch" but means "three atom pairs", which ONE CA sitting near three
+        # atoms of ONE hotspot sidechain satisfies. Do not raise it expecting
+        # residue-level semantics.
+        #
+        # Two consequences of the pair count, measured on the n=200 validation set:
+        #   - It is implicitly weighted by hotspot SIDECHAIN SIZE. The eight
+        #     hotspots contribute 7 to 14 heavy atoms each (O188 14, O299 7), so a
+        #     peptide near the bulky ones scores higher for the same engagement.
+        #   - As a selector feature it correlates r = -0.583 with dG_separated,
+        #     against -0.537 for the CA count and -0.530 for hotspot residues
+        #     engaged (0-8). All three lie inside the +/-0.140 CI at n=200.
+        #     BUT their length confounding differs sharply: r with peptide length
+        #     is +0.230 (pairs), +0.418 (CA count, which is near-saturated at
+        #     mean 10.0 and so largely just counts length), +0.078 (residues).
+        #     The bounded residues-engaged form is therefore the better SELECTOR
+        #     feature even though it is marginally the worse correlate -- see
+        #     docs/stage4_selection_derivation.md section 4.
         hot_contacts = int((np.linalg.norm(pep[:, None, :] - hot[None, :, :],
                                            axis=2) < 8.0).sum())
+        # Bounded alternative, 0-8: how many of the eight hotspot residues have at
+        # least one CA within 8 A. Reported for selector work; does NOT gate.
+        hot_residues = sum(
+            1 for h in HOTSPOTS
+            if (np.linalg.norm(pep[:, None, :]
+                               - np.array([a for a in ref["O"][h].values()])[None, :, :],
+                               axis=2) < 8.0).any())
         centroid_dist = float(np.linalg.norm(pep.mean(0) - true_centroid))
 
         ss_ok = (ss == ss) and ss <= args.ss_max
@@ -179,6 +225,7 @@ def main():
             "ss_dist": round(ss, 2) if ss == ss else "",
             "contact_pairs": contact_pairs,
             "hotspot_contacts": hot_contacts,
+            "hotspot_residues": hot_residues,
             "centroid_dist": round(centroid_dist, 2),
             "disulfide_ok": int(ss_ok),
             "pocket_ok": int(pocket_ok),

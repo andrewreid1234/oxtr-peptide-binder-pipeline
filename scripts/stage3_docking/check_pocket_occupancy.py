@@ -31,8 +31,18 @@ apply that transform to the peptide chain, then report:
 
   centroid_dist   A between the predicted peptide centroid and oxytocin's
   min_hotspot     A from the nearest peptide CA to the nearest hotspot CA
-  hotspot_contacts  peptide CA atoms within 8 A of any hotspot CA
-  buried_contacts   peptide CA atoms within 5 A of any receptor heavy atom
+  hotspot_contacts  (peptide CA, hotspot CA) PAIRS closer than 8 A -- a count of
+                    atom pairs, ceiling len(peptide) x 8, NOT a count of peptide
+                    CA atoms. Corrected 2026-10-02.
+  buried_contacts   (peptide CA, receptor heavy atom) PAIRS closer than 5 A --
+                    likewise a pair count, not a CA count.
+
+  NAME COLLISION, read this before comparing outputs. stage3_gate.py also emits a
+  column called hotspot_contacts, and it is a DIFFERENT quantity: it pairs peptide
+  CA against all 78 HEAVY atoms of the eight hotspot residues, not against their 8
+  CA atoms. For the same structure the gate's value is roughly an order of
+  magnitude larger (shard0_out_136_u222: 81 by the gate's definition). The two
+  numbers are not interchangeable and must not be pooled or plotted together.
 
 Reference values from the crystallographic pose (7RYC chain L):
   centroid_dist 0.00, min_hotspot 5.0 A, buried_contacts 14

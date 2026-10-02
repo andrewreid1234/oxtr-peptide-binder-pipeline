@@ -1,12 +1,25 @@
 #!/usr/bin/env python
 """Settle the Stage 3 -> Stage 4 selector on production data.
 
-Rosetta uncapped on the full Stage 3 output is ~15.7 days on 64 cores at the
-measured q = 0.494, so a cap is unavoidable and the ranking that fills it decides
-what physics ever sees. Fitted on the pilot's 27 candidates, hotspot_contacts
-(r = -0.680) beat i_ptm (-0.575), which is what the pipeline plans to rank on --
-but the 95% CI half-width at n=27 is ~0.35, so they overlapped, and those 27 were
-a pre-filtered shortlist with a restricted range.
+Rosetta uncapped on the full Stage 3 output is 19.7 days on 64 cores -- 87,338
+survivors at the combined q = 0.608, updated 2026-10-01 when Stage 3 finished;
+this file previously said 15.7 days at q = 0.494, which was the scouting-only
+rate. A cap is unavoidable and the ranking that fills it decides what physics ever
+sees. Fitted on the pilot's 27 candidates, hotspot_contacts (r = -0.680) beat
+i_ptm (-0.575), which is what the pipeline planned to rank on -- but the 95% CI
+half-width at n=27 is ~0.35, so they overlapped, and those 27 were a pre-filtered
+shortlist with a restricted range.
+
+Two caveats on the `hotspot` feature read below, both established 2026-10-02 and
+documented in docs/stage4_selection_derivation.md section 4c:
+  - hotspot_contacts is a count of ATOM PAIRS (peptide CA x 78 hotspot heavy
+    atoms), not of contacts or residues. The gate's help text said otherwise until
+    that date.
+  - It is implicitly weighted by hotspot sidechain size, and carries an r = +0.230
+    correlation with peptide length. The bounded hotspot_residues (0-8) form
+    correlates with dG essentially as well (-0.530 vs -0.583, inside the CI) at
+    r = +0.078 with length, and is the recommended selector feature. It is not
+    read here because the production gate CSVs predate it.
 
 This re-fits on a random sample of production survivors with an unrestricted
 range, and reports leave-one-out cross-validated performance so the comparison is

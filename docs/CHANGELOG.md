@@ -11,9 +11,87 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.8 — 2026-10-02
+
+**Current.** One units bug in a docstring, found by reading a reported number and
+asking whether it could be true. No result changes; one recommendation does.
+
+### FIXED: `hotspot_contacts` counts ATOM PAIRS, not contacts
+
+`stage3_gate.py`'s `--min-hotspot` help text read "min peptide CA atoms within 8 A
+of a hotspot heavy atom". The code computes something else:
+
+```python
+hot_contacts = int((np.linalg.norm(pep[:, None, :] - hot[None, :, :], axis=2) < 8.0).sum())
+```
+
+`.sum()` runs over the whole `len(peptide) x len(hot)` boolean matrix, and `hot` is
+the **78 heavy atoms** of the eight hotspot residues. So the quantity is a count of
+(peptide CA, hotspot heavy atom) PAIRS, ceiling 780 for a 10-mer. The reported
+value of **81** for `shard0_out_136_u222` is 81 pairs; the same structure has 9
+peptide CA in contact and 7 of 8 hotspot residues engaged.
+
+Found 2026-10-02 from the question "how can one of the peptides have 81 hotspot
+contacts?" — which a 10-residue peptide cannot, under any reading of the name.
+
+**No production result is affected.** At the default `--min-hotspot 1`, "≥1 pair",
+"≥1 CA" and "≥1 residue" are the same boolean, so q = 0.622 and the 87,338
+survivors stand, as does every q in this changelog.
+
+**The latent trap was in raising the threshold**, which this project had already
+floated as the way to tighten the gate: `--min-hotspot 3` reads as "three peptide
+residues must touch" and means "three atom pairs", satisfiable by ONE CA beside
+three atoms of ONE hotspot sidechain. It would have weakened the gate while
+appearing to tighten it.
+
+Fixed: help text and module docstring now state the unit, with a comment at the
+computation giving the ceiling, the trap and the measured alternatives.
+
+### NEW: `hotspot_residues`, and a selector recommendation that changes
+
+`stage3_gate.py` now also emits `hotspot_residues` — how many of the eight hotspot
+residues have at least one peptide CA within 8 A, bounded 0-8. Reported only; it
+does not gate. MINOR by `SOP.md`'s rule (new informational check).
+
+Measured on the n = 200 validation set, the three readings of the same geometry:
+
+| definition | mean | r vs dG | partial r, length controlled | r with length |
+|---|---:|---:|---:|---:|
+| atom pairs (current) | 93.6 | -0.583 | -0.559 | +0.230 |
+| peptide CA (what the text claimed) | 10.0 | -0.537 | -0.494 | **+0.418** |
+| hotspot residues engaged (0-8) | 5.8 | -0.530 | -0.528 | **+0.078** |
+
+All three r values are inside the +/-0.140 CI at n = 200, so the misdocumented one
+is marginally the best *correlate*. The difference that matters is the confound:
+the CA count is near-saturated (mean 10.0 against lengths 8-14) and so largely
+counts peptide length, while the bounded residues form cannot be inflated by length
+at all.
+
+Since v3.3.7 established that every high-scoring selector model is buying `length`,
+**the recommended selector feature changes from `hotspot_contacts` to
+`hotspot_residues`** — nearly as predictive, almost free of the confound. Logged as
+open decision #5 in `stage4_selection_derivation.md` because it needs the gate
+re-run over 143,595 structures (~5 h CPU) to exist in the production CSVs.
+
+Also recorded: the pair count is implicitly weighted by hotspot **sidechain size**
+(O188 contributes 14 heavy atoms, O299 only 7), so part of its correlation with dG
+may be hotspot volume rather than peptide engagement. `hotspot_residues` counts each
+hotspot once and does not have this property.
+
+### Superseded by this entry
+
+- Any description of `hotspot_contacts` as a count of contacts, residues or peptide
+  CA atoms — including `stage3_gate.py`'s own help text before today.
+- v3.3.7's recommendation of `hotspot` as the selector feature, which meant the pair
+  count.
+- Earlier suggestions that the gate could be tightened by raising `--min-hotspot`,
+  made without stating that the unit is pairs.
+
+---
+
 ## Pipeline v3.3.7 — 2026-10-02
 
-**Current.** Documentation only. No code, methodology or threshold change. Three
+Documentation only. No code, methodology or threshold change. Three
 gaps closed, all of the same kind: analysis that existed only in conversation or
 only in `/scratch`, and so was invisible to anyone reading the repo.
 

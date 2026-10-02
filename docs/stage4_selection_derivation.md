@@ -1,6 +1,6 @@
 # Stage 4 selection — what goes into Rosetta, and what comes out
 
-**Describes pipeline:** v3.3.6 · **Document version:** v1.0.0 · 2026-10-02
+**Describes pipeline:** v3.3.6 · **Document version:** v1.1.0 · 2026-10-02
 
 Stage 3 produced **87,338 survivors**. Rosetta cannot run on them: at the
 measured 1,245 s per candidate on 64 cores that is **19.7 days**. This document
@@ -42,7 +42,8 @@ mean anything.
 | Term | Meaning |
 |---|---|
 | `i_ptm` | AfCycDesign's predicted interface TM-score, 0–1. Confidence that the *interface* is modelled correctly. **Not an energy** — it says nothing about affinity. |
-| `hotspot_contacts` | Number of peptide Cα atoms within 8 Å of a heavy atom of the eight receptor residues RFdiffusion was conditioned on. This is also the Stage 3 gate. |
+| `hotspot_contacts` | Count of **atom pairs** — every (peptide Cα, hotspot heavy atom) combination closer than 8 Å — over the eight receptor residues RFdiffusion was conditioned on. The eight contribute **78 heavy atoms**, so for a 10-mer the ceiling is 780 and a passer typically scores 80–100. Also the Stage 3 gate, at a threshold of 1. **Not** a count of residues or of peptide Cα; see §4c. |
+| `hotspot_residues` | How many of the eight hotspot residues have at least one peptide Cα within 8 Å, so bounded 0–8. Added 2026-10-02, reported only — does not gate. The length-insensitive alternative to `hotspot_contacts` (§4c). |
 | `centroid_dist` | Distance in Å from the peptide's centre of mass to native oxytocin's pose in 7RYC. Diagnostic — deliberately not a gate, since a de novo binder need not reproduce the native binding mode. |
 | `contact_pairs` | Count of peptide-Cα/receptor-atom pairs under 5 Å. "Touches the receptor anywhere". |
 | `ss_dist` | SG–SG distance between the two designed cysteines, Å. Crystal reference 2.029 Å. |
@@ -148,6 +149,65 @@ the first buys so little and why ridge is needed at all.
 **Partial correlations with length controlled** — the features survive, so they
 are not purely length in disguise: hotspot −0.583 → −0.559, i_ptm −0.477 →
 −0.501, centroid +0.519 → +0.590.
+
+### (c) What `hotspot_contacts` actually counts, and why it matters here
+
+Raised 2026-10-02 by the question "how can one of the peptides have 81 hotspot
+contacts?" — which it cannot, for a 10-residue peptide, under any reading of the
+name.
+
+`hotspot_contacts` is a count of **atom pairs**: `.sum()` runs over the whole
+`len(peptide) x 78` boolean matrix, where 78 is the heavy-atom count of the eight
+hotspot residues. The script's `--min-hotspot` help text described it as "min
+peptide CA atoms within 8 A of a hotspot heavy atom" — a different quantity — until
+corrected on 2026-10-02.
+
+**No result is affected.** At the default threshold of 1, "≥1 pair", "≥1 Cα" and
+"≥1 residue" are the same boolean, so q = 0.622 and all 87,338 survivors stand.
+**The trap is in raising it:** `--min-hotspot 3` reads as *three peptide residues
+must touch the pocket* and means *three atom pairs*, which a single Cα beside
+three atoms of one hotspot sidechain satisfies. Anyone tightening the gate that
+way would weaken it while believing the opposite.
+
+Three readings of the same geometry, measured on the n = 200 validation set:
+
+| definition | mean | r vs dG | partial r, length controlled | **r with length** |
+|---|---:|---:|---:|---:|
+| **atom pairs** (`hotspot_contacts`, current) | 93.6 | **−0.583** | −0.559 | +0.230 |
+| peptide Cα in contact (what the text claimed) | 10.0 | −0.537 | −0.494 | **+0.418** |
+| **hotspot residues engaged** (`hotspot_residues`, 0–8) | 5.8 | −0.530 | −0.528 | **+0.078** |
+
+All three r values lie inside the ±0.140 CI at n = 200, so as *correlates* they are
+indistinguishable and the misdocumented one is marginally the best. What separates
+them is the confound:
+
+- **The Cα count is near-saturated** — mean 10.0 against peptide lengths of 8–14 —
+  so it is substantially just counting peptide length, hence r = +0.418 with
+  length. Had the code done what the text said, the selector would have been
+  worse.
+- **The residues-engaged form is bounded at 8, so length cannot inflate it**:
+  r = +0.078 with length, and its correlation with dG barely moves when length is
+  controlled (−0.530 → −0.528).
+
+Given that §4(b) is precisely the problem that every good-scoring selector buys
+`length`, a feature that is nearly as predictive while being almost free of the
+length confound is the better selector input. **Recommendation: use
+`hotspot_residues` (0–8) as the selector feature and keep `hotspot_contacts` as a
+diagnostic.** This is a selector change, not a gate change — the gate's threshold
+of 1 is unaffected either way.
+
+> Cost note: `hotspot_residues` is emitted by `stage3_gate.py` from 2026-10-02 but
+> the production `stage3_gate.csv` files predate it, so using it requires re-running
+> the gate over the 143,595 structures (roughly 5 h, CPU, no GPU). Not yet done.
+
+### A second artefact of the pair count
+
+The pair count is implicitly **weighted by hotspot sidechain size**. The eight
+hotspots contribute unequally — O188 14 heavy atoms, O200 12, O34 11, down to O299
+with 7 — so a peptide packed against the bulky ones scores higher than one making
+equivalent contact with the small ones. Part of `hotspot_contacts`' correlation
+with dG may therefore be hotspot sidechain volume rather than peptide engagement.
+`hotspot_residues` does not have this property: each hotspot counts once.
 
 ### Why a flat top-N is the wrong shape of cap
 
@@ -280,7 +340,8 @@ These are scientific judgements that the data does not make.
 | 2 | **Which target picks the synthesis list** | raw `dG_separated`, `dG/dSASAx100`, or raw dG within length strata. The ratio is more reliable at the extremes, raw dG orders more stably overall, and the choice is about what you want to synthesise — small efficient binders or large ones. `LIMITATIONS.md` O0b. |
 | 3 | **The cap** | Follows from 1 and 2 plus a wall-clock budget. §3 gives the grid. `LIMITATIONS.md` O0c. |
 | 4 | **Stratum definition** | How many length bands, and the per-backbone quota. Needs 1–3 fixed first. |
-| 5 | **Whether to add a geometric dSASA at Stage 3** | Recommended, not built. A real buried-surface measure at Stage 3 would let the cap select on something physical rather than Cα proximity — but it cannot predict the normalised target either (§5), so it improves the gate, not the selector. |
+| 5 | **Whether to switch the selector feature to `hotspot_residues`** | The analysis in §4c recommends it on confound grounds, but it needs the gate re-run over 143,595 structures (~5 h CPU) to exist in the production CSVs, and the n=200 selector comparison should be redone with the forced disulfide at the same time. |
+| 6 | **Whether to add a geometric dSASA at Stage 3** | Recommended, not built. A real buried-surface measure at Stage 3 would let the cap select on something physical rather than Cα proximity — but it cannot predict the normalised target either (§5), so it improves the gate, not the selector. |
 
 ---
 
@@ -288,4 +349,5 @@ These are scientific judgements that the data does not make.
 
 | version | date | change |
 |---|---|---|
+| **v1.1.0** | 2026-10-02 | Added §4c: `hotspot_contacts` counts ATOM PAIRS (ceiling len(peptide) x 78), not residues and not peptide Cα as the script's help text claimed until today. No result affected — at threshold 1 all readings are the same boolean — but raising `--min-hotspot` would weaken the gate while appearing to tighten it. Measured all three readings against dG on the n=200 set: pairs −0.583, Cα −0.537, residues-engaged −0.530, all within CI, but length confounding +0.230 / +0.418 / +0.078. Recommends `hotspot_residues` (0–8, now emitted by the gate) as the selector feature since it is nearly as predictive and almost free of the length confound that §4b identifies. Also records that the pair count is implicitly weighted by hotspot sidechain size (O188 14 atoms vs O299 7). New open decision #5. |
 | **v1.0.0** | 2026-10-02 | Created. Consolidates the Stage 4 selection analysis that had been reported only in conversation and in two files under `stage_4_validation/`: the IN/OUT framing, the glossary, the cap × `nstruct` budget grid, the n=200 selector comparison with the recovery-vs-correlation conflict and the `length` contamination made explicit, the verified replicate table for raw vs normalised dG, and the five open decisions. Records that the §4 selector numbers predate the forced disulfide and need re-measuring. |
