@@ -639,6 +639,83 @@ unconstrained result highlights which candidates the two tools disagree on.
 - **Output format:** native `.pdb` per candidate (`model.save_pdb(...)`), unlike
   the Boltz2 backup which outputs `.cif` — see comparison note below.
 
+## Stage 4 — Rosetta interface energetics
+
+> **This section was missing until 2026-10-02.** Stage 4 is the most expensive
+> stage in the pipeline and had no runbook entry; it was described only inside
+> the control-experiment notes further down. Added with the production figures.
+
+**What it does.** FastRelax the AfCycDesign complex, then `InterfaceAnalyzer` to
+measure the interface. This is the stage that produces a binding *energy* rather
+than a confidence score — Stage 3's `i_ptm` is a prediction confidence, not an
+energetic quantity.
+
+**Selection, cap and ranking target: see
+[`stage4_selection_derivation.md`](stage4_selection_derivation.md).** Stage 3
+produced 87,338 survivors and running all of them costs 19.7 days on 64 cores, so
+Stage 4 cannot be run unconditionally. That document derives the cap, the
+selector feature and the ranking target, and lists the decisions still open.
+**Do not launch Stage 4 at scale before those are fixed.**
+
+### Per-candidate worker
+
+```bash
+# rosetta_stage4_worker.sh <seq_id> <cys1_pdbnum> <cys2_pdbnum>
+# Paths are env-overridable; defaults reproduce the pilot.
+STAGE4=/scratch/drewdog/denovo_binder_100_pilot_v2/stage_4_rosetta \
+INPUT_DIR=/scratch/drewdog/denovo_binder_100_pilot_v2/stage_3_deepening/afcyc_out \
+  scripts/stage4_rosetta/rosetta_stage4_worker.sh shard0_out_136_u222 3 8
+```
+
+The worker does three things in order, and all three matter:
+
+1. **C-terminal amidation** (`CTERM_AMIDATION`). Our designs are synthesised as
+   amides, so they must be scored as amides. Terminal residue charge goes from
+   −1.001 e (free acid) to −0.021 e — a delta of +0.980 e in exactly the term
+   `fa_elec` and `dG_separated` depend on. Measured over 600 production scouts,
+   the receptor residues nearest the designed C-terminus are positive over
+   negative by 2.6 : 1, so a free carboxylate is spuriously stabilised by
+   receptor lysines the real molecule cannot engage.
+   `net_formal_charge()` reports 0 either way — do not use it to check.
+2. **Forced disulfide** via `-in:fix_disulf`, on **both** `relax` and
+   `InterfaceAnalyzer`. Without it Rosetta falls back to distance-based
+   auto-detection and 42% of candidates relax as linear peptides.
+   `-in:fix_disulf` parses **plain integers as POSE numbering**
+   (`DisulfideFile.cc:200`) — chain-qualified forms like `4B` are rejected. The
+   worker translates PDB to pose numbering via `pdb2pose` and writes
+   `disulf.txt`.
+3. **Score and emit JSON** — `dG_separated`, `dSASA_int`, `sc_value`,
+   `hbonds_int`, `delta_unsatHbonds`, `designed_dslf_fa13`.
+
+> Rosetta names output after the **input** file, which is the amidated structure,
+> so the relaxed PDB is `${SEQ_ID}_amidated_relaxed_0001.pdb` — not
+> `${SEQ_ID}_relaxed_0001.pdb`.
+
+### Measured cost and reliability
+
+| quantity | value |
+|---|---:|
+| per candidate, `nstruct=1`, 1 core | **1,245 s** |
+| throughput on 64 cores | 185 /hour, 4,441 /day |
+| ICC of a single `dG_separated` | **0.579** |
+| correlation ceiling √ICC | 0.761 |
+| top-5 overlap, two identical runs | 3.0–3.3 / 5 |
+
+**Two identical runs agree on only ~3 of the top 5.** `dG_separated` at
+`nstruct=1` is not fit for picking a synthesis list on its own; see
+`LIMITATIONS.md` O0 and the `nstruct` decision in the derivation document.
+
+### Gotchas
+
+- `dG_separated` is in **Rosetta Energy Units, not kcal/mol**, and is a
+  single-structure score difference — no conformational entropy, no explicit
+  solvent, no ensemble. It has never been validated against a measured Kd.
+- It is **size-confounded**: r = −0.766 with `dSASA_int`, about 2 REU per extra
+  residue. Ranking on it favours long peptides.
+- `pgrep -f` self-matches when counting workers. Count with
+  `nvidia-smi --query-compute-apps` for GPU stages, or match on the Rosetta
+  binary name, never the script name.
+
 ## Stage 5 — Blood-brain barrier permeability (B3BPFN)
 
 > **v3.0.0 — this stage no longer gates.** It runs *after* Rosetta and annotates

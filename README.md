@@ -32,14 +32,27 @@ poses — and that candidates exist combining strong predicted binding with
 predicted permeability. **It did not establish that any candidate binds OXTR:**
 there is no wet-lab data yet, and that is the next milestone.
 
-The **scale-up is running.** Its parameters were re-derived on 2026-09-24 after
-two errors were found in the original derivation — most seriously, ProteinMPNN
-was silently dropping the cysteines that form the cyclization bond. Both are
-fixed. **Stages 1 and 2 completed on 2026-09-29**: 1500 backbones in 33.6
-GPU-hours, 99.9% disulfide-compatible and covering 29 of the 33 OXTR residues
-native oxytocin contacts; then 900,000 sequence draws yielding a pool of
-**265,700 unique sequences** with zero disulfide losses. Stage 3 is next.
-Results are in [`docs/PRODUCTION_RUN_v3.md`](docs/PRODUCTION_RUN_v3.md).
+The **scale-up has completed Stages 1–3.** Its parameters were re-derived on
+2026-09-24 after two errors were found in the original derivation — most
+seriously, ProteinMPNN was silently dropping the cysteines that form the
+cyclization bond. Both are fixed.
+
+- **Stages 1 and 2, 2026-09-29**: 1500 backbones in 35.0 GPU-hours, 99.9%
+  disulfide-compatible and covering 29 of the 33 OXTR residues native oxytocin
+  contacts; then 900,000 sequence draws yielding a pool of **265,700 unique
+  sequences** with zero disulfide losses.
+- **Stage 3, 2026-10-01**: 143,595 candidates docked in AfCycDesign across a
+  scout-and-deepen allocation — 33.1 h wall, **132.8 GPU-hours**, zero failures,
+  43% under the documented estimate. **87,338 survivors** pass the pocket-occupancy
+  gate (q = 0.608).
+
+**Stage 4 has not started, and is blocked on a decision rather than on compute.**
+Running Rosetta on all 87,338 survivors would take 19.7 days on 64 cores, so the
+pool must be capped — and the quantity that should rank candidates for synthesis
+is not yet settled. See
+[`docs/stage4_selection_derivation.md`](docs/stage4_selection_derivation.md).
+
+Run results are in [`docs/PRODUCTION_RUN_v3.md`](docs/PRODUCTION_RUN_v3.md).
 
 Computation runs on a remote host ("Woody"). This repo holds documentation,
 automation scripts and lightweight analysis outputs; raw outputs (backbones,
@@ -65,26 +78,32 @@ rather than a linear read.
 **3. [`docs/PRODUCTION_RUN_v3.md`](docs/PRODUCTION_RUN_v3.md) — the scale-up run.**
 What the first production-size run (B = 1500) actually produced, stage by
 stage, with its own figures. Separate from the pilot's evidence above because
-it is a different run at a different size. Stage 1 is complete; Stage 2 is in
-progress.
+it is a different run at a different size. Stages 1-3 are complete; Stage 4 has
+not started.
 
 **4. [`docs/sampling_parameter_derivation.md`](docs/sampling_parameter_derivation.md) — the maths.**
 Why every number is that number, derived from explicit models with stated
 assumptions: how many backbones and sequences, at what temperature, how many to
 dock, how many to synthesise. Ordered to follow the funnel.
 
-**5. [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — where this is weak.**
+**5. [`docs/stage4_selection_derivation.md`](docs/stage4_selection_derivation.md) — the Stage 4 decision.**
+How the 87,338 Stage 3 survivors get cut down to a synthesis list: which feature
+chooses what Rosetta spends time on, which quantity ranks what it produces, what
+each metric means, and what the cap costs. Carries the glossary for every Stage
+3/4 metric, and states plainly which decisions the data does **not** settle.
+
+**6. [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — where this is weak.**
 A living register of known limitations, open questions and unvalidated
 assumptions, each with a status. Versioned alongside the project. Read it before
 trusting any result.
 
-**6. [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what changed and why.**
+**7. [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what changed and why.**
 Version history for the pipeline and its documents. The other documents describe
 only the current working version; superseded values and the reasoning that
 replaced them live here, so an old number can be traced without cluttering the
 live docs.
 
-**7. [`docs/SOP.md`](docs/SOP.md) — how to run it.**
+**8. [`docs/SOP.md`](docs/SOP.md) — how to run it.**
 The operational runbook: exact commands, environment activation, scratch paths,
 per-stage configuration, and every gotcha encountered. Read while typing, not
 while trying to understand the project.
@@ -97,7 +116,7 @@ folder; script folders mirror the SOP's stage numbers.
 ## Layout
 
 ```
-docs/       the seven documents above, plus figures/ and dashboard.html
+docs/       the eight documents above, plus figures/ and dashboard.html
 scripts/    one folder per pipeline stage (mirrors SOP.md's stage numbers)
 analysis/   derived analysis outputs (control results, MD summaries, D_s data)
 logs/       timestamped run logs from the pilot

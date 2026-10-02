@@ -11,9 +11,69 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.3.7 — 2026-10-02
+
+**Current.** Documentation only. No code, methodology or threshold change. Three
+gaps closed, all of the same kind: analysis that existed only in conversation or
+only in `/scratch`, and so was invisible to anyone reading the repo.
+
+### NEW: `stage4_selection_derivation.md`
+
+The Stage 4 selection analysis had been reported verbally and written to two
+files under `stage_4_validation/` on the compute host, but never into the repo.
+It is now a document, structured around the distinction that was causing the
+confusion: **selecting what goes INTO Rosetta and ranking what comes OUT are two
+different jobs** with different available inputs and different answers.
+
+It carries the cap x `nstruct` cost grid, the n=200 selector comparison, the
+verified replicate table for raw vs size-normalised dG, a glossary of every
+Stage 3/4 metric, and the five decisions that are **not** settled.
+
+Two things in it correct earlier project statements:
+
+- **"hotspot beats i_ptm" was only half true.** The paired bootstrap on |r| holds
+  (+0.106, CI [+0.007, +0.197]), but on **top-66 recovery — the measure that
+  matches what a cap actually does — i_ptm wins, 35 against 31.** Correlation and
+  top-N selection are different objectives. The earlier recommendation rested on
+  the bootstrap alone.
+- **The best-scoring selector models are buying `length`.** All 12 top ridge
+  models contain it, and mean dG runs -32.77 at length 9 to -43.93 at length 14.
+  Their higher LOO r is the size confound, not better biology.
+
+Also records, with numbers, that the size-normalised target `dG/dSASAx100` has
+better top-5 reproducibility (4.0/5 vs 3.3/5) and ICC (0.679 vs 0.579) but
+**worse overall rank stability** (0.603 vs 0.710) — it separates the extremes
+more cleanly while being noisier through the middle. Both are true; earlier
+summaries gave only the favourable half.
+
+### NEW: `SOP.md` Stage 4 section
+
+**Stage 4 had no runbook section at all.** The most expensive stage in the
+pipeline was documented only inside the control-experiment notes. Added with the
+worker invocation, the three things the worker does and why each matters
+(C-terminal amidation, forced disulfide, scoring), the measured 1,245 s per
+candidate and 0.579 ICC, and the output-naming and `-in:fix_disulf` numbering
+gotchas.
+
+### FIXED: `README.md` was stale
+
+An outside reader was told "Stage 3 is next" after Stage 3 had finished, and was
+given the superseded **33.6 GPU-h** figure for Stage 1 (corrected to 35.0 in
+v3.3.4). Status block rewritten to Stages 1-3 complete with the realised Stage 3
+figures, and Stage 4 named as blocked on a decision rather than on compute. The
+document index gains the new derivation as #5 and renumbers the rest.
+
+### Superseded by this entry
+
+- Any summary quoting `hotspot` as the selector feature without the recovery
+  caveat.
+- `README.md`'s 33.6 GPU-h and its "Stage 3 is next" status.
+
+---
+
 ## Pipeline v3.3.6 — 2026-10-01
 
-**Current.** No methodology or threshold change. Stage 3 completed, and its
+No methodology or threshold change. Stage 3 completed, and its
 realised figures replace the last projection in the Stage 3 cost chain.
 
 ### Stage 3 is complete: 132.8 GPU-h, not 235

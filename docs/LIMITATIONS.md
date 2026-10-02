@@ -42,6 +42,11 @@ against both a passing and a failing batch.
 
 ## 🟠 Open — known, not yet resolved, not blocking
 
+> **The three O0 entries below are the open decisions of Stage 4. The options,
+> the measured numbers behind each and the cost of each are derived in
+> [`stage4_selection_derivation.md`](stage4_selection_derivation.md); this
+> register records only why each is still open.**
+
 ### O0. `dG_separated` at `nstruct=1` cannot reliably rank candidates
 **Raised 2026-09-30. This is the tightest constraint on candidate selection and
 it is upstream of every selector question.**
