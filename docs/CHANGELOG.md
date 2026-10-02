@@ -11,9 +11,100 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.5.0 — 2026-10-02
+
+**Current.** MAJOR. Three measurements, two of which change settled decisions. The
+Stage 3 length bias is confirmed to be an artefact and is fixed; `NSTRUCT=5` is
+validated and is better than assumed; and the gate is confirmed deterministic.
+
+### MEASURED: the length bias was entirely a placement artefact
+
+216-prediction control suite, `analysis/` report in
+`stage_3_templated_test/controls_report.md`. v4 templates the binder pose
+(`binder_chain` + `use_binder_template`), using the Stage 1 RFdiffusion backbone
+that was diffused in the pocket.
+
+| length | v3 P(near pocket) | v4 P(near pocket) | v3 median i_ptm | v4 median i_ptm |
+|---:|---:|---:|---:|---:|
+| 8 | 0.250 | **1.000** | 0.174 | **0.733** |
+| 11 | 0.600 | **1.000** | 0.334 | **0.736** |
+| 14 | 0.775 | **1.000** | 0.376 | **0.708** |
+
+Spread across lengths **0.467 -> 0.000**, and i_ptm is now flat with length too.
+**There is no real length effect in this system.** Candidates v3 placed 44 A away
+land at 1.17 A (30/30), and candidates v3 placed correctly are preserved (20/20).
+
+### i_ptm is NOT "improved" by templating -- it is rescaled
+
+| arm | median i_ptm |
+|---|---:|
+| real design | 0.762 |
+| scrambled sequence | 0.568 |
+| **poly-Gly, no sidechains** | **0.564** |
+| v3's 95th percentile | 0.552 |
+
+**A poly-Gly peptide outscores 95% of the production run.** The floor moved from
+~0.12 to ~0.56 and the usable range compressed to roughly 0.56-0.83. Paired drops
+are real and perfectly consistent (real minus scramble +0.170, 10/10; minus
+poly-Gly +0.210, 10/10; determinism exactly 0.0000), so i_ptm does discriminate
+sequence on a fixed pose -- but **no v3 threshold can be carried over**, and pose
+specificity is weak (a real sequence on the wrong backbone drops only +0.057).
+
+Consequence: under v4 the pocket-occupancy gate stops filtering (q -> 1.0) and
+Stage 3 needs a calibrated i_ptm threshold. `make_null_calibration_set.py` and
+`analyse_null_calibration.py` specify that calibration: 1,050 predictions, 210
+parents across lengths 8-14, each with shuffle / reversed / composition-matched /
+cross-backbone decoys, paired within backbone. **Specified, not yet run.**
+
+### VALIDATED: NSTRUCT averaging works, and is better than assumed
+
+First execution of the worker at `NSTRUCT>1` (20 candidates x 10 trajectories).
+`nstruct_scored: 10` with ten distinct dG values confirms the v3.4.1 averaging fix
+in execution rather than statically.
+
+The concern in v3.4.0 §6a was that trajectories inside one process might be
+correlated, so `nstruct` would buy less than averaging independent runs. **It does
+not.** Within-process sd is median **3.86**, slightly *larger* than the 3.48
+measured between independent jobs — the trajectories explore at least as freely.
+
+| | ICC single | mean-of-5 reliability |
+|---|---:|---:|
+| `dG_separated` | **0.787** | **0.949** |
+| `dG_separated/dSASAx100` | 0.625 | 0.893 |
+
+Against the 0.873 assumed when `NSTRUCT=5` was locked, so the decision stands on
+measurement and is better than projected. (n=20, so the ICC CI is wide.)
+
+### But NSTRUCT=5 does NOT deliver a reproducible top-5
+
+Split-half over disjoint trajectory sets, 400 draws:
+
+| nstruct | rank stability | top-5 overlap (dG) | top-5 overlap (ratio) |
+|---:|---:|---:|---:|
+| 1 | 0.697 | 2.61 / 5 | 2.78 / 5 |
+| 3 | 0.846 | 3.05 / 5 | 3.51 / 5 |
+| **5** | **0.887** | **3.21 / 5** | **3.77 / 5** |
+
+**Rank stability is fixed; the top-5 is not.** The best candidates are too tightly
+packed for averaging to separate them, so the residual instability is near-ties
+rather than noise. **The synthesis list must not be a top-5.** A larger shortlist
+with the ordering inside it treated as unresolved is the only defensible reading.
+
+The ratio beats raw dG on top-5 overlap at every `nstruct`, independently
+supporting the v3.4.0 ranking-target decision.
+
+### CONFIRMED: the gate is deterministic
+
+Re-ran `stage3_gate.py` over all 143,595 structures to emit `hotspot_residues`.
+Survivors **7,408 + 79,930 = 87,338, identical to the backup taken first**. The
+Stage 3 record reproduces exactly, and `select_stage4_set.py` now has the
+length-insensitive feature it requires.
+
+---
+
 ## Pipeline v3.4.1 — 2026-10-02
 
-**Current.** PATCH. One defect in v3.4.0, found by the user asking for a full
+PATCH. One defect in v3.4.0, found by the user asking for a full
 breakdown of what had changed. No production result is affected because nothing
 had been run yet — but it would have wasted roughly three days of CPU.
 

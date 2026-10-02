@@ -207,7 +207,7 @@ n_todo = sum(len(v) for d in by_len.values() for v in d.values())
 print("[GPU %s] %d candidates from %s (%d to do, %d already done), "
       "%d length group(s), %d backbone(s)"
       % (args.gpu_id, len(mine), os.path.basename(src), n_todo,
-         len(mine) - len(todo), len(by_len),
+         sum(1 for r in mine if r["sequence_id"] in done), len(by_len),
          sum(len(d) for d in by_len.values())), flush=True)
 
 t_start = time.time()
