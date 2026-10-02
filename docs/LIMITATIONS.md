@@ -86,21 +86,37 @@ stochastic trajectory of a reduced protocol. Interface work normally uses
 not been measured. No choice of Stage 3 selector feature can exceed √ICC, so this
 caps the whole selection problem.
 
-> **Status 2026-10-02: `nstruct=5` adopted on assumption, the test was skipped.**
-> Two things therefore rest on untested ground: the 85% cost-scaling behind the
-> 3-day Stage 4 estimate, and the reliability gain itself — because the series
-> 0.579 -> 0.733 -> 0.805 -> 0.873 was measured by **averaging independent
-> replicates**, not by `-nstruct N`.
+> **RESOLVED 2026-10-02 by measurement.** The test was run: 20 candidates x 10
+> trajectories, first execution of the worker at `NSTRUCT>1`.
 >
-> Taking the **best (lowest) dG of N** would not deliver it: that is an
-> extreme-value statistic whose downward bias grows with the noise, and noise here
-> is correlated with poor binding (r = +0.309 between mean dG and replicate sd;
-> worse-half median sd 5.74 against 3.39). Best-of-N would systematically flatter
-> the worst, noisiest candidates. `rosetta_stage4_worker.sh` therefore scores all
-> N structures and reports the **mean**, which does reproduce the measured series.
+> The concern that trajectories inside one process might be correlated, and so buy
+> less than averaging independent runs, is **wrong**. Within-process sd is median
+> **3.86**, slightly *larger* than the 3.48 measured between independent jobs — the
+> trajectories explore at least as freely.
 >
-> This limitation is **mitigated by assumption, not closed.** The 70-minute test
-> would close it; see `stage4_selection_derivation.md` §7 item A.
+> | | ICC, single trajectory | reliability, mean of 5 |
+> |---|---:|---:|
+> | `dG_separated` | **0.787** | **0.949** |
+> | `dG_separated/dSASAx100` | 0.625 | 0.893 |
+>
+> Against the 0.873 assumed when `NSTRUCT=5` was locked, so the decision stands on
+> measurement and is better than projected. n = 20, so the ICC confidence interval
+> is wide.
+>
+> **What remains open is narrower, and it is not noise.** Split-half over disjoint
+> trajectory sets: rank stability rises 0.697 -> 0.887 at `nstruct=5`, but top-5
+> overlap only 2.78 -> 3.77 / 5, and `nstruct=10` barely improves on that. The
+> residual is **near-ties among the best candidates**, which averaging cannot
+> resolve because the candidates are genuinely that close. The practical rule is
+> therefore a constraint on the output, not on the protocol: **the synthesis list
+> must not be a top-5.** Take a larger shortlist and treat its internal order as
+> unresolved.
+>
+> `rosetta_stage4_worker.sh` reports the mean of all N structures, with sd and
+> per-structure values. Taking the **best of N** would be wrong and remains so:
+> an extreme-value statistic whose downward bias grows with the noise, and noise
+> here is correlated with poor binding (r = +0.309), so best-of-N would
+> systematically flatter the worst candidates.
 
 ### O0b. `dG_separated` is a size measure, so ranking on it favours long peptides
 

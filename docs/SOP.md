@@ -740,14 +740,28 @@ The worker does three things in order, and all three matter:
 | quantity | value |
 |---|---:|
 | per candidate, `nstruct=1`, 1 core | **1,245 s** |
-| throughput on 64 cores | 185 /hour, 4,441 /day |
-| ICC of a single `dG_separated` | **0.579** |
-| correlation ceiling √ICC | 0.761 |
-| top-5 overlap, two identical runs | 3.0–3.3 / 5 |
+| throughput on 64 cores, `nstruct=1` | 185 /hour, 4,441 /day |
+| ICC of a single trajectory | **0.787** (measured 2026-10-02, n=20 x 10) |
+| reliability, mean of 5 | **0.949** |
+| reliability, mean of 1 (what v3 used) | 0.787 |
 
-**Two identical runs agree on only ~3 of the top 5.** `dG_separated` at
-`nstruct=1` is not fit for picking a synthesis list on its own; see
-`LIMITATIONS.md` O0 and the `nstruct` decision in the derivation document.
+**`NSTRUCT=5` is measured, not assumed** (2026-10-02, 20 candidates x 10
+trajectories). The earlier concern that trajectories inside one process might be
+correlated — and so buy less than averaging independent runs — is wrong:
+within-process sd is median **3.86**, slightly *larger* than the 3.48 measured
+between independent jobs.
+
+| nstruct | rank stability | top-5 overlap, `dG/dSASAx100` |
+|---:|---:|---:|
+| 1 | 0.697 | 2.78 / 5 |
+| 3 | 0.846 | 3.51 / 5 |
+| **5** | **0.887** | **3.77 / 5** |
+
+> **DO NOT LET THE SYNTHESIS LIST BE "THE TOP 5".** `NSTRUCT=5` fixes the
+> ordering (rank stability 0.89) but the top 5 still reproduces only ~3.8 of 5,
+> and `nstruct=10` barely improves it. That residual is **near-ties, not noise** —
+> the best candidates are genuinely too close together for averaging to separate.
+> Take a larger shortlist and treat the order inside it as unresolved.
 
 ### Gotchas
 

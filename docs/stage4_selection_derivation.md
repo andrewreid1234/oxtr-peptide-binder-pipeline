@@ -1,6 +1,6 @@
 # Stage 4 selection — what goes into Rosetta, and what comes out
 
-**Describes pipeline:** v3.4.0 · **Document version:** v2.0.0 · 2026-10-02
+**Describes pipeline:** v3.5.0 · **Document version:** v2.1.0 · 2026-10-02
 
 Stage 3 produced **87,338 survivors**. Rosetta cannot run on them: at the
 measured 1,245 s per candidate on 64 cores that is **19.7 days**. This document
@@ -311,9 +311,18 @@ chosen, and what accepting it costs.
 | 4 | Selector feature | **`hotspot_residues`** (0–8) | Requires re-running `stage3_gate.py` over 143,595 structures, ~5 h CPU, since the production CSVs predate the column. |
 | 5 | Length allocation | **Proportional to the designed pool** | See §6b. |
 
-### 6a. `nstruct=5` was adopted without the test — two consequences
+### 6a. `nstruct=5` — adopted on assumption, since confirmed by measurement
 
-The `nstruct` test was skipped, so two things in §3 and §5 are assumptions:
+> **Updated 2026-10-02: the test was run and `nstruct=5` holds.** Measured ICC of
+> a single trajectory **0.787**, reliability of the mean of 5 **0.949**, against the
+> 0.873 assumed here. Within-process sd is median 3.86, slightly *larger* than the
+> 3.48 between independent jobs, so the correlated-trajectory worry below is wrong.
+> One thing did not resolve: top-5 overlap reaches only 3.77/5 at `nstruct=5` and
+> barely improves at 10, because the leaders are near-ties. **The synthesis list
+> must not be a top-5.** See `LIMITATIONS.md` O0.
+
+The reasoning as it stood when the decision was taken, retained because the
+averaging rule below is what makes the measurement hold:
 
 **The cost scaling is unverified.** The 3-day figure assumes 85% of per-candidate
 runtime is FastRelax and scales linearly. If the true fraction is higher the run
@@ -428,7 +437,7 @@ rest on measurement and which on assumption, so a later reader can tell them apa
 
 | # | Decision | Status | Basis |
 |---|---|---|---|
-| 1 | `nstruct` = 5 | **assumption** | The test was skipped. The reliability series 0.579 → 0.873 was measured by *averaging replicates*, not by `-nstruct N`, and the 85% cost-scaling in §3 is unverified. Mitigated by averaging the N structures rather than taking the best (§6a). `LIMITATIONS.md` O0 stays open. |
+| 1 | `nstruct` = 5 | **measured 2026-10-02** | Test run on 20 candidates x 10 trajectories. ICC single 0.787, mean-of-5 reliability 0.949 — better than the 0.873 assumed. Within-process sd 3.86 vs 3.48 between jobs, so trajectories are not correlated. Holds only because the worker averages (§6a). Residual: top-5 overlap 3.77/5, near-ties not noise. |
 | 2 | Target = `dG/dSASAx100` | **judgement on measured data** | The ratio is measurably more reliable at the extremes (top-5 overlap 4.0/5 vs 3.3/5, ICC 0.679 vs 0.579) and removes the size confound, but is measurably worse over the whole ordering (0.603 vs 0.710). Which matters more depends on wanting small efficient binders, which the data cannot decide. |
 | 3 | Cap = 3,000 | **budget choice** | §3's grid is measured from 1,245 s/candidate. The *level* is a wall-clock judgement; the data says only what each level costs. |
 | 4 | Feature = `hotspot_residues` | **measured** | r = −0.530 with dG against the pair count's −0.583, inside the ±0.140 CI, at +0.078 length correlation against +0.230 (§4c). The confound reduction is measured; preferring it over the marginally better correlate is the judgement. |
@@ -438,7 +447,8 @@ rest on measurement and which on assumption, so a later reader can tell them apa
 
 | # | Open item | Why |
 |---|---|---|
-| A | **The `nstruct` test itself** | Would convert decision 1 from assumption to measurement. ~70 min, 20 candidates × 10. `LIMITATIONS.md` O0. |
+| A | ~~The `nstruct` test~~ | **DONE 2026-10-02.** Ran in 41 min, not the ~70 min estimated. Confirmed `NSTRUCT=5` (reliability 0.949) and confirmed the v3.4.1 averaging fix executes. Replaced by item A2. |
+| A2 | **How large must the shortlist be?** | `nstruct=5` gives rank stability 0.887 but top-5 overlap only 3.77/5, and `nstruct=10` barely improves it — the leaders are near-ties. The shortlist size at which the membership *is* stable has not been measured, and it sets how many compounds must be synthesised. |
 | B | **Selector re-validation at n = 200** | Every §4 number predates the forced disulfide, so 42% of that set scored as linear peptides. ~35 min. Does not block Stage 4; validates what Stage 4 is using. |
 | C | **Synthesis-list diversity rule** | The cap enforces backbone diversity. The final shortlist also needs sequence-level diversity, since the pool's head is two convergent motifs (§4). Not yet written. |
 | D | **Geometric dSASA at Stage 3** | Would let a future cap select on buried surface rather than Cα proximity. It cannot predict the normalised target either (§5), so it improves the gate, not the selector. Not built. |
@@ -449,6 +459,7 @@ rest on measurement and which on assumption, so a later reader can tell them apa
 
 | version | date | change |
 |---|---|---|
+| **v2.1.0** | 2026-10-02 | `nstruct` moved from assumption to measurement: ICC single trajectory 0.787, mean-of-5 reliability 0.949 (vs 0.873 assumed), within-process sd 3.86 against 3.48 between independent jobs, so the correlated-trajectory concern in §6a was wrong. Added the finding that `nstruct=5` fixes rank stability (0.697 → 0.887) but **not** top-5 membership (2.78 → 3.77/5, and `nstruct=10` barely better) because the leaders are near-ties rather than noisy — so the synthesis list must not be a top-5. New open item A2: what shortlist size *is* stable. |
 | **v2.0.0** | 2026-10-02 | §6 rewritten from *Recommendation* to **Decisions — locked**: nstruct 5 (test skipped, so the reliability gain and the 85% cost-scaling are assumptions), target `dG/dSASAx100`, cap 3,000 at ~3 days, feature `hotspot_residues`, length allocation proportional to the designed pool. New §6a on why `-nstruct 5` must be AVERAGED not minimised (best-of-N is an extreme-value statistic whose bias grows with noise, and noise correlates with poor binding, so it would flatter the worst candidates). New §6b on the allocation anchor — the survivor length shape IS the bias, since q climbs 0.266 to 0.756. New §6c measuring what stratification buys: backbones 392 -> 799, max per backbone 126 -> 5, at a cost of mean i_ptm 0.647 -> 0.471, with the length distributions nearly identical at this n. New §6d procedure and §6e remaining work. §7 rewritten to separate what rests on measurement from what rests on judgement. |
 | **v1.1.0** | 2026-10-02 | Added §4c: `hotspot_contacts` counts ATOM PAIRS (ceiling len(peptide) x 78), not residues and not peptide Cα as the script's help text claimed until today. No result affected — at threshold 1 all readings are the same boolean — but raising `--min-hotspot` would weaken the gate while appearing to tighten it. Measured all three readings against dG on the n=200 set: pairs −0.583, Cα −0.537, residues-engaged −0.530, all within CI, but length confounding +0.230 / +0.418 / +0.078. Recommends `hotspot_residues` (0–8, now emitted by the gate) as the selector feature since it is nearly as predictive and almost free of the length confound that §4b identifies. Also records that the pair count is implicitly weighted by hotspot sidechain size (O188 14 atoms vs O299 7). New open decision #5. |
 | **v1.0.0** | 2026-10-02 | Created. Consolidates the Stage 4 selection analysis that had been reported only in conversation and in two files under `stage_4_validation/`: the IN/OUT framing, the glossary, the cap × `nstruct` budget grid, the n=200 selector comparison with the recovery-vs-correlation conflict and the `length` contamination made explicit, the verified replicate table for raw vs normalised dG, and the five open decisions. Records that the §4 selector numbers predate the forced disulfide and need re-measuring. |
