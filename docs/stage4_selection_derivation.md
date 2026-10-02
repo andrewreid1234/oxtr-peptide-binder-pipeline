@@ -1,6 +1,6 @@
 # Stage 4 selection — what goes into Rosetta, and what comes out
 
-**Describes pipeline:** v3.3.6 · **Document version:** v1.1.0 · 2026-10-02
+**Describes pipeline:** v3.4.0 · **Document version:** v2.0.0 · 2026-10-02
 
 Stage 3 produced **87,338 survivors**. Rosetta cannot run on them: at the
 measured 1,245 s per candidate on 64 cores that is **19.7 days**. This document
@@ -298,50 +298,150 @@ was wrong.
 
 ---
 
-## 6. Recommendation
+## 6. Decisions — locked 2026-10-02
 
-Stated as a recommendation, not a decision. §7 lists what remains the user's
-call.
+These were open until 2026-10-02 and are now settled. Each records what was
+chosen, and what accepting it costs.
 
-**1. Stratify the cap; do not rank the pool on any single feature.** Quota by
-length band × backbone, ranking within each stratum. This removes the length
-confound structurally rather than trusting a model that demonstrably exploits it
-(§4b), and makes diversity a constraint rather than an accident.
+| # | Decision | Chosen | Cost accepted |
+|---|---|---|---|
+| 1 | `nstruct` | **5**, test skipped | The reliability gain is assumed, not measured. See the warning below. |
+| 2 | Ranking target | **`dG_separated/dSASAx100`** | Worse whole-population rank stability (0.603 vs 0.710); favours small efficient binders over large ones. |
+| 3 | Cap | **~3,000 candidates, ~3 days** | 3.4% of survivors. Discards 84,338 structures that passed the geometric gate. |
+| 4 | Selector feature | **`hotspot_residues`** (0–8) | Requires re-running `stage3_gate.py` over 143,595 structures, ~5 h CPU, since the production CSVs predate the column. |
+| 5 | Length allocation | **Proportional to the designed pool** | See §6b. |
 
-**2. Ranker: `dG_separated/dSASAx100` primary, raw `dG_separated` carried
-alongside.** Better top-5 reproducibility, no size confound, and a defensible
-physical quantity — energy per unit of contact. Carrying both costs nothing and
-exposes the cases where they disagree.
+### 6a. `nstruct=5` was adopted without the test — two consequences
 
-**3. Target ~3,000 candidates at `nstruct=5` — about 3 days.** A 3.4% cut of
-87,338, which is severe only if one forgets that the Stage 3 gate is geometric:
-those 87,338 are structures that landed in the pocket, not 87,338 plausible
-binders. Reliability near 0.87 on a small shortlist is worth more than ICC 0.579
-across 30,000.
+The `nstruct` test was skipped, so two things in §3 and §5 are assumptions:
 
-**4. Measure `nstruct` before committing to any of the above** (§7).
+**The cost scaling is unverified.** The 3-day figure assumes 85% of per-candidate
+runtime is FastRelax and scales linearly. If the true fraction is higher the run
+costs more; the first few hundred candidates will show it.
 
-**5. Re-run the 200-candidate selector validation.** Every number in §4 was
-measured before the forced disulfide, so 42% of that set scored as linear
-peptides. ~35 min. Do it after the `nstruct` result so it is done once.
+**`nstruct=5` only buys the reliability in §5 if the N structures are AVERAGED.**
+This is the sharper risk and it is not obvious:
 
-Sequence: `nstruct` test → selector re-run → set cap from budget → Rosetta at
-scale → shortlist with diversity constraint.
+> The reliability series 0.579 → 0.733 → 0.805 → 0.873 was measured by averaging
+> **independent replicate runs**. `-nstruct 5` merely produces five structures.
+> Taking the **best (lowest) dG of five** is an extreme-value statistic: biased
+> downward, with the bias **growing with the noise**. Because replicate noise is
+> correlated with poor binding (r = +0.309 between mean dG and replicate sd;
+> worse-half median sd 5.74 against 3.39), best-of-five would **systematically
+> flatter the worst, noisiest candidates** — the precise opposite of the intent.
+
+`rosetta_stage4_worker.sh` therefore scores **all** `NSTRUCT` structures and
+reports the **mean**, with the sd and per-structure values retained so the spread
+stays auditable per candidate. `LIMITATIONS.md` O0 remains open: the noise floor
+is now mitigated by assumption rather than measured.
+
+### 6b. Length allocation — the anchor, not the shape
+
+The question "should the cap follow the shape of the current dataset?" has a trap
+in it: **the current shape is the bias.** Gate pass rate climbs monotonically with
+length, so the survivor distribution is already bent away from what was designed:
+
+| len | designed pool | survivors | q |
+|---:|---:|---:|---:|
+| 8 | 1.85% | **0.59%** | 0.266 |
+| 9 | 6.76% | 3.59% | 0.391 |
+| 10 | 18.95% | 13.42% | 0.473 |
+| 11 | 23.37% | 26.05% | 0.603 |
+| 12 | 24.24% | 26.59% | 0.654 |
+| 13 | 17.26% | 20.76% | 0.719 |
+| 14 | 7.56% | **8.99%** | 0.756 |
+
+Allocating in proportion to **survivors** gives length 8 eighteen slots of 3,000,
+propagating exactly the bias the normalised ranking target exists to remove.
+Allocating **equally** per band overcorrects: length 8 has only 515 survivors, so
+an equal share would consume 83% of that band, scraping its bottom to meet a quota.
+
+**Chosen: proportional to the designed pool** — the distribution ProteinMPNN
+produced before any length-dependent filter, which is the shape the RFdiffusion
+backbone lengths were chosen to give. Realised allocation matches it to within
+0.02%: 56 / 203 / 568 / 701 / 727 / 518 / 227 across lengths 8–14.
+
+`--short-tilt` can over-weight the short end. Off by default. The argument for
+using it is project-specific: this programme exists because oxytocin does not
+cross the blood-brain barrier, smaller peptides permeate better, and
+under-sampling lengths 8–10 works against the primary objective. It trades
+expected binding for expected permeability, which is a judgement rather than a
+derivation.
+
+### 6c. What stratification actually buys, measured
+
+`select_stage4_set.py` against a flat top-3,000 by i_ptm, both n = 3,000:
+
+| | flat top-3,000 | **stratified** |
+|---|---:|---:|
+| distinct backbones | 392 | **799** |
+| max from one backbone | **126** | 5 |
+| mean length | 11.36 | 11.43 |
+| mean i_ptm | **0.647** | 0.471 |
+| distinct sequences | 3,000 | 3,000 |
+
+**The gain is diversity, not length.** At n = 3,000 the two length distributions
+are nearly identical (mean 11.36 vs 11.43), because the top 3,000 survivors
+already span every length band. The length argument for stratifying is real at
+small n and weak here; what stratification decisively fixes is backbone
+concentration — 392 backbones becomes 799, and no single backbone contributes 126
+candidates.
+
+**It costs mean i_ptm: 0.647 → 0.471.** A real trade, not a free win. It is
+defensible because i_ptm's LOO correlation with dG is only +0.458 and against the
+chosen normalised target it is −0.114, effectively zero — so a weak proxy is being
+spent to buy diversity. If i_ptm carries any signal, some is being given up.
+
+### 6d. Procedure
+
+```bash
+# 1. re-run the gate to emit hotspot_residues (~5 h, CPU, no GPU)
+python scripts/stage3_docking/stage3_gate.py   --pdb_dir $W/stage_3_docking/afcyc_out  --out $W/stage_3_docking/stage3_gate.csv
+python scripts/stage3_docking/stage3_gate.py   --pdb_dir $W/stage_3_deepening/afcyc_out --out $W/stage_3_deepening/stage3_gate.csv
+
+# 2. select the 3,000
+python scripts/stage4_rosetta/select_stage4_set.py   --gate-csv    $W/stage_3_docking/stage3_gate.csv $W/stage_3_deepening/stage3_gate.csv   --results-dir $W/stage_3_docking/afcyc_out       $W/stage_3_deepening/afcyc_out   --pool-csv    $W/stage_2_sequences/unique_sequences.csv   --n 3000 --feature hotspot_residues --per-backbone 5   --out $W/stage_4_rosetta/stage4_set.csv
+
+# 3. Rosetta at NSTRUCT=5 (~3 days on 64 cores)
+NSTRUCT=5 STAGE4=$W/stage_4_rosetta   INPUT_DIR=$W/stage_3_deepening/afcyc_out   scripts/stage4_rosetta/rosetta_stage4_worker.sh <seq_id> <cys1> <cys2>
+
+# 4. rank the output on dG_separated/dSASAx100, applying the diversity constraint
+```
+
+### 6e. Still to do before the shortlist
+
+**Re-run the 200-candidate selector validation.** Every §4 number was measured
+before the forced disulfide, so 42% of that set scored as linear peptides. ~35
+min. It does not block Stage 4 — it validates the selector that Stage 4 is using,
+and should be done while Stage 4 runs.
+
+**Define the synthesis-list diversity constraint.** §4 shows the pool's head is
+two convergent motifs. The cap enforces backbone diversity; the final shortlist
+needs sequence-level diversity too, and that rule is not yet written.
 
 ---
 
-## 7. What is NOT settled
+## 7. What the data did and did not settle
 
-These are scientific judgements that the data does not make.
+The §6 decisions are judgements taken on 2026-10-02. This section records which
+rest on measurement and which on assumption, so a later reader can tell them apart.
 
-| # | Open decision | Why the data cannot settle it |
+| # | Decision | Status | Basis |
+|---|---|---|---|
+| 1 | `nstruct` = 5 | **assumption** | The test was skipped. The reliability series 0.579 → 0.873 was measured by *averaging replicates*, not by `-nstruct N`, and the 85% cost-scaling in §3 is unverified. Mitigated by averaging the N structures rather than taking the best (§6a). `LIMITATIONS.md` O0 stays open. |
+| 2 | Target = `dG/dSASAx100` | **judgement on measured data** | The ratio is measurably more reliable at the extremes (top-5 overlap 4.0/5 vs 3.3/5, ICC 0.679 vs 0.579) and removes the size confound, but is measurably worse over the whole ordering (0.603 vs 0.710). Which matters more depends on wanting small efficient binders, which the data cannot decide. |
+| 3 | Cap = 3,000 | **budget choice** | §3's grid is measured from 1,245 s/candidate. The *level* is a wall-clock judgement; the data says only what each level costs. |
+| 4 | Feature = `hotspot_residues` | **measured** | r = −0.530 with dG against the pair count's −0.583, inside the ±0.140 CI, at +0.078 length correlation against +0.230 (§4c). The confound reduction is measured; preferring it over the marginally better correlate is the judgement. |
+| 5 | Length anchor = designed pool | **measured premise, judged choice** | That the survivor shape is biased is measured (q 0.266 → 0.756 across lengths). That the designed pool is the right anchor is a judgement; `--short-tilt` exists because an even shorter-weighted anchor is defensible on permeability grounds. |
+
+### Still open
+
+| # | Open item | Why |
 |---|---|---|
-| 1 | **`nstruct`** | Unmeasured. `-relax:fast -nstruct 1` is a single stochastic trajectory of a reduced protocol. Whether 5–20 gives usable rank stability, and whether the 85% scaling assumption in §3 holds, requires the test. ~70 min for 20 candidates × 10. `LIMITATIONS.md` O0. |
-| 2 | **Which target picks the synthesis list** | raw `dG_separated`, `dG/dSASAx100`, or raw dG within length strata. The ratio is more reliable at the extremes, raw dG orders more stably overall, and the choice is about what you want to synthesise — small efficient binders or large ones. `LIMITATIONS.md` O0b. |
-| 3 | **The cap** | Follows from 1 and 2 plus a wall-clock budget. §3 gives the grid. `LIMITATIONS.md` O0c. |
-| 4 | **Stratum definition** | How many length bands, and the per-backbone quota. Needs 1–3 fixed first. |
-| 5 | **Whether to switch the selector feature to `hotspot_residues`** | The analysis in §4c recommends it on confound grounds, but it needs the gate re-run over 143,595 structures (~5 h CPU) to exist in the production CSVs, and the n=200 selector comparison should be redone with the forced disulfide at the same time. |
-| 6 | **Whether to add a geometric dSASA at Stage 3** | Recommended, not built. A real buried-surface measure at Stage 3 would let the cap select on something physical rather than Cα proximity — but it cannot predict the normalised target either (§5), so it improves the gate, not the selector. |
+| A | **The `nstruct` test itself** | Would convert decision 1 from assumption to measurement. ~70 min, 20 candidates × 10. `LIMITATIONS.md` O0. |
+| B | **Selector re-validation at n = 200** | Every §4 number predates the forced disulfide, so 42% of that set scored as linear peptides. ~35 min. Does not block Stage 4; validates what Stage 4 is using. |
+| C | **Synthesis-list diversity rule** | The cap enforces backbone diversity. The final shortlist also needs sequence-level diversity, since the pool's head is two convergent motifs (§4). Not yet written. |
+| D | **Geometric dSASA at Stage 3** | Would let a future cap select on buried surface rather than Cα proximity. It cannot predict the normalised target either (§5), so it improves the gate, not the selector. Not built. |
 
 ---
 
@@ -349,5 +449,6 @@ These are scientific judgements that the data does not make.
 
 | version | date | change |
 |---|---|---|
+| **v2.0.0** | 2026-10-02 | §6 rewritten from *Recommendation* to **Decisions — locked**: nstruct 5 (test skipped, so the reliability gain and the 85% cost-scaling are assumptions), target `dG/dSASAx100`, cap 3,000 at ~3 days, feature `hotspot_residues`, length allocation proportional to the designed pool. New §6a on why `-nstruct 5` must be AVERAGED not minimised (best-of-N is an extreme-value statistic whose bias grows with noise, and noise correlates with poor binding, so it would flatter the worst candidates). New §6b on the allocation anchor — the survivor length shape IS the bias, since q climbs 0.266 to 0.756. New §6c measuring what stratification buys: backbones 392 -> 799, max per backbone 126 -> 5, at a cost of mean i_ptm 0.647 -> 0.471, with the length distributions nearly identical at this n. New §6d procedure and §6e remaining work. §7 rewritten to separate what rests on measurement from what rests on judgement. |
 | **v1.1.0** | 2026-10-02 | Added §4c: `hotspot_contacts` counts ATOM PAIRS (ceiling len(peptide) x 78), not residues and not peptide Cα as the script's help text claimed until today. No result affected — at threshold 1 all readings are the same boolean — but raising `--min-hotspot` would weaken the gate while appearing to tighten it. Measured all three readings against dG on the n=200 set: pairs −0.583, Cα −0.537, residues-engaged −0.530, all within CI, but length confounding +0.230 / +0.418 / +0.078. Recommends `hotspot_residues` (0–8, now emitted by the gate) as the selector feature since it is nearly as predictive and almost free of the length confound that §4b identifies. Also records that the pair count is implicitly weighted by hotspot sidechain size (O188 14 atoms vs O299 7). New open decision #5. |
 | **v1.0.0** | 2026-10-02 | Created. Consolidates the Stage 4 selection analysis that had been reported only in conversation and in two files under `stage_4_validation/`: the IN/OUT framing, the glossary, the cap × `nstruct` budget grid, the n=200 selector comparison with the recovery-vs-correlation conflict and the `length` contamination made explicit, the verified replicate table for raw vs normalised dG, and the five open decisions. Records that the §4 selector numbers predate the forced disulfide and need re-measuring. |

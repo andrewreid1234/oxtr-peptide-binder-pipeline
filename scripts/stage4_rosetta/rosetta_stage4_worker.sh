@@ -116,29 +116,58 @@ fi
 # be done by forming the bond in PyRosetta and dumping a PDB: form_disulfide
 # changes residue types without moving atoms, so the bond would be lost on reload.
 # disulf.txt is written by the PyRosetta step above, in POSE numbering.
+# ---------------------------------------------------------------- NSTRUCT
+# NSTRUCT > 1 exists to beat the noise floor, NOT to find a lucky pose.
+#
+# Measured: a single -relax:fast trajectory gives dG_separated an ICC of 0.579,
+# and two identical runs agree on only ~3 of the top 5 candidates. Averaging
+# independent runs fixes this -- reliability 0.579 -> 0.733 (2) -> 0.805 (3) ->
+# 0.873 (5).
+#
+# THAT GAIN BELONGS TO THE MEAN, NOT TO THE MINIMUM. Taking the best (lowest)
+# dG of N trajectories is an extreme-value statistic: it is biased downward, and
+# the bias GROWS WITH THE NOISE. Because replicate noise is correlated with poor
+# binding (r = +0.309 between mean dG and replicate sd; worse half median sd
+# 5.74 against 3.39 for the better half), best-of-N would systematically flatter
+# the worst and noisiest candidates -- the opposite of what it looks like it does.
+#
+# So every structure is scored and the MEAN is reported, with the sd and the
+# per-structure values kept so the spread is auditable per candidate.
+NSTRUCT=${NSTRUCT:-1}
+
 /scratch/drewdog/rosetta/main/source/bin/relax.default.linuxgccrelease \
   -in:file:s "$AMIDATED" \
   -in:fix_disulf disulf.txt \
   -relax:fast \
   -out:path:all . \
   -out:suffix _relaxed \
-  -nstruct 1 \
+  -nstruct "$NSTRUCT" \
   -overwrite -mute all > relax.log 2>&1
 
 # Rosetta names its output after the INPUT file, which is now the amidated
-# structure, so this is ${SEQ_ID}_amidated_relaxed_0001.pdb -- not
-# ${SEQ_ID}_relaxed_0001.pdb as before.
-RELAXED_PDB="${SEQ_ID}_amidated_relaxed_0001.pdb"
-if [ ! -f "$RELAXED_PDB" ]; then
+# structure, so these are ${SEQ_ID}_amidated_relaxed_000N.pdb -- not
+# ${SEQ_ID}_relaxed_000N.pdb as before.
+RELAXED_LIST=()
+for i in $(seq 1 "$NSTRUCT"); do
+  f=$(printf "%s_amidated_relaxed_%04d.pdb" "$SEQ_ID" "$i")
+  [ -f "$f" ] && RELAXED_LIST+=("$f")
+done
+if [ "${#RELAXED_LIST[@]}" -eq 0 ]; then
   echo "FAILED: $SEQ_ID (no relaxed output)"
   exit 1
 fi
+if [ "${#RELAXED_LIST[@]}" -ne "$NSTRUCT" ]; then
+  echo "WARNING: $SEQ_ID produced ${#RELAXED_LIST[@]}/$NSTRUCT relaxed structures"
+fi
+RELAXED_PDB="${RELAXED_LIST[0]}"
 
 # Same flag here: InterfaceAnalyzer re-reads the PDB and would otherwise fall
 # back to distance-based detection. Relax should have closed the bond
 # geometrically, but declaring it makes the scoring independent of that.
+# One InterfaceAnalyzer call over all N structures; score.sc then carries one
+# SCORE: line per structure.
 /scratch/drewdog/rosetta/main/source/bin/InterfaceAnalyzer.default.linuxgccrelease \
-  -in:file:s "$RELAXED_PDB" \
+  -in:file:s "${RELAXED_LIST[@]}" \
   -in:fix_disulf disulf.txt \
   -interface A_B \
   -pack_input false \

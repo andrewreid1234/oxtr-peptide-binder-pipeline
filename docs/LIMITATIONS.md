@@ -86,6 +86,22 @@ stochastic trajectory of a reduced protocol. Interface work normally uses
 not been measured. No choice of Stage 3 selector feature can exceed √ICC, so this
 caps the whole selection problem.
 
+> **Status 2026-10-02: `nstruct=5` adopted on assumption, the test was skipped.**
+> Two things therefore rest on untested ground: the 85% cost-scaling behind the
+> 3-day Stage 4 estimate, and the reliability gain itself — because the series
+> 0.579 -> 0.733 -> 0.805 -> 0.873 was measured by **averaging independent
+> replicates**, not by `-nstruct N`.
+>
+> Taking the **best (lowest) dG of N** would not deliver it: that is an
+> extreme-value statistic whose downward bias grows with the noise, and noise here
+> is correlated with poor binding (r = +0.309 between mean dG and replicate sd;
+> worse-half median sd 5.74 against 3.39). Best-of-N would systematically flatter
+> the worst, noisiest candidates. `rosetta_stage4_worker.sh` therefore scores all
+> N structures and reports the **mean**, which does reproduce the measured series.
+>
+> This limitation is **mitigated by assumption, not closed.** The 70-minute test
+> would close it; see `stage4_selection_derivation.md` §7 item A.
+
 ### O0b. `dG_separated` is a size measure, so ranking on it favours long peptides
 
 `r(dSASA_int, dG_separated) = −0.766`; `r(nres_int, dG) = −0.665`. Mean dG runs
@@ -103,6 +119,14 @@ interface size, not binding quality.
 Which target should pick the synthesis list — total, normalised, or size-capped —
 is a scientific judgement and is **not settled by the data**. It determines what
 gets made.
+
+> **RESOLVED 2026-10-02: `dG_separated/dSASAx100`.** Chosen on the measured
+> trade — better top-5 reproducibility (4.0/5 vs 3.3/5) and ICC (0.679 vs 0.579)
+> and no size confound, against measurably worse whole-population rank stability
+> (0.603 vs 0.710). Raw `dG_separated` is carried alongside so disagreements stay
+> visible. One caveat is permanent: no Stage-3 feature predicts the normalised
+> target (hotspot -0.023, i_ptm -0.114, centroid +0.088), so the selector can only
+> ever be validated against raw dG. See `stage4_selection_derivation.md` §5, §6.
 
 > `dG_separated` is in Rosetta Energy Units, not kcal/mol, and is a
 > single-structure score difference: no peptide conformational entropy, no
@@ -139,10 +163,92 @@ The two convergent sequence motifs at the top of the pool — a `C[LI]..S[YW]..C
 mean **diversity has to be an explicit constraint on the shortlist**, not a
 property the i_ptm ranking will supply on its own.
 
-> Stratifying the cap by backbone and by length is the obvious structural fix,
-> but the number of candidates to keep still depends on which Stage 4 target picks
-> the synthesis list (O0b) and on the `nstruct` cost multiplier (O0). **Those two
-> decisions gate this one and are the user's to make.**
+> **RESOLVED 2026-10-02: a stratified cap of 3,000 at `nstruct=5`, ~3 days.**
+> Allocation is proportional to the **designed pool's** length distribution, not
+> the survivors' — the survivor shape is itself the bias, since q climbs
+> monotonically from 0.266 (length 8) to 0.756 (length 14), so
+> proportional-to-survivors would give length 8 eighteen slots of 3,000.
+> Per-backbone quota 5 within each band, ranked by `hotspot_residues`.
+>
+> Measured against a flat top-3,000 by i_ptm: distinct backbones 392 -> **799**,
+> maximum from one backbone 126 -> 5. The cost is mean i_ptm, 0.647 -> 0.471 — a
+> real trade, acceptable because i_ptm's LOO r against dG is only +0.458 and
+> against the chosen target -0.114.
+>
+> At n = 3,000 the two schemes' length distributions are nearly identical (mean
+> 11.36 vs 11.43), so **the gain here is diversity, not length**; the length
+> argument for stratifying is strong at small n and weak at this one. Implemented
+> in `scripts/stage4_rosetta/select_stage4_set.py`.
+> See `stage4_selection_derivation.md` §6b, §6c.
+
+### O0d. The length bias is a PLACEMENT failure, not a scoring artefact
+**Diagnosed 2026-10-02 from the question "why is there already a length bias?"**
+
+Stage 3's gate pass rate climbs monotonically with peptide length, 0.266 at
+length 8 to 0.756 at length 14. Decomposing q into placement and detection:
+
+| len | n | P(near pocket) | P(pass \| near) | P(pass \| far) | q |
+|---:|---:|---:|---:|---:|---:|
+| 8 | 1,935 | **0.256** | 1.000 | 0.0132 | 0.266 |
+| 9 | 8,029 | 0.376 | 1.000 | 0.0243 | 0.391 |
+| 10 | 24,761 | 0.454 | 1.000 | 0.0357 | 0.473 |
+| 11 | 37,747 | 0.580 | 1.000 | 0.0552 | 0.603 |
+| 12 | 35,525 | 0.626 | 1.000 | 0.0729 | 0.654 |
+| 13 | 25,213 | 0.688 | 1.000 | 0.1005 | 0.719 |
+| 14 | 10,385 | **0.723** | 1.000 | 0.1203 | 0.756 |
+
+("near" = centroid within 10 A of native oxytocin's pose.)
+
+**The gate's contact criterion has no length dependence.** The initial hypothesis
+was that a longer peptide has more CA atoms and so more chances to register a
+contact -- more lottery tickets. That is wrong: the entire effect sits in whether
+AfCycDesign PLACES the peptide in the pocket at all. **74% of 8-mers land
+somewhere else on the receptor.**
+
+> Honest caveat on the decomposition: `P(pass | near) = 1.000` is partly
+> tautological, since within 10 A of the native centroid a peptide is necessarily
+> within 8 A of a hotspot, and centroid distance is bimodal (passers median 3.50 A,
+> failers 45.05 A). The informative columns are `P(near)`, which varies 2.8-fold
+> with length, and `P(pass | far)`, whose rise from 0.013 to 0.120 is a genuine but
+> minor counting effect among off-pocket poses.
+
+**Why placement depends on length.** AfCycDesign is given no information about
+where to bind -- hotspot conditioning has no effect at prediction time, and for a
+disulfide peptide the cyclic offset does not apply, so it runs as an ordinary
+single-sequence prediction. A shorter peptide gives it less signal to localise
+with, so it effectively guesses. This is a property of an unconditioned predictor,
+not of the molecules.
+
+**A second, independent source: backbone selection.** `select_deepening.py` line
+75 ranks all backbones in one global order by max i_ptm. Each RFdiffusion backbone
+has ONE fixed length and median i_ptm rises 0.174 -> 0.376 across lengths 8-14, so
+a global ranking by i_ptm **is** a ranking by length. The deepened set is
+consequently depleted in short peptides relative to the designed pool: length 8
+1.85% -> 1.04%, length 9 6.76% -> 4.97%, length 10 18.95% -> 16.46%, with 11-13
+enriched.
+
+### Fixes for future cycles
+
+| # | Fix | Effect | Cost |
+|---|---|---|---|
+| 1 | **Condition docking on the binding site** (pocket/contact restraints, e.g. Boltz2) | Removes the root cause; `P(near)` stops depending on length | **Not free — see below** |
+| 2 | **Rank backbones WITHIN length bands** in `select_deepening.py` and `select_scouts.py`, keeping the top f of each band | Removes the second source entirely; docked set preserves the designed shape | A few lines, no re-run |
+| 3 | **Never let a length-correlated statistic drive selection** — use bounded features (`hotspot_residues` 0-8) or i_ptm z-scored within band | Stops the bias propagating through any selector | None |
+| 4 | **Design equal numbers per length at Stages 1-2** | Removes the problem at source; cross-length comparison valid by construction | Changes the sampling plan |
+
+> **Fix 1 has a consequence that must be decided deliberately, not adopted
+> silently: placement is currently doing the gate's work.** If the predictor is
+> told where to bind, essentially everything lands in the pocket, q rises towards
+> 1.0, and the Stage 3 gate stops filtering anything. The pipeline would then need
+> a real binding discriminator at Stage 3 rather than a geometric one. Fix 1 trades
+> an accidental filter for a designed one, and the natural experiment -- Boltz2 with
+> pocket conditioning against unconditioned AfCycDesign on the same candidates --
+> has not been run.
+
+**Fix 2 is recommended immediately**: small, provably correct, no trade-off. It is
+not applied to the current run, whose selection is already made; `LIMITATIONS.md`
+O0b/O0c record how the completed run compensates instead (allocating the Stage 4
+cap against the designed pool's length shape rather than the survivors').
 
 ### O1. The BBB classifier is not usable on this molecule class
 **Escalated 2026-09-28 — this is now stronger than "needs re-measuring".**

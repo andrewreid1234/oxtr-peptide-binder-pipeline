@@ -650,12 +650,56 @@ measure the interface. This is the stage that produces a binding *energy* rather
 than a confidence score — Stage 3's `i_ptm` is a prediction confidence, not an
 energetic quantity.
 
-**Selection, cap and ranking target: see
-[`stage4_selection_derivation.md`](stage4_selection_derivation.md).** Stage 3
-produced 87,338 survivors and running all of them costs 19.7 days on 64 cores, so
-Stage 4 cannot be run unconditionally. That document derives the cap, the
-selector feature and the ranking target, and lists the decisions still open.
-**Do not launch Stage 4 at scale before those are fixed.**
+**Selection, cap and ranking target were settled 2026-10-02 — see
+[`stage4_selection_derivation.md`](stage4_selection_derivation.md) §6 for the
+derivation and the costs accepted.** Stage 3 produced 87,338 survivors and all of
+them is 19.7 days on 64 cores at `nstruct=1`, 86.5 days at `nstruct=5`, so the
+pool is capped:
+
+| parameter | value |
+|---|---|
+| cap | **3,000 candidates** (~3 days on 64 cores) |
+| `NSTRUCT` | **5**, aggregated as the **MEAN**, never best-of-N |
+| selector feature | **`hotspot_residues`** (bounded 0–8) |
+| length allocation | proportional to the **designed pool**, not to survivors |
+| per-backbone quota | **5** within each length band |
+| ranking target (after Rosetta) | **`dG_separated/dSASAx100`** |
+
+> **`NSTRUCT=5` must be averaged, not minimised.** Taking the best (lowest) dG of
+> N trajectories is an extreme-value statistic whose downward bias grows with the
+> noise, and noise here is correlated with poor binding (r = +0.309 between mean
+> dG and replicate sd). Best-of-N would systematically flatter the worst
+> candidates. The worker scores all N and reports the mean, sd and per-structure
+> values.
+
+### Procedure
+
+```bash
+W=/scratch/drewdog/denovo_binder_100_pilot_v2
+
+# 1. re-run the Stage 3 gate to emit hotspot_residues (~5 h, CPU, no GPU).
+#    Production CSVs predate the column; the selector refuses to guess.
+python scripts/stage3_docking/stage3_gate.py \
+  --pdb_dir $W/stage_3_docking/afcyc_out  --out $W/stage_3_docking/stage3_gate.csv
+python scripts/stage3_docking/stage3_gate.py \
+  --pdb_dir $W/stage_3_deepening/afcyc_out --out $W/stage_3_deepening/stage3_gate.csv
+
+# 2. select the 3,000
+python scripts/stage4_rosetta/select_stage4_set.py \
+  --gate-csv    $W/stage_3_docking/stage3_gate.csv $W/stage_3_deepening/stage3_gate.csv \
+  --results-dir $W/stage_3_docking/afcyc_out       $W/stage_3_deepening/afcyc_out \
+  --pool-csv    $W/stage_2_sequences/unique_sequences.csv \
+  --n 3000 --feature hotspot_residues --per-backbone 5 \
+  --out $W/stage_4_rosetta/stage4_set.csv
+
+# 3. Rosetta, NSTRUCT=5, sharded over the 64 cores
+NSTRUCT=5 STAGE4=$W/stage_4_rosetta INPUT_DIR=<afcyc_out holding that candidate> \
+  scripts/stage4_rosetta/rosetta_stage4_worker.sh <seq_id> <cys1> <cys2>
+```
+
+Candidates come from **both** `stage_3_docking/afcyc_out` (scouts) and
+`stage_3_deepening/afcyc_out` (deepening), so `INPUT_DIR` must be resolved per
+candidate — a single hardcoded directory silently loses one set.
 
 ### Per-candidate worker
 

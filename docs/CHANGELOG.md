@@ -11,9 +11,90 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.4.0 — 2026-10-02
+
+**Current.** MAJOR: Stage 4's advancement criteria are now fixed. The cap, the
+selector feature, the length allocation and the ranking target were all open on
+2026-10-01 and are settled here, together with the diagnosis of where the length
+bias actually comes from.
+
+### Stage 4 decisions
+
+| decision | chosen | basis |
+|---|---|---|
+| `nstruct` | **5**, test skipped | assumption — see the warning below |
+| ranking target | **`dG_separated/dSASAx100`** | measured trade, §5 of the derivation |
+| cap | **3,000**, ~3 days on 64 cores | budget choice against the measured 1,245 s/candidate |
+| selector feature | **`hotspot_residues`** (0-8) | measured: +0.078 length correlation vs the pair count's +0.230 |
+| length allocation | **proportional to the designed pool** | the survivor shape is itself the bias |
+| per-backbone quota | **5** within each length band | measured diversity gain, below |
+
+New: `scripts/stage4_rosetta/select_stage4_set.py`. Measured against a flat
+top-3,000 by i_ptm: distinct backbones **392 -> 799**, maximum from one backbone
+**126 -> 5**. It costs mean i_ptm, **0.647 -> 0.471** — a real trade, accepted
+because i_ptm's LOO r against dG is only +0.458 and against the chosen normalised
+target -0.114. At n = 3,000 the two schemes' length distributions are nearly
+identical (mean 11.36 vs 11.43), so **the gain here is diversity, not length**.
+
+### `NSTRUCT` must be averaged, never minimised
+
+`rosetta_stage4_worker.sh` gains `NSTRUCT`, scores **all** N structures and reports
+the **mean**, with the sd and per-structure values retained.
+
+> The reliability series 0.579 -> 0.733 -> 0.805 -> 0.873 was measured by averaging
+> **independent replicates**. `-nstruct 5` alone does not deliver it. Taking the
+> **best (lowest) dG of N** is an extreme-value statistic: biased downward, with the
+> bias growing with the noise. Because noise is correlated with poor binding
+> (r = +0.309 between mean dG and replicate sd; worse-half median sd 5.74 against
+> 3.39), best-of-N would **systematically flatter the worst, noisiest candidates**.
+
+The `nstruct` test was offered and skipped, so the reliability gain and the 85%
+cost-scaling are both assumptions. `LIMITATIONS.md` O0 stays open, mitigated rather
+than closed.
+
+### DIAGNOSED: the length bias is a PLACEMENT failure
+
+Gate pass rate climbs 0.266 (length 8) to 0.756 (length 14). The working
+hypothesis had been a counting artefact — more CA atoms, more chances to register
+a contact. **That is wrong.** Decomposing q shows the entire effect is whether
+AfCycDesign places the peptide in the pocket at all:
+
+| len | P(near pocket) | P(pass given near) | P(pass given far) | q |
+|---:|---:|---:|---:|---:|
+| 8 | 0.256 | 1.000 | 0.0132 | 0.266 |
+| 11 | 0.580 | 1.000 | 0.0552 | 0.603 |
+| 14 | 0.723 | 1.000 | 0.1203 | 0.756 |
+
+**74% of 8-mers land somewhere else on the receptor.** AfCycDesign is never told
+where to bind — hotspot conditioning has no effect at prediction time and the
+cyclic offset does not apply to a disulfide peptide — so a short peptide, giving it
+least signal to localise with, effectively gets guessed. A property of an
+unconditioned predictor, not of the molecules.
+
+A second independent source: `select_deepening.py` ranks all backbones in ONE
+global order by max i_ptm. Each backbone has one fixed length and median i_ptm
+rises 0.174 -> 0.376 across lengths, so that global ranking **is** a length
+ranking. The deepened set is depleted in short peptides against the designed pool
+(length 8 1.85% -> 1.04%, length 9 6.76% -> 4.97%, length 10 18.95% -> 16.46%).
+
+Four fixes for future cycles are recorded in `LIMITATIONS.md` O0d. **Ranking
+backbones within length bands is recommended immediately** — a few lines, provably
+correct, no trade-off. Conditioning the docking on the pocket is the real fix but
+is **not free**: placement is currently doing the gate's work, so guaranteeing it
+would drive q towards 1.0 and the pipeline would need a real binding discriminator
+at Stage 3 instead of a geometric one.
+
+### Superseded by this entry
+
+- All five "open decision" rows in `stage4_selection_derivation.md` v1.1.0 §7.
+- Any explanation of the length bias as a contact-counting artefact.
+- `-nstruct 1` as the Stage 4 default.
+
+---
+
 ## Pipeline v3.3.8 — 2026-10-02
 
-**Current.** One units bug in a docstring, found by reading a reported number and
+One units bug in a docstring, found by reading a reported number and
 asking whether it could be true. No result changes; one recommendation does.
 
 ### FIXED: `hotspot_contacts` counts ATOM PAIRS, not contacts
