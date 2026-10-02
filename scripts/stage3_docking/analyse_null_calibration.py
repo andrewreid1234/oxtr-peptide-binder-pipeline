@@ -175,7 +175,8 @@ def main():
 
     p("## 5. Is one threshold enough, or is it length-specific?")
     p()
-    p("| length | n real | n shuffle | 5%% threshold | sensitivity at that t | sensitivity at the GLOBAL 5%% t |")
+    p("| length | n real | n shuffle | 5% threshold | sensitivity at that t "
+      "| sensitivity at the GLOBAL 5% t |")
     p("|---:|---:|---:|---:|---:|---:|")
     gt = chosen[0.05]
     per_len = {}
@@ -193,19 +194,23 @@ def main():
     p()
     if len(per_len) >= 2:
         spread = max(per_len.values()) - min(per_len.values())
-        p("Per-length threshold spread: **%.3f**. If this is small relative to the")
-        p("gap between the real and shuffled medians, one global threshold serves;")
-        p("if it is large, the gate must be applied within length bands." % ())
+        p("Per-length 5%% threshold spread: **%.3f** (range %.3f - %.3f), against a "
+          "real-minus-shuffle median gap of %.3f."
+          % (spread, min(per_len.values()), max(per_len.values()),
+             st.median(real) - st.median(shuf)))
         p()
-        p("global 5%% threshold = **%.3f**, per-length range %.3f - %.3f"
-          % (gt, min(per_len.values()), max(per_len.values())))
+        p("Global 5%% threshold = **%.3f**. The column above shows what that single "
+          "threshold does per band: if sensitivity varies widely across lengths, a "
+          "global cut RE-INTRODUCES a length bias (in the opposite direction) and "
+          "the gate must be applied within bands." % gt)
     p()
 
     p("## 6. What this costs at Stage 4")
     p()
-    p("Applying the 5%% threshold (%.3f) to a re-docked pool of 143,595, IF the")
-    p("production i_ptm distribution matches this sample's real arm:" % gt)
     sens5 = sum(1 for x in real if x >= gt) / len(real) if real else float("nan")
+    p("Applying the global 5%% threshold (%.3f) to a re-docked pool, IF the "
+      "production i_ptm distribution matches this sample's real arm (sensitivity "
+      "%.1f%%):" % (gt, 100 * sens5))
     for n in (143595, 265700):
         surv = int(n * sens5)
         p("  pool %6d -> ~%6d survivors (q = %.3f); Rosetta at NSTRUCT=5 "
