@@ -184,7 +184,10 @@ property the i_ptm ranking will supply on its own.
 > the survivors' — the survivor shape is itself the bias, since q climbs
 > monotonically from 0.266 (length 8) to 0.756 (length 14), so
 > proportional-to-survivors would give length 8 eighteen slots of 3,000.
-> Per-backbone quota 5 within each band, ranked by `hotspot_residues`.
+> Per-backbone quota **10** within each band (raised from 5 on 2026-10-02:
+> 25.3% of i_ptm variance is between-backbone, and quota 10 gives mean i_ptm
+> 0.535 against 5's 0.515 while cutting high-scoring exclusions 46,162 -> 11,472;
+> it also beats no quota at all, 0.535 vs 0.524), ranked by `hotspot_residues`.
 >
 > Measured against a flat top-3,000 by i_ptm: distinct backbones 392 -> **799**,
 > maximum from one backbone 126 -> 5. The cost is mean i_ptm, 0.647 -> 0.471 — a

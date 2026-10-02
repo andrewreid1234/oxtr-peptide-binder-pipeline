@@ -11,9 +11,74 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.6.0 — 2026-10-02
+
+**Current.** MAJOR: the per-backbone quota changed, and Stage 4 is running.
+
+### Per-backbone quota raised 5 -> 10, on measurement
+
+Raised from the question "does max 5 per backbone exclude great binders if one
+backbone holds lots of them?" It does.
+
+**Backbone identity carries real signal:** over the 683 backbones with >= 20
+survivors, **25.3% of i_ptm variance is between-backbone**, best backbone mean
+i_ptm 0.675 against worst 0.247.
+
+| quota | backbones | mean i_ptm | excluded-but-better |
+|---:|---:|---:|---:|
+| 5 | 759 | 0.515 | **46,162** |
+| **10** | **578** | **0.535** | **11,472** |
+| 20 | 536 | 0.530 | 11,345 |
+| none | 506 | 0.524 | 11,345 |
+
+Quota 10 dominates 5 on both axes, and also beats **no** quota on mean score
+(0.535 vs 0.524): with the length allocation fixed, an unlimited quota lets a few
+prolific backbones flood a band with merely-adequate candidates. Nothing improves
+past 10. Caveat recorded in `stage4_selection_derivation.md` §6f: "excluded-but-
+better" rests on `hotspot_residues` (coarse, heavily tied) broken by i_ptm, whose
+correlation with dG is only -0.477, so the magnitude is soft even though the
+direction is solid.
+
+### NEW: `run_stage4_production.sh`, because the validation runner would have failed silently
+
+The production set spans **both** Stage 3 output directories — 2,741 from
+`stage_3_deepening/afcyc_out`, 259 from `stage_3_docking/afcyc_out`.
+`run_stage4_validation.sh` sets ONE `INPUT_DIR` for every candidate, so it would
+have failed one group while the other succeeded and **exited 0 with a partial
+pool** — the bug class this project's brief names as a calibration case.
+
+The new runner takes the input directory as a fourth column of `jobs.tsv`, refuses
+to start if that column is absent, checks each pose file exists before calling the
+worker (so a path problem is a loud FAIL, not a skip), is idempotent for
+resumability, and gates completion on every candidate having a results JSON with
+`nstruct_scored == NSTRUCT` and zero FAILs — otherwise it prints
+`STATUS: INCOMPLETE -- do not analyse this as a finished run` and exits 1.
+
+### Stage 4 launched 2026-10-02 14:03:05
+
+3,000 candidates, 578 backbones, `NSTRUCT=5` averaged, ranked on
+`dG_separated/dSASAx100`. 56-way parallel, projected ~3.0 days.
+
+Pre-flight passed 3,000/3,000 on six checks: pose in exactly one directory; chains
+A and B present; B shorter than A; exactly 2 CYS in chain B; chain B length ==
+sequence length; PDB cysteine numbering cross-checked against the sequence's own C
+positions. Verified live on the first candidates: amidation moves the terminal
+charge -1.000 -> -0.020 e, and `disulf.txt` carries correct pose numbering, with
+one in-flight candidate entering at SG-SG 3.19 A (open) — the case the forcing
+exists for.
+
+### Superseded by this entry
+
+- Per-backbone quota 5 everywhere it appeared (v3.4.0 §6, `SOP.md`, `LIMITATIONS.md`
+  O0c).
+- The instruction to run Stage 4 with `run_stage4_validation.sh` or a single
+  `INPUT_DIR`.
+
+---
+
 ## Pipeline v3.5.0 — 2026-10-02
 
-**Current.** MAJOR. Three measurements, two of which change settled decisions. The
+MAJOR. Three measurements, two of which change settled decisions. The
 Stage 3 length bias is confirmed to be an artefact and is fixed; `NSTRUCT=5` is
 validated and is better than assumed; and the gate is confirmed deterministic.
 

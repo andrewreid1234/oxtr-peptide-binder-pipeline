@@ -2,7 +2,7 @@
 
 **Document version:** v1.2.0
 **Last updated:** 2026-09-30
-**Describes pipeline:** v3.5.0
+**Describes pipeline:** v3.6.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
 The record of the **scale-up run** — the first execution of the pipeline at
@@ -21,12 +21,12 @@ values actually produced*. [`LIMITATIONS.md`](LIMITATIONS.md) catalogues what is
 still weak. [`SOP.md`](SOP.md) is the runbook. [`CHANGELOG.md`](CHANGELOG.md)
 holds superseded values.
 
-> **Status: Stages 1, 2 and 3 are complete.** Stage 1 finished 2026-09-29 08:07,
-> Stage 2 at 11:25, Stage 3 scouting at 15:39, Stage 3 deepening at **04:04 on
-> 2026-10-01**. Stage 3 total: 143,595 candidates docked, 33.1 h wall,
-> 132.8 GPU-h, zero failures, **87,338 survivors** (q = 0.608). Stages 4–8 have
-> not started. **Stage 4 is blocked on the cap decision** — 87,338 survivors is
-> 19.7 days of Rosetta on 64 cores (§5b).
+> **Status: Stages 1-3 complete; Stage 4 RUNNING.** Stage 1 finished
+> 2026-09-29 08:07, Stage 2 at 11:25, Stage 3 scouting at 15:39, Stage 3 deepening
+> at 04:04 on 2026-10-01. Stage 3 total: 143,595 candidates docked, 33.1 h wall,
+> 132.8 GPU-h, zero failures, **87,338 survivors** (q = 0.608). **Stage 4 launched
+> 2026-10-02 14:03:05** on a stratified 3,000-candidate cap at `NSTRUCT=5`,
+> projected ~3.0 days — see §5c. Stages 5-8 have not started.
 
 ---
 
@@ -794,6 +794,62 @@ deepening pass rate made the Rosetta problem worse, not better. Stage 4
 
 ---
 
+## 5c. Stage 4 — Rosetta, launched
+
+Launched **2026-10-02 14:03:05**, 56-way parallel on 64 cores, projected ~3.0 days.
+Parameters and their derivation are in
+[`stage4_selection_derivation.md`](stage4_selection_derivation.md) §6.
+
+| parameter | value |
+|---|---|
+| candidates | **3,000** of 87,338 survivors (3.4%) |
+| distinct backbones | **578** |
+| per-backbone quota | 10 within each length band |
+| selector feature | `hotspot_residues` (bounded 0–8) |
+| length allocation | designed-pool shape: 56/203/568/701/727/518/227 for lengths 8–14 |
+| `NSTRUCT` | **5**, reported as the MEAN of 5 |
+| ranking target | `dG_separated/dSASAx100`, raw `dG_separated` carried |
+| mean i_ptm of the selection | 0.535 (survivor pool 0.416) |
+| pose provenance | **2,741 deepening + 259 scouts** — both v3 |
+
+### Pre-flight, all 3,000 candidates
+
+Every check passed with zero problems:
+
+| check | result |
+|---|---|
+| pose found in exactly one Stage 3 directory | 3,000/3,000 |
+| chains A and B both present | 3,000/3,000 |
+| chain B shorter than A (the `-interface A_B` assumption) | 3,000/3,000 |
+| exactly 2 CYS in chain B | 3,000/3,000 |
+| chain B residue count == sequence length | 3,000/3,000 |
+| PDB cysteine numbering cross-checked against sequence indices | 3,000/3,000 |
+
+**The split input directories were the principal bad-data risk.** 2,741 candidates
+live in `stage_3_deepening/afcyc_out` and 259 in `stage_3_docking/afcyc_out`;
+`run_stage4_validation.sh` sets one `INPUT_DIR` for every candidate and would have
+silently failed one group while the other succeeded, exiting 0 with a partial pool.
+`run_stage4_production.sh` resolves the directory per candidate from a fourth
+column in `jobs.tsv`, refuses to start without it, and checks each pose exists
+before calling the worker.
+
+### Verified live on the first candidates
+
+- **C-terminal amidation**: terminal residue charge **−1.000 → −0.020 e**
+- **Forced disulfide**: `disulf.txt` in pose numbering (`289 295` from PDB `4B-10B`);
+  one in-flight candidate entered at SG-SG **3.19 Å**, open — the 42% case the
+  forcing exists for
+- both input directories processing
+- zero FATAL, zero FAILED
+
+### Completion criterion
+
+`STATUS: COMPLETE` requires all 3,000 candidates to have a results JSON with
+`nstruct_scored == 5` and zero FAIL lines. Anything else prints
+`STATUS: INCOMPLETE — do not analyse this as a finished run` and exits 1.
+
+---
+
 ## 6. What this run establishes
 
 ### Established
@@ -859,6 +915,7 @@ deepening pass rate made the Rosetta problem worse, not better. Stage 4
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.4.0** | 2026-10-02 | Added §5c *Stage 4 — Rosetta, launched*: the as-run parameters (3,000 candidates, 578 backbones, quota 10, `hotspot_residues`, `NSTRUCT=5` averaged, `dG/dSASAx100`), the full pre-flight table (3,000/3,000 on six checks), the split-input-directory risk and how the production runner mitigates it, live verification of amidation and forced disulfide on the first candidates, and the completion criterion. Status block moved to Stage 4 running. |
 | **v1.3.0** | 2026-10-01 | Added §5b *Stage 3 — Deepening docking*, which completes the Stage 3 record: 128,608 candidates in 29.62 h / **118.7 GPU-h** (within 2% of the 120.7 projected from measured scouting throughput), zero failures, 2.2% shard spread; **q = 0.622** against scouting's 0.494, with i_ptm median 0.216 → 0.341 and the ≥0.30 fraction 42.8% → 56.2%; the length confound tabulated per length (14-mer median i_ptm 2.1x an 8-mer's); per-backbone q spanning 0.000–1.000 over the 747 deepened backbones with 3 producing zero survivors, which argues for backbone-stratified rather than flat top-N capping at Stage 4; **Stage 3 combined — 143,595 docked, 33.1 h, 132.8 GPU-h, 87,338 survivors, q = 0.608**, 43% under the 235 GPU-h in `CHANGELOG.md` v3.3.3 and 38% under §4's 213.7; the top-5 candidates and the two convergent sequence motifs that make diversity an explicit shortlist constraint; and the Stage 4 arithmetic — **19.7 days uncapped**, worse than the 15.7 days at q = 0.494. Status block updated to Stages 1–3 complete, Stage 4 blocked on the cap decision. |
 | **v1.2.0** | 2026-09-30 | Added §5 *Stage 3 — Scout docking*: 14,987 candidates in 3.50 h / 14.1 GPU-h (3.38 s/candidate, 1.66x faster than the 5.6 s budget), zero failures; **q = 0.494** against 0.465 projected; **ICC = 0.331** on all 1,500 backbones, which passes derivation §17's pre-registered check and confirms k=10 (reliability 0.832 against k=6's 0.748); scout bias check exactly 0.500; backbone-mean distribution and the f=0.50 / MAX-i_ptm deepening set of 128,608 candidates over 747 backbones. Status block updated: deepening launched 2026-09-29 22:27. Renumbered *What this run establishes* to §6. |
 | **v1.1.0** | 2026-09-29 | Added `prod_fig8_chemical_space.png` (four panels: sampling vs accessible space, per-position entropy with the pins at exactly 0.00 bits, the charge/hydrophobicity density map, and exact-vs-chemical-pattern counts) from the new `scripts/viz/plot_chemical_space.py`, which reads `unique_sequences.csv` directly so the figure cannot drift from the pool. Set scout depth **k = 6 → 10** across `select_scouts.py`, `dedupe_sequences.py`, `SOP.md`, `SUMMARY.md` and the derivation's locked-spec table. Applied **`--omit_AAs CMX`**. Added §3 *Chemical space explored* (27 scaffold classes; coverage 10⁻⁴–10⁻¹¹ of accessible space; designable-position entropy 3.24 of 4.17 bits = 78% of maximum, with the two cysteine positions at exactly 0.00; physicochemical envelope; ~110,845 distinct physicochemical patterns behind the 265,700 exact sequences) and §4 *Stage 3 allocation — scout depth k* (cost/reliability table for k = 4–14 from the realised pool; k = 10 recommended, +2.2% dockings for reliability 0.770 → 0.848 at the measured ICC = 0.358). Corrected Stage 1 cost 33.6 → **35.0 GPU-h** and added Stage 2 at 7.8 GPU-h. Added the cause of the single `X` residue — ProteinMPNN's 21-token alphabet leaves X samplable when `--omit_AAs CM` masks only C and M — with the one-character fix `--omit_AAs CMX`. Recorded that the realised pool of 265,700 makes the Stage 3 projection in `CHANGELOG.md` v3.3.3 (151,275 dockings / 235 GPU-h) ~9% too high. |

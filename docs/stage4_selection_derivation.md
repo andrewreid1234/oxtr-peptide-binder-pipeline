@@ -1,6 +1,6 @@
 # Stage 4 selection — what goes into Rosetta, and what comes out
 
-**Describes pipeline:** v3.5.0 · **Document version:** v2.1.0 · 2026-10-02
+**Describes pipeline:** v3.6.0 · **Document version:** v2.2.0 · 2026-10-02
 
 Stage 3 produced **87,338 survivors**. Rosetta cannot run on them: at the
 measured 1,245 s per candidate on 64 cores that is **19.7 days**. This document
@@ -308,8 +308,9 @@ chosen, and what accepting it costs.
 | 1 | `nstruct` | **5**, test skipped | The reliability gain is assumed, not measured. See the warning below. |
 | 2 | Ranking target | **`dG_separated/dSASAx100`** | Worse whole-population rank stability (0.603 vs 0.710); favours small efficient binders over large ones. |
 | 3 | Cap | **~3,000 candidates, ~3 days** | 3.4% of survivors. Discards 84,338 structures that passed the geometric gate. |
-| 4 | Selector feature | **`hotspot_residues`** (0–8) | Requires re-running `stage3_gate.py` over 143,595 structures, ~5 h CPU, since the production CSVs predate the column. |
+| 4 | Selector feature | **`hotspot_residues`** (0–8) | Gate re-run completed 2026-10-02; survivors reproduced identically (87,338). |
 | 5 | Length allocation | **Proportional to the designed pool** | See §6b. |
+| 6 | Per-backbone quota | **10** | Raised from 5 on measurement — see §6f. |
 
 ### 6a. `nstruct=5` — adopted on assumption, since confirmed by measurement
 
@@ -401,6 +402,46 @@ defensible because i_ptm's LOO correlation with dG is only +0.458 and against th
 chosen normalised target it is −0.114, effectively zero — so a weak proxy is being
 spent to buy diversity. If i_ptm carries any signal, some is being given up.
 
+### 6f. The per-backbone quota is 10, not 5
+
+Raised 2026-10-02, from the question "does max 5 per backbone exclude great
+binders if one backbone holds lots of them?" It does, and the fix is a larger
+quota rather than a workaround.
+
+**Backbone identity carries real signal.** Over the 683 backbones with >= 20
+survivors, **25.3% of i_ptm variance is between-backbone**; best backbone mean
+i_ptm **0.675**, worst **0.247**. So a quota is not free — it discards candidates
+from genuinely better scaffolds.
+
+Measured at n = 3,000 with the length allocation held fixed:
+
+| quota | distinct backbones | mean i_ptm | mean hotspot_residues | excluded-but-better |
+|---:|---:|---:|---:|---:|
+| 5 | 759 | 0.515 | 7.27 | **46,162** |
+| **10** | **578** | **0.535** | **7.36** | **11,472** |
+| 20 | 536 | 0.530 | 7.45 | 11,345 |
+| 50 | 511 | 0.522 | 7.51 | 11,345 |
+| none | 506 | 0.524 | 7.51 | 11,345 |
+
+("excluded-but-better" = survivors outside the selection that outrank the
+lowest-scoring candidate inside it.)
+
+**Quota 10 dominates quota 5** — higher mean score *and* a 4x reduction in
+high-scoring exclusions. **It also beats no quota at all** on mean score
+(0.535 vs 0.524), which is initially counter-intuitive: with the length
+allocation fixed, an unlimited quota lets a few prolific backbones flood a band
+with their merely-adequate candidates, whereas a bounded quota forces sampling
+from more backbones that have genuinely strong members. Nothing improves past 10.
+
+578 backbones is still far better diversity than the 392 a flat top-3,000 by
+i_ptm gives (§6c).
+
+> **How far to trust the 46,162.** "Scores higher" is by `hotspot_residues`, a
+> coarse 0-8 integer with heavy ties, broken by i_ptm, whose correlation with
+> measured dG is only -0.477. Those exclusions are better by a **weak proxy**, not
+> demonstrably better binders. The direction of the result is solid; the magnitude
+> is soft.
+
 ### 6d. Procedure
 
 ```bash
@@ -459,6 +500,7 @@ rest on measurement and which on assumption, so a later reader can tell them apa
 
 | version | date | change |
 |---|---|---|
+| **v2.2.0** | 2026-10-02 | New §6f: per-backbone quota raised 5 → **10** on measurement. Backbone identity carries real signal (25.3% of i_ptm variance is between-backbone; best backbone mean 0.675 vs worst 0.247), so a quota does cost good candidates. Quota 10 dominates 5 (mean i_ptm 0.535 vs 0.515, high-scoring exclusions 46,162 → 11,472) **and** beats no quota (0.535 vs 0.524), because with the length allocation fixed an unlimited quota lets prolific backbones flood a band with adequate candidates. Caveat recorded that "excluded-but-better" rests on a weak proxy. Decision 4's cost note updated — the gate re-run is done and reproduced 87,338 identically. |
 | **v2.1.0** | 2026-10-02 | `nstruct` moved from assumption to measurement: ICC single trajectory 0.787, mean-of-5 reliability 0.949 (vs 0.873 assumed), within-process sd 3.86 against 3.48 between independent jobs, so the correlated-trajectory concern in §6a was wrong. Added the finding that `nstruct=5` fixes rank stability (0.697 → 0.887) but **not** top-5 membership (2.78 → 3.77/5, and `nstruct=10` barely better) because the leaders are near-ties rather than noisy — so the synthesis list must not be a top-5. New open item A2: what shortlist size *is* stable. |
 | **v2.0.0** | 2026-10-02 | §6 rewritten from *Recommendation* to **Decisions — locked**: nstruct 5 (test skipped, so the reliability gain and the 85% cost-scaling are assumptions), target `dG/dSASAx100`, cap 3,000 at ~3 days, feature `hotspot_residues`, length allocation proportional to the designed pool. New §6a on why `-nstruct 5` must be AVERAGED not minimised (best-of-N is an extreme-value statistic whose bias grows with noise, and noise correlates with poor binding, so it would flatter the worst candidates). New §6b on the allocation anchor — the survivor length shape IS the bias, since q climbs 0.266 to 0.756. New §6c measuring what stratification buys: backbones 392 -> 799, max per backbone 126 -> 5, at a cost of mean i_ptm 0.647 -> 0.471, with the length distributions nearly identical at this n. New §6d procedure and §6e remaining work. §7 rewritten to separate what rests on measurement from what rests on judgement. |
 | **v1.1.0** | 2026-10-02 | Added §4c: `hotspot_contacts` counts ATOM PAIRS (ceiling len(peptide) x 78), not residues and not peptide Cα as the script's help text claimed until today. No result affected — at threshold 1 all readings are the same boolean — but raising `--min-hotspot` would weaken the gate while appearing to tighten it. Measured all three readings against dG on the n=200 set: pairs −0.583, Cα −0.537, residues-engaged −0.530, all within CI, but length confounding +0.230 / +0.418 / +0.078. Recommends `hotspot_residues` (0–8, now emitted by the gate) as the selector feature since it is nearly as predictive and almost free of the length confound that §4b identifies. Also records that the pair count is implicitly weighted by hotspot sidechain size (O188 14 atoms vs O299 7). New open decision #5. |

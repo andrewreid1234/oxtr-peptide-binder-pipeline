@@ -662,7 +662,7 @@ pool is capped:
 | `NSTRUCT` | **5**, aggregated as the **MEAN**, never best-of-N |
 | selector feature | **`hotspot_residues`** (bounded 0–8) |
 | length allocation | proportional to the **designed pool**, not to survivors |
-| per-backbone quota | **5** within each length band |
+| per-backbone quota | **10** within each length band (was 5 until 2026-10-02; see below) |
 | ranking target (after Rosetta) | **`dG_separated/dSASAx100`** |
 
 > **`NSTRUCT=5` must be averaged, not minimised.** Taking the best (lowest) dG of
@@ -671,6 +671,33 @@ pool is capped:
 > dG and replicate sd). Best-of-N would systematically flatter the worst
 > candidates. The worker scores all N and reports the mean, sd and per-structure
 > values.
+
+> **Per-backbone quota is 10, not 5.** Backbone identity carries real signal —
+> 25.3% of i_ptm variance is between-backbone over 683 backbones with >=20
+> survivors, best backbone mean i_ptm 0.675 against worst 0.247 — so a quota does
+> discard candidates from good scaffolds. Measured at n = 3,000:
+>
+> | quota | backbones | mean i_ptm | excluded-but-better |
+> |---:|---:|---:|---:|
+> | 5 | 759 | 0.515 | 46,162 |
+> | **10** | **578** | **0.535** | **11,472** |
+> | 20 | 536 | 0.530 | 11,345 |
+> | none | 506 | 0.524 | 11,345 |
+>
+> 10 dominates both: higher mean score than 5 AND a 4x cut in high-scoring
+> exclusions, while also beating *no* quota on mean score, because with the length
+> allocation fixed an unlimited quota lets a few prolific backbones flood a band
+> with merely-adequate candidates. Nothing improves past 10.
+
+> **USE `run_stage4_production.sh`, NOT `run_stage4_validation.sh`.** The
+> production set spans BOTH Stage 3 output directories — 2,741 from
+> `stage_3_deepening/afcyc_out` and 259 from `stage_3_docking/afcyc_out`. The
+> validation runner sets ONE `INPUT_DIR` for every candidate, so it would have
+> silently failed one group while the other succeeded and exited 0 with a partial
+> pool. `jobs.tsv` therefore carries the input directory as a **fourth column**,
+> resolved per candidate by the pre-flight; the production runner refuses to start
+> if that column is absent, and checks each pose file exists *before* calling the
+> worker so a path problem is a loud FAIL rather than a skip.
 
 ### Procedure
 
@@ -692,10 +719,20 @@ python scripts/stage4_rosetta/select_stage4_set.py \
   --n 3000 --feature hotspot_residues --per-backbone 5 \
   --out $W/stage_4_rosetta/stage4_set.csv
 
-# 3. Rosetta, NSTRUCT=5, sharded over the 64 cores
-NSTRUCT=5 STAGE4=$W/stage_4_rosetta INPUT_DIR=<afcyc_out holding that candidate> \
-  scripts/stage4_rosetta/rosetta_stage4_worker.sh <seq_id> <cys1> <cys2>
+# 3. pre-flight: verify every pose, derive cysteine numbering FROM THE PDB, and
+#    write jobs.tsv with the per-candidate input dir as column 4.
+#    Checks: pose in exactly one dir; chains A and B present; B shorter than A;
+#    exactly 2 CYS in chain B; chain B length == sequence length; PDB cysteine
+#    numbering cross-checked against the sequence's own C positions.
+
+# 4. Rosetta, NSTRUCT=5
+bash scripts/stage4_rosetta/run_stage4_production.sh 56 5
 ```
+
+Completion is NOT "the loop ended". The runner prints `STATUS: COMPLETE` only if
+all candidates have a results JSON with `nstruct_scored == NSTRUCT` and there are
+zero FAIL lines; otherwise it prints `STATUS: INCOMPLETE -- do not analyse this as
+a finished run` and exits 1.
 
 Candidates come from **both** `stage_3_docking/afcyc_out` (scouts) and
 `stage_3_deepening/afcyc_out` (deepening), so `INPUT_DIR` must be resolved per
