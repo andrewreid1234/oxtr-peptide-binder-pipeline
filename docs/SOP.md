@@ -716,7 +716,7 @@ python scripts/stage4_rosetta/select_stage4_set.py \
   --gate-csv    $W/stage_3_docking/stage3_gate.csv $W/stage_3_deepening/stage3_gate.csv \
   --results-dir $W/stage_3_docking/afcyc_out       $W/stage_3_deepening/afcyc_out \
   --pool-csv    $W/stage_2_sequences/unique_sequences.csv \
-  --n 3000 --feature hotspot_residues --per-backbone 5 \
+  --n 3000 --feature hotspot_residues --per-backbone 10 \
   --out $W/stage_4_rosetta/stage4_set.csv
 
 # 3. pre-flight: verify every pose, derive cysteine numbering FROM THE PDB, and

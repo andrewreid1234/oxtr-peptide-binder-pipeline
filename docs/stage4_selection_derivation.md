@@ -445,18 +445,38 @@ i_ptm gives (§6c).
 ### 6d. Procedure
 
 ```bash
-# 1. re-run the gate to emit hotspot_residues (~5 h, CPU, no GPU)
-python scripts/stage3_docking/stage3_gate.py   --pdb_dir $W/stage_3_docking/afcyc_out  --out $W/stage_3_docking/stage3_gate.csv
-python scripts/stage3_docking/stage3_gate.py   --pdb_dir $W/stage_3_deepening/afcyc_out --out $W/stage_3_deepening/stage3_gate.csv
+W=/scratch/drewdog/denovo_binder_100_pilot_v2
+
+# 1. re-run the gate to emit hotspot_residues (~40 min, CPU, no GPU).
+#    DONE 2026-10-02; survivors reproduced identically at 87,338.
+python scripts/stage3_docking/stage3_gate.py \
+  --pdb_dir $W/stage_3_docking/afcyc_out  --out $W/stage_3_docking/stage3_gate.csv
+python scripts/stage3_docking/stage3_gate.py \
+  --pdb_dir $W/stage_3_deepening/afcyc_out --out $W/stage_3_deepening/stage3_gate.csv
 
 # 2. select the 3,000
-python scripts/stage4_rosetta/select_stage4_set.py   --gate-csv    $W/stage_3_docking/stage3_gate.csv $W/stage_3_deepening/stage3_gate.csv   --results-dir $W/stage_3_docking/afcyc_out       $W/stage_3_deepening/afcyc_out   --pool-csv    $W/stage_2_sequences/unique_sequences.csv   --n 3000 --feature hotspot_residues --per-backbone 5   --out $W/stage_4_rosetta/stage4_set.csv
+python scripts/stage4_rosetta/select_stage4_set.py \
+  --gate-csv    $W/stage_3_docking/stage3_gate.csv $W/stage_3_deepening/stage3_gate.csv \
+  --results-dir $W/stage_3_docking/afcyc_out       $W/stage_3_deepening/afcyc_out \
+  --pool-csv    $W/stage_2_sequences/unique_sequences.csv \
+  --n 3000 --feature hotspot_residues --per-backbone 10 \
+  --out $W/stage_4_rosetta/stage4_set.csv
 
-# 3. Rosetta at NSTRUCT=5 (~3 days on 64 cores)
-NSTRUCT=5 STAGE4=$W/stage_4_rosetta   INPUT_DIR=$W/stage_3_deepening/afcyc_out   scripts/stage4_rosetta/rosetta_stage4_worker.sh <seq_id> <cys1> <cys2>
+# 3. pre-flight: verify every pose, derive the cysteine numbering FROM THE PDB,
+#    and write jobs.tsv with the per-candidate input directory as column 4.
 
-# 4. rank the output on dG_separated/dSASAx100, applying the diversity constraint
+# 4. Rosetta at NSTRUCT=5 (~3 days on 64 cores)
+bash scripts/stage4_rosetta/run_stage4_production.sh 56 5
+
+# 5. rank the output on dG_separated/dSASAx100, applying the diversity constraint
 ```
+
+> **Never set a single `INPUT_DIR` for Stage 4.** The selection spans BOTH Stage 3
+> output directories (2,741 deepening + 259 scouts at the quota-10 selection), so
+> one hardcoded path fails one group silently and exits 0 with a partial pool.
+> `run_stage4_production.sh` resolves it per candidate and refuses to start if
+> `jobs.tsv` lacks the fourth column. `rosetta_stage4_worker.sh` takes `INPUT_DIR`
+> for a single candidate and is not meant to be driven by hand across a set.
 
 ### 6e. Still to do before the shortlist
 
