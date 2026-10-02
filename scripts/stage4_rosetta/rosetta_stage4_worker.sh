@@ -159,7 +159,6 @@ fi
 if [ "${#RELAXED_LIST[@]}" -ne "$NSTRUCT" ]; then
   echo "WARNING: $SEQ_ID produced ${#RELAXED_LIST[@]}/$NSTRUCT relaxed structures"
 fi
-RELAXED_PDB="${RELAXED_LIST[0]}"
 
 # Same flag here: InterfaceAnalyzer re-reads the PDB and would otherwise fall
 # back to distance-based detection. Relax should have closed the bond
@@ -175,44 +174,103 @@ RELAXED_PDB="${RELAXED_LIST[0]}"
   -out:path:all . \
   -overwrite -mute all > ia.log 2>&1
 
+# The structure list is passed through a file rather than interpolated into the
+# python -c string, so filenames never have to survive two levels of quoting.
+printf '%s\n' "${RELAXED_LIST[@]}" > relaxed_list.txt
+
 python3 -c "
 import pyrosetta
 pyrosetta.init('-mute all')
 from pyrosetta import pose_from_pdb, get_fa_scorefxn
-import json
+import json, math, sys
 
-pose = pose_from_pdb('$RELAXED_PDB')
-sfxn = get_fa_scorefxn()
-sfxn(pose)
-energies = pose.energies()
-dslf_term = pyrosetta.rosetta.core.scoring.dslf_fa13
+# ------------------------------------------------------------------ AGGREGATION
+# Every structure is read and the MEAN is reported. This is the whole point of
+# NSTRUCT: the measured reliability series 0.579 -> 0.733 -> 0.805 -> 0.873 for
+# 1/2/3/5 replicates belongs to the MEAN. Reporting one structure out of N would
+# cost N times the compute and return the nstruct=1 statistics unchanged -- which
+# is exactly what this block did until 2026-10-02, when it parsed score.sc's
+# lines[1] and discarded the rest.
+#
+# Nor is the minimum acceptable: best-of-N is an extreme-value statistic, biased
+# downward by an amount that GROWS WITH THE NOISE, and noise here is correlated
+# with poor binding (r = +0.309 between mean dG and replicate sd), so best-of-N
+# would systematically flatter the worst candidates.
+paths = [l.strip() for l in open('relaxed_list.txt') if l.strip()]
+if not paths:
+    sys.exit('FATAL: relaxed_list.txt is empty')
 
-dslf_sum = 0.0
-for i in range(1, pose.total_residue()+1):
-    chain = pose.pdb_info().chain(i)
-    pdbnum = pose.pdb_info().number(i)
-    if chain == 'B' and pdbnum in ($CYS1, $CYS2):
-        dslf_sum += energies.residue_total_energies(i)[dslf_term]
+NUMERIC = ['dG_separated', 'dSASA_int', 'sc_value', 'hbonds_int',
+           'delta_unsatHbonds', 'dG_separated/dSASAx100']
 
-# parse InterfaceAnalyzer score file
-import csv
-ia_data = {}
+# score.sc carries one SCORE: data line per structure, keyed by 'description'.
+rows = []
 with open('score.sc') as f:
-    lines = [l for l in f if l.startswith('SCORE:')]
-    header = lines[0].split()[1:]
-    values = lines[1].split()[1:]
-    ia_data = dict(zip(header, values))
+    lines = [l.split() for l in f if l.startswith('SCORE:')]
+header = lines[0][1:]
+for v in lines[1:]:
+    rows.append(dict(zip(header, v[1:])))
+if not rows:
+    sys.exit('FATAL: no SCORE data lines in score.sc')
+if len(rows) != len(paths):
+    print('WARNING: score.sc has %d structure(s), expected %d' % (len(rows), len(paths)))
 
-result = {
-    'sequence_id': '$SEQ_ID',
-    'dG_separated': float(ia_data.get('dG_separated', 'nan')),
-    'dSASA_int': float(ia_data.get('dSASA_int', 'nan')),
-    'sc_value': float(ia_data.get('sc_value', 'nan')),
-    'hbonds_int': float(ia_data.get('hbonds_int', 'nan')),
-    'delta_unsatHbonds': float(ia_data.get('delta_unsatHbonds', 'nan')),
-    'designed_dslf_fa13': round(dslf_sum, 3),
-}
+def nums(key):
+    out = []
+    for r in rows:
+        try:
+            out.append(float(r[key]))
+        except (KeyError, ValueError):
+            pass
+    return out
+
+def mean(v):
+    return sum(v) / len(v) if v else float('nan')
+
+def sd(v):
+    if len(v) < 2:
+        return 0.0
+    m = mean(v)
+    return math.sqrt(sum((x - m) ** 2 for x in v) / (len(v) - 1))
+
+# dslf is a pose property, so it is recomputed per structure rather than read
+# from score.sc.
+dslf_term = pyrosetta.rosetta.core.scoring.dslf_fa13
+sfxn = get_fa_scorefxn()
+dslf_vals = []
+for path in paths:
+    pose = pose_from_pdb(path)
+    sfxn(pose)
+    e = pose.energies()
+    tot = 0.0
+    for i in range(1, pose.total_residue()+1):
+        if pose.pdb_info().chain(i) == 'B' and pose.pdb_info().number(i) in ($CYS1, $CYS2):
+            tot += e.residue_total_energies(i)[dslf_term]
+    dslf_vals.append(tot)
+
+result = {'sequence_id': '$SEQ_ID', 'nstruct_scored': len(rows)}
+for k in NUMERIC:
+    v = nums(k)
+    # 'dG_separated/dSASAx100' would be an awkward JSON key; normalise it.
+    name = 'dG_per_dSASAx100' if k.endswith('dSASAx100') else k
+    result[name] = mean(v)
+    result[name + '_sd'] = round(sd(v), 4)
+    result[name + '_values'] = [round(x, 4) for x in v]
+
+# The ranking target is a per-structure ratio, so the per-structure ratios are
+# averaged. mean(dG)/mean(dSASA) is a different estimator and is reported too so
+# the two can be compared rather than silently conflated.
+dg, ds = nums('dG_separated'), nums('dSASA_int')
+result['dG_per_dSASAx100_ratio_of_means'] = (
+    mean(dg) / mean(ds) * 100.0 if ds and mean(ds) != 0 else float('nan'))
+
+result['designed_dslf_fa13'] = round(mean(dslf_vals), 3)
+result['designed_dslf_fa13_sd'] = round(sd(dslf_vals), 3)
+result['designed_dslf_fa13_values'] = [round(x, 3) for x in dslf_vals]
+
 with open('$RESDIR/${SEQ_ID}.json', 'w') as f:
     json.dump(result, f)
-print('OK: $SEQ_ID', result)
+print('OK: $SEQ_ID nstruct=%d dG %.2f +/- %.2f  dG/dSASAx100 %.4f +/- %.4f'
+      % (result['nstruct_scored'], result['dG_separated'], result['dG_separated_sd'],
+         result['dG_per_dSASAx100'], result['dG_per_dSASAx100_sd']))
 "

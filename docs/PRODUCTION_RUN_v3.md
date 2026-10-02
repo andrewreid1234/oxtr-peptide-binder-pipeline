@@ -2,7 +2,7 @@
 
 **Document version:** v1.2.0
 **Last updated:** 2026-09-30
-**Describes pipeline:** v3.4.0
+**Describes pipeline:** v3.4.1
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
 The record of the **scale-up run** — the first execution of the pipeline at

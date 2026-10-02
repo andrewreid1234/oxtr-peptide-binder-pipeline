@@ -11,9 +11,68 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.4.1 — 2026-10-02
+
+**Current.** PATCH. One defect in v3.4.0, found by the user asking for a full
+breakdown of what had changed. No production result is affected because nothing
+had been run yet — but it would have wasted roughly three days of CPU.
+
+### FIXED: the worker did not average NSTRUCT structures, it reported structure 1
+
+v3.4.0 added `NSTRUCT` to `rosetta_stage4_worker.sh` and stated, in the commit
+message, the script docstring, `SOP.md`, `LIMITATIONS.md` O0 and
+`stage4_selection_derivation.md` §6a, that the worker "scores all N structures and
+reports the mean". **It did not.** The scoring block still contained:
+
+```python
+lines  = [l for l in f if l.startswith('SCORE:')]
+values = lines[1].split()[1:]      # first structure only
+```
+
+With `NSTRUCT=5`, `score.sc` carries five data lines. The code took `lines[1]` and
+discarded four. So the worker would have run FastRelax five times, run
+`InterfaceAnalyzer` on all five, paid the full 5x cost, and returned **exactly the
+`nstruct=1` statistics** — ICC 0.579, no reliability gain whatsoever. At the locked
+cap of 3,000 candidates that is ~3 days of CPU for a ~0.6-day result.
+
+This is the bug class the project's own brief names as a calibration case:
+a docstring claiming behaviour the code does not implement. It was introduced and
+documented in the same commit, so the five assertions were false from the moment
+they were written.
+
+Fixed: the block now parses **every** `SCORE:` line and reports, per metric, the
+mean, the sample sd and the per-structure values —
+`dG_separated`, `dSASA_int`, `sc_value`, `hbonds_int`, `delta_unsatHbonds` and
+`dG_separated/dSASAx100` (emitted as `dG_per_dSASAx100`). `designed_dslf_fa13` is
+recomputed per structure and averaged, since it is a pose property rather than a
+score-file column. `nstruct_scored` records how many structures actually
+contributed, and a mismatch against the requested `NSTRUCT` now warns.
+
+Two further corrections in the same block:
+
+- **The ranking target is averaged as a per-structure ratio.** `mean(dG/dSASA)`
+  and `mean(dG)/mean(dSASA)` are different estimators. The per-structure mean is
+  primary; `dG_per_dSASAx100_ratio_of_means` is reported alongside so the two can
+  be compared rather than silently conflated.
+- **Structure paths now reach Python through a file** (`relaxed_list.txt`) instead
+  of being interpolated into a `python -c` string, so filenames do not have to
+  survive two levels of shell quoting.
+
+Also removed `RELAXED_PDB`, which the v3.4.0 change left assigned and unread — the
+same declared-but-unused pattern, left behind while fixing it elsewhere.
+
+### Verification
+
+`bash -n` on the worker, plus both embedded Python blocks extracted with their
+shell variables substituted and parsed with `ast.parse` (45 and 94 lines, both
+clean). This is a static check only: **the worker has not been executed at
+`NSTRUCT>1`**, and that run is the real test.
+
+---
+
 ## Pipeline v3.4.0 — 2026-10-02
 
-**Current.** MAJOR: Stage 4's advancement criteria are now fixed. The cap, the
+MAJOR: Stage 4's advancement criteria are now fixed. The cap, the
 selector feature, the length allocation and the ranking target were all open on
 2026-10-01 and are settled here, together with the diagnosis of where the length
 bias actually comes from.
