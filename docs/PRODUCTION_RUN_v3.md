@@ -2,7 +2,7 @@
 
 **Document version:** v1.2.0
 **Last updated:** 2026-09-30
-**Describes pipeline:** v3.8.0
+**Describes pipeline:** v3.9.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
 The record of the **scale-up run** — the first execution of the pipeline at
@@ -923,19 +923,27 @@ A disjoint 2-vs-3 split gives top-5 overlap of **1.00/5**. More `nstruct` cannot
 this — halving the SEM costs 4× the trajectories. **Synthesise from the top ~25–50 on
 diversity grounds, not the top 5 on score.**
 
-### The selector did not replicate
+### Measuring the selector on the selected set does not work
 
 | feature | r vs dG (n=3000) | n=200 benchmark |
 |---|---:|---:|
 | `hotspot_contacts` | −0.487 | −0.583 |
 | *length* | *−0.459* | |
 | `i_ptm` | −0.190 | −0.477 |
-| **`hotspot_residues`** | **−0.005** | −0.530 |
+| `hotspot_residues` | −0.005 | −0.530 |
 
-**`hotspot_residues`, the feature the selection was made on, has no predictive power**
-(group medians −46.27 at 8 engaged hotspots vs −45.90 at 7, against noise of 3.53).
-`hotspot_contacts` held, and `length` alone explains nearly as much as it does. See
-`LIMITATIONS.md` O0e.
+These were initially read as the selector failing to replicate. **That reading was
+wrong.** The 3,000 contain only `hotspot_residues` 7 and 8, because that is what the
+selection picked; restricting the n=200 benchmark to the same {7,8} range gives
+**+0.031**, matching the −0.005 measured here. The feature behaves identically in
+both datasets and **it worked** — the 3,000 score 7.6 REU better than a random
+sample of survivors because of it.
+
+The same caution applies to `i_ptm` and `centroid_dist` above: all were used in
+selection or stratification, so their apparent weakening here is at least partly
+range restriction rather than genuine drift. `LIMITATIONS.md` O0f records the error
+and the general lesson — **a feature used to select a set cannot be validated on
+that set.**
 
 ### Completion criterion
 

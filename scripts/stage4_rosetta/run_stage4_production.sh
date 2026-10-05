@@ -25,7 +25,9 @@ set -euo pipefail
 NPAR="${1:-56}"
 NSTRUCT_N="${2:-5}"
 W=/scratch/drewdog/denovo_binder_100_pilot_v2
-S4="$W/stage_4_rosetta"
+# S4 is overridable so a second batch can run into its own directory without
+# touching batch 1's results, jobs.tsv or batch.log.
+S4="${S4:-$W/stage_4_rosetta}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 JOBS="$S4/jobs.tsv"
 

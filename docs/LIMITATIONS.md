@@ -307,39 +307,45 @@ trajectories, and that still leaves the leaders within ~4 SEM.
 
 This supersedes the 1.6x over-sampling figure wherever it appears.
 
-### O0f. The selector feature did not replicate
-**Measured 2026-10-05 on the completed production run, n = 3,000.**
+### O0f. ~~The selector feature did not replicate~~ — WITHDRAWN, it was range restriction
+**Raised 2026-10-05, withdrawn the same day on re-examination.**
 
-| feature | r vs dG (n=3000) | n=200 benchmark | drift |
-|---|---:|---:|---:|
-| `hotspot_contacts` | -0.487 | -0.583 | +0.096 |
-| *length alone* | *-0.459* | | |
-| `centroid_dist` | +0.204 | +0.519 | -0.315 |
-| `i_ptm` | -0.190 | -0.477 | +0.287 |
-| **`hotspot_residues`** | **-0.005** | -0.530 | **+0.525** |
+**The claim was wrong and the entry is retained so the error is traceable.**
 
-**`hotspot_residues` -- the feature the 3,000 were selected on -- has no predictive
-power at n = 3,000.** The group comparison, which range restriction cannot distort,
-confirms it: median dG is -46.265 for candidates engaging 8 hotspots against -45.902
-for 7, a difference of 0.363 REU against a within-candidate noise sd of 3.53.
+What was reported: `hotspot_residues`, the feature the 3,000 were selected on,
+reads r = -0.005 against measured dG at n = 3,000, against a -0.530 benchmark at
+n = 200 — therefore it "did not replicate".
 
-It was chosen over `hotspot_contacts` on 2026-10-02 because the bounded form carried
-r = +0.087 with length against the pair count's +0.325, and n = 200 put its correlation
-with dG at -0.530. **That reasoning was wrong in its conclusion:** the bounded feature
-discarded the signal along with the confound. `hotspot_contacts` held up
-(-0.487), and `length` alone explains nearly as much as it does -- so most of what
-survives in raw dG is size, and against the normalised target every feature collapses
-(|r| <= 0.31).
+What is actually true:
 
-**What this does and does not invalidate.** The selection itself is sound: the 3,000
-score a median dG of -45.99 against -38.39 for a random sample of survivors, 7.6 REU
-better. The candidates are good; the *stated reason* they would be good did not hold.
-No result from this run needs re-measuring.
+| dataset | `hotspot_residues` range | r vs dG |
+|---|---|---:|
+| n = 200 benchmark | **1-8** | **-0.530** |
+| n = 200, restricted to {7,8} | 7-8 | **+0.031** |
+| the selected 3,000 | **7-8 only** | **-0.005** |
 
-**For the next cycle:** no Stage-3 feature predicts the normalised target (|r| <= 0.31
-here, <= 0.114 at n = 200), so a Stage-3 selector cannot be validated against the
-quantity that actually picks the synthesis list. That asymmetry is structural, not a
-gap to be closed by a better feature. See `stage4_selection_derivation.md` section 7.
+**The feature behaves identically in both datasets once compared over the same
+range.** The 3,000 contain only 7s and 8s *because that is what the selection
+picked*; within that top sliver there is no residual signal, which is what one
+should expect of any feature already used for selection. Across all 87,338
+survivors the feature spans 1-8 (1,427 at 1 … 37,646 at 6, 32,946 at 7, 1,561 at
+8), so the restriction is severe.
+
+**The specific mistake:** an interim check computed a "sd ratio" of 0.87 and
+concluded the restriction was mild — but that ratio was taken against the
+*selection's* own spread (7s and 8s), not against the survivor population's. The
+denominator was already restricted, so the test could not detect the restriction
+it was meant to detect.
+
+**Consequence:** `hotspot_residues` worked. The 3,000 score 7.6 REU better than a
+random sample of survivors *because* of it. Nothing about the selection needs
+revisiting, and the v3.4.0 decision to use the bounded feature stands.
+
+> **The general lesson, which applies to every post-hoc check in this project:**
+> a feature used to select a set cannot be validated on that set. Range
+> restriction will always drive its apparent correlation toward zero. The honest
+> test is against a sample drawn across the feature's full range — which is what
+> the n = 200 validation set was, and why it gave the right answer.
 
 ### O1. The BBB classifier is not usable on this molecule class
 **Escalated 2026-09-28 — this is now stronger than "needs re-measuring".**

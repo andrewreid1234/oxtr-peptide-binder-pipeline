@@ -182,6 +182,9 @@ def main():
                          "distribution before any length-dependent filter. "
                          "'survivors' propagates the gate's length bias and is "
                          "offered only for comparison.")
+    ap.add_argument("--exclude", nargs="*", default=[],
+                    help="CSV(s) of already-selected candidates to leave out, so a "
+                         "second batch extends the first rather than repeating it")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -197,11 +200,18 @@ def main():
             "       length confound (r = +0.230 with length vs +0.078).\n"
             "       Columns present: %s" % sorted(cols))
 
+    done = set()
+    for f in args.exclude:
+        done |= {r["sequence_id"] for r in csv.DictReader(open(f))
+                 if r.get("row_type", "candidate") == "candidate"}
+    if done:
+        print("excluding %d already-selected candidate(s)" % len(done))
+
     # survivors only
     cand = []
     missing = 0
     for sid, g in gate.items():
-        if g["passes"] != "1":
+        if g["passes"] != "1" or sid in done:
             continue
         a = res.get(sid)
         if a is None:

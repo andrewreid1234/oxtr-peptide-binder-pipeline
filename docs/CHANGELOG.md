@@ -11,9 +11,90 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.9.0 — 2026-10-05
+
+**Current.** A claim made in v3.7.0 is **withdrawn**: the selector did not fail.
+Plus the Stage 4 slide figures, and two jobs running to extend the candidate pool.
+
+### WITHDRAWN: "the selector feature did not replicate"
+
+v3.7.0 reported that `hotspot_residues`, the feature the 3,000 were selected on,
+reads r = -0.005 against measured dG at n = 3,000 against a -0.530 benchmark at
+n = 200, and concluded it had failed to replicate. **That conclusion was wrong.**
+
+| dataset | `hotspot_residues` range | r vs dG |
+|---|---|---:|
+| n = 200 benchmark | **1-8** | **-0.530** |
+| n = 200, restricted to {7,8} | 7-8 | **+0.031** |
+| the selected 3,000 | **7-8 only** | **-0.005** |
+
+The feature behaves **identically** in both datasets once compared over the same
+range. The 3,000 contain only 7s and 8s because that is what the selection picked.
+Across all 87,338 survivors the feature spans 1-8, so the restriction is severe.
+
+The specific mistake: an interim check computed a "sd ratio" of 0.87 and read the
+restriction as mild — but took that ratio against the *selection's* own spread
+rather than the survivor population's, so the denominator was already restricted
+and the test could not detect what it was built to detect.
+
+**`hotspot_residues` worked.** The 3,000 score 7.6 REU better than a random sample
+of survivors because of it, and the v3.4.0 decision stands. `LIMITATIONS.md` O0f is
+retained as a withdrawn entry so the error is traceable, and carries the general
+lesson: **a feature used to select a set cannot be validated on that set.** The same
+caution now applies to the `i_ptm` and `centroid_dist` figures reported alongside
+it, which were also used in selection or stratification.
+
+Corrected in `LIMITATIONS.md` O0f, `PRODUCTION_RUN_v3.md` §5c, `prod_fig10` and the
+slide figure.
+
+### Stage 4 has no pass/fail criterion — and that is now explicit
+
+Asked how many peptides survived to the end of Stage 4, the answer is **3,000 —
+all of them.** Stage 4 ranks; it does not gate, and no dG or dG/dSASAx100 threshold
+has ever been defined. The only genuine pass/fail step in the whole pipeline is the
+Stage 3 pocket gate (87,338 of 143,595). Everything else — 143,595 docked of
+265,700, 3,000 scored of 87,338, 1,000 selectivity-checked of 3,000 — is a compute
+budget, not a filter.
+
+Applying thresholds for the first time, of the 3,000 scored:
+
+| criterion | n | % |
+|---|---:|---:|
+| dG < -45.99 (our own median) | 1,502 | 50.1 |
+| dG < -50 | 842 | 28.1 |
+| dG/dSASAx100 < -3.0 | 272 | 9.1 |
+| **dG/dSASAx100 < -3.0 AND selectivity margin >= 0** | **178** | — |
+
+**178** is adopted as the working "survived everything measured" figure: binds
+efficiently and prefers OXTR over all three vasopressin receptors. Two caveats
+stand with it — the -3.0 cut is a choice, not a derived threshold, and selectivity
+was only evaluated on the top 1,000, so the true count across all 3,000 is unknown.
+
+### Running: two jobs to extend the pool
+
+- **Selectivity on the remaining 2,000** Stage 4 candidates (6,000 predictions,
+  ~1.4 h GPU). 40% of candidates fail selectivity and only the top 1,000 had been
+  checked, so this is the binding constraint on the 178.
+- **Rosetta batch 2**, a further 3,000 survivors selected with the same stratified
+  rule and `--exclude` against batch 1 (~42 h CPU, 48 cores). 31,507 survivors at
+  `hotspot_residues` >= 7 remain unscored.
+
+`select_stage4_set.py` gains `--exclude`; `run_stage4_production.sh` takes `S4` from
+the environment so a second batch writes to its own directory. Batch 2 pre-flight
+passed 3,000/3,000 with zero overlap against batch 1.
+
+### Slide figures
+
+`scripts/viz/plot_slide_figures.py` writes six single-message figures to
+`docs/figures/slides/` for a group-meeting deck. The funnel figure marks **gates
+separately from caps**, because a funnel drawn without that distinction implies
+five filters where there is one.
+
+---
+
 ## Pipeline v3.8.0 — 2026-10-05
 
-**Current.** Stage 7 selectivity run, Stage 4 figures, and a documentation-scope
+Stage 7 selectivity run, Stage 4 figures, and a documentation-scope
 correction. One run was discarded for unprovable provenance.
 
 ### Stage 7: 40% of the best binders are not selective

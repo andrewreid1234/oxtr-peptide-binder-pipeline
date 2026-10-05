@@ -193,9 +193,12 @@ def fig10(sel, ros):
     r = np.corrcoef(hres, dg)[0, 1]
     a.set_xticks([7, 8]); a.set_xlim(6.4, 8.6)
     a.set_xlabel("hotspot_residues  (engaged, of 8)"); a.set_ylabel("dG_separated (REU)")
-    a.annotate("r = %+.3f\nbenchmark at n=200 was %.3f" % (r, BENCH["hotspot_residues"]),
-               (.03, .05), xycoords="axes fraction", fontsize=9, color=RED)
-    panel(a, "A", "The feature the 3,000 were SELECTED on: no signal")
+    a.annotate("r = %+.3f here -- but these are ONLY 7s and 8s.\n"
+               "The n=200 benchmark spanned 1-8 and gave %.3f;\n"
+               "restricted to {7,8} it gives +0.031.\nThis is RANGE RESTRICTION, not failure."
+               % (r, BENCH["hotspot_residues"]),
+               (.03, .04), xycoords="axes fraction", fontsize=8.4, color=INK)
+    panel(a, "A", "A selected feature cannot be judged on the selected set")
 
     a = ax[0, 1]
     a.hexbin(hcon, dg, gridsize=36, cmap=SEQ, mincnt=1, linewidths=0)
@@ -204,7 +207,7 @@ def fig10(sel, ros):
     a.annotate("r = %+.3f\nbenchmark %.3f -- this one held"
                % (r2, BENCH["hotspot_contacts"]), (.03, .05),
                xycoords="axes fraction", fontsize=9, color=INK)
-    panel(a, "B", "The feature we rejected: it was the better one")
+    panel(a, "B", "hotspot_contacts, which was not used to select")
 
     # C: the top of the ranking, with the noise band
     nrv = {i: ros[i]["dG_per_dSASAx100_values"][:5] for i in ids}
@@ -256,7 +259,7 @@ def fig10(sel, ros):
     a.set_ylim(0, 1.04); a.legend(frameon=False, fontsize=8.6, loc="lower right")
     panel(a, "D", "How big must the shortlist be?")
 
-    fig.suptitle("Two earlier conclusions this run overturned",
+    fig.suptitle("The shortlist problem, and a measurement trap",
                  x=.012, ha="left", fontsize=13, fontweight="bold", y=.985)
     _b = caption(fig, "Figure 10. OXTR production run, Stage 4, n=3,000. Top row, the selector: the bounded feature the "
                  "selection was made on (A) has no measurable relationship to the physics it was chosen to predict, "
