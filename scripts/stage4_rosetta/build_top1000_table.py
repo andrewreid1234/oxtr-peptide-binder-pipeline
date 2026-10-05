@@ -1,6 +1,7 @@
 import csv,json,glob,os,sys
 sys.path.insert(0,"/home/drewdog/.claude/jobs/07511682/tmp")
 from pepsmiles import build,props
+from rdkit import Chem
 W="/scratch/drewdog/denovo_binder_100_pilot_v2"
 S4=W+"/stage_4_rosetta"
 sel={r["sequence_id"]:r for r in csv.DictReader(open(S4+"/stage4_set.csv"))}
@@ -28,9 +29,11 @@ for rank,i in enumerate(ids,1):
     else: chem=props(m)
     cys=[k+1 for k,c in enumerate(s["sequence"]) if c=="C"]
     rows.append({
+      "row_type":"candidate",
       "rank_dG_per_dSASAx100":rank,
       "sequence_id":i,"sequence":s["sequence"],"length":s["length"],
-      "cys_positions":"%d-%d"%(cys[0],cys[1]) if len(cys)==2 else ",".join(map(str,cys)),
+      "molecule_form":"disulfide-cyclised, C-terminal amide (as scored at Stage 4)",
+      "cys_positions":"C%d-C%d"%(cys[0],cys[1]) if len(cys)==2 else " ".join("C%d"%c for c in cys),
       # --- chemistry
       "smiles":chem.get("smiles",""),"formula":chem.get("formula",""),
       "mw_average":chem.get("mw",""),"mw_monoisotopic":chem.get("exact",""),
@@ -48,7 +51,7 @@ for rank,i in enumerate(ids,1):
       # --- Stage 4  (NSTRUCT=5, values are means of 5)
       "s4_nstruct_scored":r["nstruct_scored"],
       "s4_dG_separated_REU":round(r["dG_separated"],3),"s4_dG_separated_sd":r["dG_separated_sd"],
-      "s4_dG_separated_values":";".join("%.2f"%v for v in r["dG_separated_values"]),
+      "s4_dG_separated_values":"|".join("%.2f"%v for v in r["dG_separated_values"]),
       "s4_dSASA_int_A2":round(r["dSASA_int"],1),
       "s4_dG_per_dSASAx100":round(r["dG_per_dSASAx100"],4),
       "s4_dG_per_dSASAx100_sd":r["dG_per_dSASAx100_sd"],
@@ -63,6 +66,52 @@ for rank,i in enumerate(ids,1):
       "s5_bbb_nearest_nonpermeant":b.get("NN_Nearest_Reference",""),
       "s5_bbb_cosine_to_nonpermeant":b.get("NN_Cosine_Similarity",""),
     })
+# ---------------------------------------------------------------- CONTROL ROWS
+# The BBB column is uninterpretable without these. leu-enkephalin is a
+# literature-confirmed NON-permeant that this model scores 0.959 / BBB+, so it is
+# the yardstick for what a high probability here is worth. Controls are placed
+# FIRST so anyone opening the file meets the yardstick before the candidates.
+blank={k:"" for k in rows[0]}
+ctrl_rows=[]
+CTRL_KIND={"NONPERM":"control_literature_non_permeant",
+           "BBBpos":"control_model_heldout_BBBpos",
+           "BBBneg":"control_model_heldout_BBBneg"}
+CTRL_NOTE={"NONPERM":"literature-confirmed non-permeant -- the yardstick",
+           "BBBpos":"BBB+ in the model's own held-out set",
+           "BBBneg":"BBB- in the model's own held-out set"}
+for cid,b5 in sorted(bbb.items()):
+    if not cid.startswith("CTRL_"): continue
+    kind=cid.split("_")[1]
+    seq=b5["Sequence"]
+    m,err=build(seq)
+    if m is None:                      # enkephalins have no cysteines
+        m2=Chem.MolFromSequence(seq)
+        chem=props(m2) if m2 else {}
+        form="linear, free acid (as in the reference set)"
+    else:
+        chem=props(m); form="disulfide-cyclised, C-terminal amide"
+    cys=[k+1 for k,c in enumerate(seq) if c=="C"]
+    r=dict(blank)
+    r.update({"row_type":CTRL_KIND.get(kind,"control"),"rank_dG_per_dSASAx100":"",
+      "sequence_id":cid,"sequence":seq,"length":len(seq),
+      "molecule_form":form,
+      "cys_positions":("C%d-C%d"%(cys[0],cys[1]) if len(cys)==2 else " ".join("C%d"%c for c in cys)),
+      "smiles":chem.get("smiles",""),"formula":chem.get("formula",""),
+      "mw_average":chem.get("mw",""),"mw_monoisotopic":chem.get("exact",""),
+      "tpsa":chem.get("tpsa",""),"clogp":chem.get("clogp",""),
+      "hbd":chem.get("hbd",""),"hba":chem.get("hba",""),"rotatable_bonds":chem.get("rotb",""),
+      "s1_backbone":CTRL_NOTE.get(kind,""),
+      "s5_bbb_probability_UNRELIABLE":b5["Probability"],
+      "s5_bbb_call_UNRELIABLE":b5["Prediction"],
+      "s5_bbb_hard_negative_flag":b5["NN_Flag"],
+      "s5_bbb_nearest_nonpermeant":b5["NN_Nearest_Reference"],
+      "s5_bbb_cosine_to_nonpermeant":b5["NN_Cosine_Similarity"]})
+    ctrl_rows.append(r)
+order={"control_literature_non_permeant":0,"control_model_heldout_BBBpos":1,"control_model_heldout_BBBneg":2}
+ctrl_rows.sort(key=lambda r:(order.get(r["row_type"],9),-float(r["s5_bbb_probability_UNRELIABLE"])))
+rows=ctrl_rows+rows
+print("  prepended %d control rows"%len(ctrl_rows))
+
 out=W+"/stage_4_rosetta/top1000_full.csv"
 with open(out,"w",newline="") as fh:
     w=csv.DictWriter(fh,fieldnames=list(rows[0].keys()));w.writeheader();w.writerows(rows)
