@@ -1,14 +1,27 @@
 # Methods and Results
 
-**Document version:** v1.1.0
-**Last updated:** 2026-09-25
-**Describes pipeline:** v3.1.0
+**Document version:** v1.2.0
+**Last updated:** 2026-10-05
+**Describes pipeline:** v3.1.0 (pilot). Production run is pipeline v3.7.0 — see the scope note below.
 
-The complete technical record: what each stage does, exactly how it is
-configured, what it produced, and what the controls say about whether to believe
-it. Written so that someone who reads it end to end understands every part of
-the project, and so that any number quoted elsewhere can be traced to its
-source here.
+**SCOPE: this is the PILOT's technical record (100 backbones, 27-candidate
+shortlist).** What each stage does, exactly how it is configured, what the pilot
+produced, and what the controls say about whether to believe it. Written so that
+someone who reads it end to end understands every part of the method.
+
+> **It is not the record of the production run.** The scale-up (B = 1500) has
+> since completed Stages 1-4 plus the Stage 5 permeability annotation and Stage 7
+> selectivity, at a different scale and with materially different numbers — in
+> several cases different *conclusions*. Every stage section below carries a
+> pointer to where its production figures live. **Where the two disagree, the
+> production run supersedes.** The live index of which document owns which number
+> is `CHANGELOG.md`; the production record is
+> [`PRODUCTION_RUN_v3.md`](PRODUCTION_RUN_v3.md).
+>
+> This document previously claimed to be the complete record in which any number
+> quoted elsewhere could be traced. That stopped being true once the scale-up
+> produced its own results, and the claim was removed on 2026-10-05 rather than
+> left to mislead.
 
 **How this fits with the other documents.** [`SUMMARY.md`](SUMMARY.md) is the
 narrative — read that first. This document is the evidence behind it.
@@ -28,7 +41,7 @@ Each stage below follows the same shape: **Method** → **Configuration** →
 
 ---
 
-## 1. The target and how the receptor is prepared
+# 1. The target and how the receptor is prepared
 
 **Structure.** All work uses **PDB 7RYC** — OXTR bound to oxytocin in complex
 with heterotrimeric Gq, solved by cryo-EM. Chain `O` is the receptor, chain `L`
@@ -60,7 +73,9 @@ in use. See [`LIMITATIONS.md`](LIMITATIONS.md) A5.
 
 ---
 
-## 2. Stage 1 — Backbone generation (RFdiffusion)
+# 2. Stage 1 — Backbone generation (RFdiffusion)
+
+> **Production:** 1,500 backbones, **35.0 GPU-h**, 99.9% disulfide-compatible, 29/33 native oxytocin contacts recovered — `PRODUCTION_RUN_v3.md` §2.
 
 ### Method
 
@@ -126,7 +141,9 @@ in the favourable regime rather than roughly half.
 
 ---
 
-## 3. Stage 2 — Sequence design (ProteinMPNN)
+# 3. Stage 2 — Sequence design (ProteinMPNN)
+
+> **Production:** 900,000 draws yielding **265,700 unique sequences**, zero disulfide losses, `--omit_AAs CMX` — `PRODUCTION_RUN_v3.md` §3.
 
 ### Method
 
@@ -214,7 +231,9 @@ Sound once gated. **S = 300 draws, T = 0.1**, deduplicated, Cys-verified.
 
 ---
 
-## 4. Stage 3 — Structure prediction and docking
+# 4. Stage 3 — Structure prediction and docking
+
+> **Production:** **143,595** candidates docked (scout-and-deepen), 33.1 h / 132.8 GPU-h, zero failures, **87,338 survivors** at q = 0.608 — `PRODUCTION_RUN_v3.md` §5 and §5b. Note also that the length dependence reported here was diagnosed as a **placement artefact** of an unconditioned predictor, not a property of the molecules — `LIMITATIONS.md` O0d.
 
 ### Method
 
@@ -358,7 +377,9 @@ rather than assumption.
 
 ---
 
-## 5. Stage 4 — Physics-based scoring (Rosetta)
+# 5. Stage 4 — Physics-based scoring (Rosetta)
+
+> **Production:** **3,000** candidates at `NSTRUCT=5` (mean of 5, never best-of), 42.16 h / 2,344 core-hours, zero failures. `dG_separated` median **−45.99**, best **−77.01**; ranked on `dG_separated/dSASAx100` — `PRODUCTION_RUN_v3.md` §5c. The pilot range quoted below (−23.5 to −52.8 REU over 27 candidates) is superseded.
 
 ### Method
 
@@ -408,7 +429,9 @@ ranking rather than an affinity prediction.
 
 ---
 
-## 6. Stage 5a — Blood-brain barrier permeability (B3BPFN)
+# 6. Stage 5a — Blood-brain barrier permeability (B3BPFN)
+
+> **Production:** 3,019 sequences scored **with controls in the same batch**, which settled the question — **leu-enkephalin, a literature-confirmed non-permeant, scores 0.959 BBB+**. The column is annotation only and is named `_UNRELIABLE` in the output table — `LIMITATIONS.md` O1.
 
 ### Method
 
@@ -477,7 +500,9 @@ on Cys-constrained candidates ([`LIMITATIONS.md`](LIMITATIONS.md) O1).
 
 ---
 
-## 7. Stage 5b — Molecular dynamics
+# 7. Stage 5b — Molecular dynamics
+
+> **Status:** MD was shown **not to discriminate** among candidates that already cleared Stage 4, so it is confirmation-only and was dropped from the production plan — `LIMITATIONS.md` A4.
 
 ### Method
 
@@ -547,7 +572,9 @@ in the pocket"; not for anything conformational.
 
 ---
 
-## 8. Stage 6 — N-methylation site scan
+# 8. Stage 6 — N-methylation site scan
+
+> **Production: not yet run.** The scanner has been rewritten to read the Rosetta-relaxed complexes and to report per-site consistency across all 5 `NSTRUCT` structures — `scripts/stage6_nmethyl/nmethyl_scan.py`. This matters more than it did at pilot: the production candidates have TPSA median **433 Å²** and cLogP median **−4.51**, so none crosses a membrane passively, and with the BBB classifier shown to be uninformative this is the only computable permeability lever.
 
 Identifies backbone amide positions where N-methylation is structurally
 plausible — a standard route to improved permeability and protease resistance.
@@ -562,7 +589,9 @@ the modification or a wet-lab assay.
 
 ---
 
-## 9. Stage 7 — Selectivity
+# 9. Stage 7 — Selectivity
+
+> **Production:** top 1,000 docked against all three vasopressin receptors (3,000 predictions, AVPR1B trimmed to pLDDT ≥ 70 so target sizes are comparable). **401 of 1,000 (40.1%) prefer an off-target**; AVPR2 is worst in 510. Selectivity is **independent of binding rank** (r = −0.065), and only **14 of the top 25** binders survive margin ≥ 0 — `stage_7_selectivity/selectivity_summary.csv`.
 
 Each shortlisted candidate is cofolded against the three vasopressin receptors
 most likely to cross-react: **AVPR1A** (PDB 9XB1), **AVPR1B** (AlphaFold model
@@ -580,7 +609,9 @@ seriously as a lead.
 
 ---
 
-## 10. Stage 8 — Synthesis selection
+# 10. Stage 8 — Synthesis selection
+
+> **Production:** a top-5 is **not identifiable** — 90% containment of the true best 5 needs a shortlist of **86**, because the top ~50 lie within ~2 SEM of the leader — `LIMITATIONS.md` O0e. Choose from the top ~25–50 on diversity and selectivity, not on score order.
 
 Wave 1 is **12 compounds**: 8 top-ranked plus 4 deliberately spanning the score
 range.
@@ -599,7 +630,7 @@ batch size fixes it.
 
 ---
 
-## 11. The funnel
+# 11. The funnel
 
 ![v3.0.0 funnel](figures/fig_funnel_v3.png)
 
@@ -634,7 +665,7 @@ doubles.
 
 ---
 
-## 12. What this establishes, and what it does not
+# 12. What this establishes, and what it does not
 
 ### Established
 

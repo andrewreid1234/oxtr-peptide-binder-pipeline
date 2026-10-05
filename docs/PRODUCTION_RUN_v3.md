@@ -2,7 +2,7 @@
 
 **Document version:** v1.2.0
 **Last updated:** 2026-09-30
-**Describes pipeline:** v3.7.0
+**Describes pipeline:** v3.8.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
 The record of the **scale-up run** — the first execution of the pipeline at
@@ -56,7 +56,7 @@ there.
 
 ---
 
-## 1. Stage 1 — Backbone generation
+# 1. Stage 1 — Backbone generation
 
 ### Method
 
@@ -244,7 +244,7 @@ what was wanted here but should not be mistaken for surface coverage.
 
 ---
 
-## 2. Stage 2 — Sequence design
+# 2. Stage 2 — Sequence design
 
 ### Method
 
@@ -422,7 +422,7 @@ One cleanup item: drop the single `X`-containing sequence before Stage 3.
 
 ---
 
-## 3. Chemical space explored
+# 3. Chemical space explored
 
 ### Method
 
@@ -518,7 +518,7 @@ backbones on one epitope, each sampled sparsely but widely. The run explores
 
 ---
 
-## 4. Stage 3 allocation — scout depth k
+# 4. Stage 3 allocation — scout depth k
 
 ### Method
 
@@ -585,7 +585,7 @@ the binding constraint, which at 53.4 h versus 54.6 h it is not.
 
 ---
 
-## 5. Stage 3 — Scout docking
+# 5. Stage 3 — Scout docking
 
 ### Method
 
@@ -682,7 +682,7 @@ confidence, not an energy.
 
 ---
 
-## 5b. Stage 3 — Deepening docking
+# 5b. Stage 3 — Deepening docking
 
 Launched 2026-09-29 22:27, completed **2026-10-01 04:04:15**. The 747 backbones
 selected at f = 0.50 by MAX i_ptm (§5), all remaining sequences on each.
@@ -794,7 +794,7 @@ deepening pass rate made the Rosetta problem worse, not better. Stage 4
 
 ---
 
-## 5c. Stage 4 — Rosetta, complete
+# 5c. Stage 4 — Rosetta, complete
 
 Launched **2026-10-02 14:03:05**, completed **2026-10-04 08:12:57**.
 **42.16 h wall, 2,344 core-hours, 56 of 64 cores at 99% efficiency, 13 GB.**
@@ -862,6 +862,53 @@ Top candidates on the locked target are **8–9-mers** (`SGCLFGSCP` −3.682,
 `dG/dSASAx100` decision changed which size class gets synthesised, in favour of the
 BBB-relevant one.
 
+### Figures
+
+![Stage 4 results](figures/prod_fig9_stage4_results.png)
+
+**Figure 9 — what Stage 4 produced, and the noise on it.** Every value is the mean
+of five independent FastRelax trajectories. Panel A sets the result against the
+only available no-selection baseline: 200 randomly chosen Stage 3 survivors, median
+−38.39. Panel C is the check that matters for trusting the rest — run-to-run noise
+came in at median **3.53 REU**, against 3.48 measured on three independent runs and
+3.86 on the `nstruct` test, so the noise model held in production. Panel D is why
+the ranking target is normalised: **r = −0.711** between `dSASA_int` and raw dG on
+these 3,000 (the n=200 estimate was −0.766), so raw dG is substantially an
+interface-size measure.
+
+![Selector and shortlist](figures/prod_fig10_selector_shortlist.png)
+
+**Figure 10 — the two findings that overturned earlier conclusions.** Panel A is
+the uncomfortable one: `hotspot_residues`, the feature the 3,000 were *selected*
+on, has **r = −0.005** against the physics, versus the −0.530 measured at n = 200.
+The group medians differ by 0.363 REU against noise of 3.53. Panel B shows the
+feature rejected on length-confounding grounds held up at −0.487. Panels C and D
+quantify the shortlist: only **14 candidates** lie within ±2 SEM of the leader, and
+capturing the true best five with 90% confidence needs a shortlist of **86** — the
+n = 20 pilot implied 8.
+
+![Target choice](figures/prod_fig11_target_choice.png)
+
+**Figure 11 — the ranking-target decision changed which molecules win.** Nine of
+the top 20 by raw dG are 14-mers and none is shorter than 11 residues; the
+normalised target reaches 8–10-residue macrocycles across 16 backbones rather than
+12. Since the programme exists because oxytocin does not cross the blood-brain
+barrier, and smaller peptides permeate better, the normalised target reaches the
+size class the project needs. **The decision was taken before these data existed.**
+
+![Chemistry, BBB and selectivity](figures/prod_fig12_chem_bbb_selectivity.png)
+
+**Figure 12 — chemistry, permeability annotation, and selectivity.** Panel A is
+computed from SMILES built with the disulfide closed and the C-terminal amide
+applied, so it describes the molecule as synthesised and as Stage 4 scored it:
+**median TPSA 433 Å², cLogP −4.51**, with the best candidate at 246 / −0.22. Every
+candidate sits far above the TPSA 140 Å² line. Panel B is the permeability column
+with its controls in the same batch — **leu-enkephalin, a literature-confirmed
+non-permeant, scores 0.959 BBB+** — which is why that column is annotation only and
+named `_UNRELIABLE`. Panels C and D are Stage 7: **401 of 1,000 (40.1%) prefer a
+vasopressin receptor**, and selectivity is independent of binding rank
+(r = −0.065), so it is information nothing upstream supplied.
+
 ### A top-5 is not identifiable from this data
 
 | true set | shortlist needed for 90% containment |
@@ -871,7 +918,7 @@ BBB-relevant one.
 | **top-5** | **86** |
 
 The n=20 pilot said ~1.6×; **the real factor is ~17×**. SEM of the mean-of-5 is 0.0831
-and the rank-1-to-rank-5 gap is only **2.1 SEM**, so the top ~50 are inside the noise.
+and the rank-1-to-rank-5 gap is only **2.1 SEM**; measured directly, **14 candidates lie within ±2 SEM of the leader** (Figure 10C).
 A disjoint 2-vs-3 split gives top-5 overlap of **1.00/5**. More `nstruct` cannot fix
 this — halving the SEM costs 4× the trajectories. **Synthesise from the top ~25–50 on
 diversity grounds, not the top 5 on score.**
@@ -898,7 +945,7 @@ diversity grounds, not the top 5 on score.**
 
 ---
 
-## 6. What this run establishes
+# 6. What this run establishes
 
 ### Established
 
@@ -963,6 +1010,7 @@ diversity grounds, not the top 5 on score.**
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.6.0** | 2026-10-05 | Added four figures to §5c (prod_fig9–12) with standalone captions: Stage 4 results against the random-survivor baseline and the noise check; the selector failure and shortlist identifiability; the ranking-target effect on which molecules win; and chemistry, the control-anchored BBB annotation and Stage 7 selectivity. Section headings promoted to h1 so stages are findable. Corrected "top ~50 within 2 SEM" to the measured **14**, and recorded the production r(dSASA, dG) = **−0.711** against the n=200 estimate of −0.766. |
 | **v1.5.0** | 2026-10-05 | §5c moved from *launched* to *complete*: 3000/3000, zero FAIL, 42.16 h, 2,344 core-hours, 99% efficiency. Added the result distributions, the top candidates on both targets (the normalised target picks 8–9-mers, raw dG picks 14-mers from one backbone), the finding that **a top-5 is not identifiable** (90% containment needs a shortlist of 86 against the pilot's 8, because the top ~50 sit within ~2 SEM), and that **`hotspot_residues` did not replicate** (r = −0.005 against the −0.530 benchmark). |
 | **v1.4.0** | 2026-10-02 | Added §5c *Stage 4 — Rosetta, launched*: the as-run parameters (3,000 candidates, 578 backbones, quota 10, `hotspot_residues`, `NSTRUCT=5` averaged, `dG/dSASAx100`), the full pre-flight table (3,000/3,000 on six checks), the split-input-directory risk and how the production runner mitigates it, live verification of amidation and forced disulfide on the first candidates, and the completion criterion. Status block moved to Stage 4 running. |
 | **v1.3.0** | 2026-10-01 | Added §5b *Stage 3 — Deepening docking*, which completes the Stage 3 record: 128,608 candidates in 29.62 h / **118.7 GPU-h** (within 2% of the 120.7 projected from measured scouting throughput), zero failures, 2.2% shard spread; **q = 0.622** against scouting's 0.494, with i_ptm median 0.216 → 0.341 and the ≥0.30 fraction 42.8% → 56.2%; the length confound tabulated per length (14-mer median i_ptm 2.1x an 8-mer's); per-backbone q spanning 0.000–1.000 over the 747 deepened backbones with 3 producing zero survivors, which argues for backbone-stratified rather than flat top-N capping at Stage 4; **Stage 3 combined — 143,595 docked, 33.1 h, 132.8 GPU-h, 87,338 survivors, q = 0.608**, 43% under the 235 GPU-h in `CHANGELOG.md` v3.3.3 and 38% under §4's 213.7; the top-5 candidates and the two convergent sequence motifs that make diversity an explicit shortlist constraint; and the Stage 4 arithmetic — **19.7 days uncapped**, worse than the 15.7 days at q = 0.494. Status block updated to Stages 1–3 complete, Stage 4 blocked on the cap decision. |
