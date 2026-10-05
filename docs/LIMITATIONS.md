@@ -378,6 +378,32 @@ discarded on this classifier before docking.
 experimental permeability data on the first synthesis wave. Until then,
 rank on binding and carry BBB as an unweighted column.
 
+> **CONFIRMED 2026-10-05 with controls in the same batch.** The 3,000 Stage 4
+> candidates were re-scored alongside the three literature non-permeants and
+> sixteen of the model's own held-out peptides. The controls settle it:
+>
+> | control | sequence | p(BBB) | call |
+> |---|---|---:|---|
+> | **leu-enkephalin** (confirmed non-permeant) | YGGFL | **0.959** | **BBB+** |
+> | **met-enkephalin** (confirmed non-permeant) | YGGFM | **0.648** | **BBB+** |
+> | oxytocin (non-permeant) | CYIQNCPLG | 0.182 | BBB− |
+>
+> **Two of the three known non-permeants are called permeable, one at 0.959.**
+>
+> The model is not broken in general — on its own held-out set it separates
+> cleanly (BBB+ median 0.695, BBB− median 0.016). It is broken on *this molecule
+> class*: our candidates sit a median cosine of **0.982** (p95 0.989) from the
+> nearest known non-permeant in the model's embedding space, and **2,720 of 3,000
+> are nearest to oxytocin**. 72.2% are called BBB+, and 36.8% of those trip the
+> model's own hard-negative flag.
+>
+> The column is retained as annotation and is deliberately named
+> `s5_bbb_probability_UNRELIABLE` / `s5_bbb_call_UNRELIABLE` in
+> `analysis/stage4_production/top1000_full.csv`, alongside the nearest
+> non-permeant and its cosine similarity, so the number cannot be read as a
+> planning figure. **leu-enkephalin at 0.959 is the single most useful output of
+> this run:** it tells any later reader what a high score here is worth.
+
 ### O2. D_b is not identifiable, so B has no derived optimum
 B\* = √(K·D_b/D_s) requires D_b. A bin-width sweep moves the estimate from 34 to
 over 2,400, Chao1 reproduces the coupon-collector inversion rather than checking
