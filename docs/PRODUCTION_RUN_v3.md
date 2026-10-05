@@ -2,7 +2,7 @@
 
 **Document version:** v1.2.0
 **Last updated:** 2026-09-30
-**Describes pipeline:** v3.6.0
+**Describes pipeline:** v3.7.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
 The record of the **scale-up run** — the first execution of the pipeline at
@@ -794,9 +794,12 @@ deepening pass rate made the Rosetta problem worse, not better. Stage 4
 
 ---
 
-## 5c. Stage 4 — Rosetta, launched
+## 5c. Stage 4 — Rosetta, complete
 
-Launched **2026-10-02 14:03:05**, 56-way parallel on 64 cores, projected ~3.0 days.
+Launched **2026-10-02 14:03:05**, completed **2026-10-04 08:12:57**.
+**42.16 h wall, 2,344 core-hours, 56 of 64 cores at 99% efficiency, 13 GB.**
+`STATUS: COMPLETE` — 3000/3000 results, zero FAIL, every one with `nstruct_scored == 5`.
+Full figures in [`analysis/stage4_production/stage4_results.md`](../analysis/stage4_production/stage4_results.md).
 Parameters and their derivation are in
 [`stage4_selection_derivation.md`](stage4_selection_derivation.md) §6.
 
@@ -841,6 +844,51 @@ before calling the worker.
   forcing exists for
 - both input directories processing
 - zero FATAL, zero FAILED
+
+### Results
+
+| quantity | median | p5 | p95 | best |
+|---|---:|---:|---:|---:|
+| `dG_separated` (REU) | **−45.99** | −58.15 | −35.36 | **−77.01** |
+| `dG_separated/dSASAx100` | **−2.616** | −3.108 | −2.190 | **−3.682** |
+
+Within-candidate sd on dG: median **3.53**, matching the replicate study's 3.48 and the
+`nstruct` test's 3.86. **The selection worked** — median dG −45.99 against −38.39 for a
+random sample of survivors, 7.6 REU better.
+
+Top candidates on the locked target are **8–9-mers** (`SGCLFGSCP` −3.682,
+`GCLFGPCT` −3.646), spanning 9 backbones in the top 12 and 36 in the top 50. Ranked on
+**raw dG** instead, the leaders are all 14-mers from one backbone — so the
+`dG/dSASAx100` decision changed which size class gets synthesised, in favour of the
+BBB-relevant one.
+
+### A top-5 is not identifiable from this data
+
+| true set | shortlist needed for 90% containment |
+|---|---:|
+| top-1 | 8 |
+| top-3 | 24 |
+| **top-5** | **86** |
+
+The n=20 pilot said ~1.6×; **the real factor is ~17×**. SEM of the mean-of-5 is 0.0831
+and the rank-1-to-rank-5 gap is only **2.1 SEM**, so the top ~50 are inside the noise.
+A disjoint 2-vs-3 split gives top-5 overlap of **1.00/5**. More `nstruct` cannot fix
+this — halving the SEM costs 4× the trajectories. **Synthesise from the top ~25–50 on
+diversity grounds, not the top 5 on score.**
+
+### The selector did not replicate
+
+| feature | r vs dG (n=3000) | n=200 benchmark |
+|---|---:|---:|
+| `hotspot_contacts` | −0.487 | −0.583 |
+| *length* | *−0.459* | |
+| `i_ptm` | −0.190 | −0.477 |
+| **`hotspot_residues`** | **−0.005** | −0.530 |
+
+**`hotspot_residues`, the feature the selection was made on, has no predictive power**
+(group medians −46.27 at 8 engaged hotspots vs −45.90 at 7, against noise of 3.53).
+`hotspot_contacts` held, and `length` alone explains nearly as much as it does. See
+`LIMITATIONS.md` O0e.
 
 ### Completion criterion
 
@@ -915,6 +963,7 @@ before calling the worker.
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.5.0** | 2026-10-05 | §5c moved from *launched* to *complete*: 3000/3000, zero FAIL, 42.16 h, 2,344 core-hours, 99% efficiency. Added the result distributions, the top candidates on both targets (the normalised target picks 8–9-mers, raw dG picks 14-mers from one backbone), the finding that **a top-5 is not identifiable** (90% containment needs a shortlist of 86 against the pilot's 8, because the top ~50 sit within ~2 SEM), and that **`hotspot_residues` did not replicate** (r = −0.005 against the −0.530 benchmark). |
 | **v1.4.0** | 2026-10-02 | Added §5c *Stage 4 — Rosetta, launched*: the as-run parameters (3,000 candidates, 578 backbones, quota 10, `hotspot_residues`, `NSTRUCT=5` averaged, `dG/dSASAx100`), the full pre-flight table (3,000/3,000 on six checks), the split-input-directory risk and how the production runner mitigates it, live verification of amidation and forced disulfide on the first candidates, and the completion criterion. Status block moved to Stage 4 running. |
 | **v1.3.0** | 2026-10-01 | Added §5b *Stage 3 — Deepening docking*, which completes the Stage 3 record: 128,608 candidates in 29.62 h / **118.7 GPU-h** (within 2% of the 120.7 projected from measured scouting throughput), zero failures, 2.2% shard spread; **q = 0.622** against scouting's 0.494, with i_ptm median 0.216 → 0.341 and the ≥0.30 fraction 42.8% → 56.2%; the length confound tabulated per length (14-mer median i_ptm 2.1x an 8-mer's); per-backbone q spanning 0.000–1.000 over the 747 deepened backbones with 3 producing zero survivors, which argues for backbone-stratified rather than flat top-N capping at Stage 4; **Stage 3 combined — 143,595 docked, 33.1 h, 132.8 GPU-h, 87,338 survivors, q = 0.608**, 43% under the 235 GPU-h in `CHANGELOG.md` v3.3.3 and 38% under §4's 213.7; the top-5 candidates and the two convergent sequence motifs that make diversity an explicit shortlist constraint; and the Stage 4 arithmetic — **19.7 days uncapped**, worse than the 15.7 days at q = 0.494. Status block updated to Stages 1–3 complete, Stage 4 blocked on the cap decision. |
 | **v1.2.0** | 2026-09-30 | Added §5 *Stage 3 — Scout docking*: 14,987 candidates in 3.50 h / 14.1 GPU-h (3.38 s/candidate, 1.66x faster than the 5.6 s budget), zero failures; **q = 0.494** against 0.465 projected; **ICC = 0.331** on all 1,500 backbones, which passes derivation §17's pre-registered check and confirms k=10 (reliability 0.832 against k=6's 0.748); scout bias check exactly 0.500; backbone-mean distribution and the f=0.50 / MAX-i_ptm deepening set of 128,608 candidates over 747 backbones. Status block updated: deepening launched 2026-09-29 22:27. Renumbered *What this run establishes* to §6. |

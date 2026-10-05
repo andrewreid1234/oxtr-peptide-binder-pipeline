@@ -11,9 +11,87 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Pipeline v3.7.0 — 2026-10-05
+
+**Current.** Stage 4 is complete. Two of its findings overturn earlier conclusions of
+this project.
+
+### Stage 4 complete: 3000/3000, zero failures
+
+`STATUS: COMPLETE`. Launched 2026-10-02 14:03:05, finished 2026-10-04 08:12:57.
+**42.16 h wall, 2,344 core-hours, 15,000 relax trajectories, 56 of 64 cores at 99%
+efficiency, 13 GB.** Every candidate has `nstruct_scored == 5`; 3,000 distinct
+sequences; zero FAIL, zero FATAL.
+
+| quantity | median | p5 | p95 | best |
+|---|---:|---:|---:|---:|
+| `dG_separated` (REU) | **-45.99** | -58.15 | -35.36 | **-77.01** |
+| `dG_separated/dSASAx100` | **-2.616** | -3.108 | -2.190 | **-3.682** |
+
+Within-candidate sd on dG: median **3.53**, against 3.48 in the replicate study and
+3.86 in the `nstruct` test — the noise behaved exactly as characterised, which
+validates the `NSTRUCT=5` averaging in production.
+
+**The selection worked:** median dG **-45.99** against **-38.39** for a random sample
+of Stage 3 survivors, 7.6 REU better.
+
+### The ranking-target decision changed which molecules get made
+
+On `dG/dSASAx100` the leaders are **8-9 residues** — `SGCLFGSCP` (-3.682),
+`GCLFGPCT` (-3.646). On **raw dG** they are all **14-mers from a single backbone**
+(the `FFLCSARSNFCTVT` family, dSASA ~2,300 A^2). The v3.4.0 choice of the normalised
+target therefore selected the BBB-relevant size class rather than the largest
+interfaces — the decision mattered, and in the intended direction.
+
+Top 12 span 9 backbones, top 50 span 36, so the diversity quota held.
+
+### OVERTURNED: a top-5 synthesis list is not identifiable
+
+| true set | shortlist for 90% containment |
+|---|---:|
+| top-1 | 8 |
+| top-3 | 24 |
+| **top-5** | **86** |
+
+**The n=20 pilot estimated ~1.6x over-sampling. The real factor is ~17x.** SEM of the
+mean of 5 is 0.0831 and the rank-1-to-rank-5 gap is only **2.1 SEM**, so the top ~50
+sit inside the noise; a disjoint 2-vs-3 split gives top-5 overlap of **1.00/5**.
+Raising `nstruct` cannot fix a 2.1-SEM gap at acceptable cost.
+
+**The synthesis list must come from the top ~25-50 on diversity grounds, with the
+score ordering inside that band treated as unresolved.** Logged as `LIMITATIONS.md`
+O0e. This supersedes the 1.6x figure everywhere it appears.
+
+### OVERTURNED: `hotspot_residues` did not replicate
+
+| feature | r vs dG (n=3000) | n=200 benchmark |
+|---|---:|---:|
+| `hotspot_contacts` | -0.487 | -0.583 |
+| *length alone* | *-0.459* | |
+| `i_ptm` | -0.190 | -0.477 |
+| **`hotspot_residues`** | **-0.005** | -0.530 |
+
+**The feature the 3,000 were selected on has no predictive power at n=3,000.** Group
+medians: -46.265 at 8 engaged hotspots against -45.902 at 7, a 0.363 REU difference
+against noise of 3.53. It was chosen in v3.4.0 over `hotspot_contacts` because it
+carried less length confounding (+0.087 vs +0.325) and read -0.530 at n=200. **The
+bounded form discarded the signal along with the confound.** `hotspot_contacts` held,
+and `length` alone explains nearly as much as it does.
+
+This invalidates the *justification*, not the run: the candidates are measurably good
+and no result needs re-measuring. Logged as `LIMITATIONS.md` O0f.
+
+### Superseded by this entry
+
+- The 1.6x shortlist over-sampling factor (v3.5.0, `LIMITATIONS.md` O0, `SOP.md`).
+- `hotspot_residues` as the recommended selector feature (v3.3.8, v3.4.0).
+- Any statement that the pipeline can rank a top-5.
+
+---
+
 ## Pipeline v3.6.0 — 2026-10-02
 
-**Current.** MAJOR: the per-backbone quota changed, and Stage 4 is running.
+MAJOR: the per-backbone quota changed, and Stage 4 is running.
 
 ### Per-backbone quota raised 5 -> 10, on measurement
 

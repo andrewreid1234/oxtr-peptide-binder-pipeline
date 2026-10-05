@@ -269,6 +269,78 @@ not applied to the current run, whose selection is already made; `LIMITATIONS.md
 O0b/O0c record how the completed run compensates instead (allocating the Stage 4
 cap against the designed pool's length shape rather than the survivors').
 
+### O0e. A top-5 synthesis list is not identifiable from Stage 4
+**Measured 2026-10-05 on the completed production run, n = 3,000.**
+
+Bootstrap over the five per-structure `dG/dSASAx100` values, re-ranking each draw:
+
+| true set | shortlist needed for 90% containment |
+|---|---:|
+| top-1 | 8 |
+| top-3 | 24 |
+| **top-5** | **86** |
+| top-10 | 101 |
+
+**The n = 20 pilot estimated ~1.6x over-sampling (a shortlist of 8). The real factor
+is ~17x.** The pilot figure was explicitly flagged as a floor; it was a floor by an
+order of magnitude, because those 20 candidates were well separated while the top of
+3,000 is not.
+
+The cause is packing, and it is not fixable by protocol. Median within-candidate sd is
+0.1859, so SEM of the mean of 5 is **0.0831**:
+
+| rank | `dG/dSASAx100` | gap from rank 1 / SEM |
+|---:|---:|---:|
+| 5 | -3.511 | **2.1** |
+| 10 | -3.460 | 2.7 |
+| 50 | -3.268 | 5.0 |
+
+**The top ~50 lie within ~2 SEM of the leader.** A disjoint 2-vs-3 structure split
+gives rank stability 0.762 but top-5 overlap of only **1.00/5**. Raising `nstruct`
+cannot close a 2.1-SEM gap at acceptable cost: halving the SEM needs 4x the
+trajectories, and that still leaves the leaders within ~4 SEM.
+
+> **Operational consequence: the synthesis list must be chosen from the top ~25-50 on
+> diversity and synthesisability grounds, treating the score ordering inside that band
+> as unresolved.** Reporting "the top 5 binders" from this data would be
+> overinterpretation.
+
+This supersedes the 1.6x over-sampling figure wherever it appears.
+
+### O0f. The selector feature did not replicate
+**Measured 2026-10-05 on the completed production run, n = 3,000.**
+
+| feature | r vs dG (n=3000) | n=200 benchmark | drift |
+|---|---:|---:|---:|
+| `hotspot_contacts` | -0.487 | -0.583 | +0.096 |
+| *length alone* | *-0.459* | | |
+| `centroid_dist` | +0.204 | +0.519 | -0.315 |
+| `i_ptm` | -0.190 | -0.477 | +0.287 |
+| **`hotspot_residues`** | **-0.005** | -0.530 | **+0.525** |
+
+**`hotspot_residues` -- the feature the 3,000 were selected on -- has no predictive
+power at n = 3,000.** The group comparison, which range restriction cannot distort,
+confirms it: median dG is -46.265 for candidates engaging 8 hotspots against -45.902
+for 7, a difference of 0.363 REU against a within-candidate noise sd of 3.53.
+
+It was chosen over `hotspot_contacts` on 2026-10-02 because the bounded form carried
+r = +0.087 with length against the pair count's +0.325, and n = 200 put its correlation
+with dG at -0.530. **That reasoning was wrong in its conclusion:** the bounded feature
+discarded the signal along with the confound. `hotspot_contacts` held up
+(-0.487), and `length` alone explains nearly as much as it does -- so most of what
+survives in raw dG is size, and against the normalised target every feature collapses
+(|r| <= 0.31).
+
+**What this does and does not invalidate.** The selection itself is sound: the 3,000
+score a median dG of -45.99 against -38.39 for a random sample of survivors, 7.6 REU
+better. The candidates are good; the *stated reason* they would be good did not hold.
+No result from this run needs re-measuring.
+
+**For the next cycle:** no Stage-3 feature predicts the normalised target (|r| <= 0.31
+here, <= 0.114 at n = 200), so a Stage-3 selector cannot be validated against the
+quantity that actually picks the synthesis list. That asymmetry is structural, not a
+gap to be closed by a better feature. See `stage4_selection_derivation.md` section 7.
+
 ### O1. The BBB classifier is not usable on this molecule class
 **Escalated 2026-09-28 — this is now stronger than "needs re-measuring".**
 

@@ -660,7 +660,7 @@ pool is capped:
 |---|---|
 | cap | **3,000 candidates** (~3 days on 64 cores) |
 | `NSTRUCT` | **5**, aggregated as the **MEAN**, never best-of-N |
-| selector feature | **`hotspot_residues`** (bounded 0–8) |
+| selector feature | `hotspot_residues` (bounded 0–8) — **used for this run, but it did not replicate: r = −0.005 vs dG at n=3,000. Use `hotspot_contacts` next cycle. See `LIMITATIONS.md` O0f.** |
 | length allocation | proportional to the **designed pool**, not to survivors |
 | per-backbone quota | **10** within each length band (was 5 until 2026-10-02; see below) |
 | ranking target (after Rosetta) | **`dG_separated/dSASAx100`** |
@@ -794,11 +794,16 @@ between independent jobs.
 | 3 | 0.846 | 3.51 / 5 |
 | **5** | **0.887** | **3.77 / 5** |
 
-> **DO NOT LET THE SYNTHESIS LIST BE "THE TOP 5".** `NSTRUCT=5` fixes the
-> ordering (rank stability 0.89) but the top 5 still reproduces only ~3.8 of 5,
-> and `nstruct=10` barely improves it. That residual is **near-ties, not noise** —
-> the best candidates are genuinely too close together for averaging to separate.
-> Take a larger shortlist and treat the order inside it as unresolved.
+> **DO NOT LET THE SYNTHESIS LIST BE "THE TOP 5".** Measured on the completed
+> 3,000-candidate run (2026-10-05): a shortlist of **86** is needed to contain the
+> true top 5 with 90% confidence — the n=20 pilot's ~1.6x over-sampling estimate was
+> wrong by an order of magnitude. SEM of the mean of 5 is 0.0831 and the
+> rank-1-to-rank-5 gap is only **2.1 SEM**, so the top ~50 lie inside the noise; a
+> disjoint 2-vs-3 split gives top-5 overlap of **1.00/5**. Raising `nstruct` cannot
+> close a 2.1-SEM gap at acceptable cost.
+>
+> **Choose from the top ~25-50 on diversity and synthesisability grounds, treating
+> the score ordering inside that band as unresolved.** See `LIMITATIONS.md` O0e.
 
 ### Gotchas
 
