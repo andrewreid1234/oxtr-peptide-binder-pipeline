@@ -140,7 +140,7 @@ notes(s, "Keep this short. Binding is the hard part; permeability we assumed we 
 # ------------------------------------------------------------------- 3
 s = prs.slides.add_slide(BLANK); footer(s, 3)
 title(s, "One real filter. The rest is how much compute we had")
-figure(s, FIG + "slide_funnel.png", 1.12, 1.15, 11.08, 5.10)
+figure(s, FIG + "slide_funnel.png", 0.85, 1.15, 11.63, 5.10)
 takeaway(s, "Only the Stage 3 pocket gate is a pass/fail result — 87,338 of 143,595. Every other "
             "narrowing is a budget decision, and the 84,338 survivors we never scored were not rejected.")
 notes(s, "This is the slide people misread. A funnel drawn without marking gates versus caps looks "
@@ -188,10 +188,10 @@ for ri, row in enumerate(rows):
         f.color.rgb = WHITE if ri == 0 else INK
         cell.fill.solid()
         cell.fill.fore_color.rgb = NAVY if ri == 0 else (LIGHT if ri % 2 else WHITE)
-tb(s, 0.55, 4.25, 7.3, 1.0,
+tb(s, 0.55, 3.45, 7.3, 1.0,
    "Every one is a disulfide-cyclised macrocycle with a C-terminal amide — scored as the molecule "
    "we would actually make, not a linear approximation.", size=15, color=INK, line=1.2)
-tb(s, 0.55, 5.35, 7.3, 1.0,
+tb(s, 0.55, 4.55, 7.3, 1.0,
    "The −3.0 efficiency cut is a choice, not a derived threshold. It is the number on this slide "
    "I would defend least.", size=14, italic=True, color=RED, line=1.2)
 notes(s, "178 against a need of about 100 — comfortably covered. Be honest about the threshold: "

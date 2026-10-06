@@ -74,34 +74,31 @@ def funnel():
               ("Scored with physics", 3000, "Stage 4", "cap"),
               ("Checked for selectivity", 1000, "Stage 7", "cap"),
               ("Selective (margin >= 0)", 599, "Stage 7", "filter")]
-    fig, ax = plt.subplots(figsize=(13.0, 5.8))
+    fig, ax = plt.subplots(figsize=(13.0, 5.6))
     n = len(stages)
-    top_w = 1.0
-    widths = [max(0.055, (np.log10(v) / np.log10(stages[0][1])) ** 7) for _, v, _, _ in stages]
+    # Numbers live in a fixed column to the LEFT of the funnel, never inside the
+    # shape: the lower trapezoids are only a few percent of the top width, so
+    # text centred in them is clipped. (It was, until it was rendered.)
+    widths = [max(0.03, (np.log10(v) / np.log10(stages[0][1])) ** 7) for _, v, _, _ in stages]
+    h, gap = 1.0, 0.16
     y = 0
-    h, gap = 1.0, 0.18
     for i, ((lab, v, stg, kind), wdt) in enumerate(zip(stages, widths)):
-        w2 = widths[i + 1] if i + 1 < n else wdt * .82
-        poly = Polygon([(-wdt/2, y), (wdt/2, y), (w2/2, y - h), (-w2/2, y - h)],
-                       closed=True, facecolor=plt.cm.Blues(0.35 + .1 * i),
-                       edgecolor="white", linewidth=2)
-        ax.add_patch(poly)
-        ax.text(0, y - h/2, "{:,}".format(v), ha="center", va="center",
-                fontsize=19, fontweight="bold", color="white" if i > 1 else NAVY)
-        ax.text(wdt/2 + .06, y - h/2 + .12, lab, ha="left", va="center",
-                fontsize=14, color=INK)
-        tag = {"GATE": ("  PASS / FAIL  ", RED, "white"),
-               "filter": ("  filter, not yet a gate  ", ORANGE, "white"),
-               "cap": ("  budget cap, not a filter  ", "#E8EAED", MUTED)}[kind]
-        ax.text(wdt/2 + .06, y - h/2 - .17, stg, ha="left", va="center",
-                fontsize=11.5, color=MUTED)
-        ax.text(wdt/2 + .30, y - h/2 - .17, tag[0], ha="left", va="center",
-                fontsize=10.5, color=tag[2], fontweight="bold" if kind == "GATE" else "normal",
-                bbox=dict(boxstyle="round,pad=0.25", facecolor=tag[1], edgecolor="none"))
+        w2 = widths[i + 1] if i + 1 < n else wdt * .8
+        ax.add_patch(Polygon([(-wdt/2, y), (wdt/2, y), (w2/2, y - h), (-w2/2, y - h)],
+                             closed=True, facecolor=plt.cm.Blues(0.32 + .11 * i),
+                             edgecolor="white", linewidth=2))
+        ax.text(-0.62, y - h/2, "{:,}".format(v), ha="right", va="center",
+                fontsize=20, fontweight="bold", color=NAVY)
+        ax.text(0.62, y - h/2 + .15, lab, ha="left", va="center", fontsize=14.5, color=INK)
+        tag = {"GATE": ("PASS / FAIL", RED, "white"),
+               "filter": ("filter, not yet a gate", ORANGE, "white"),
+               "cap": ("budget cap, not a filter", "#E8EAED", MUTED)}[kind]
+        ax.text(0.62, y - h/2 - .17, stg, ha="left", va="center", fontsize=11.5, color=MUTED)
+        ax.text(0.90, y - h/2 - .17, tag[0], ha="left", va="center", fontsize=10.5,
+                color=tag[2], fontweight="bold" if kind == "GATE" else "normal",
+                bbox=dict(boxstyle="round,pad=0.26", facecolor=tag[1], edgecolor="none"))
         y -= h + gap
-    ax.set_xlim(-.75, 1.72); ax.set_ylim(y, .34); ax.axis("off")
-    ax.text(-.72, .20, "Only ONE step is a pass/fail result. The rest is how much compute we had.",
-            fontsize=13.5, color=INK, fontweight="bold", ha="left")
+    ax.set_xlim(-1.45, 2.25); ax.set_ylim(y + .06, .18); ax.axis("off")
     save(fig, "slide_funnel.png")
 
 
@@ -233,20 +230,26 @@ def permeability(top, ctrl):
     a = ax[1]
     bbb = np.array([float(r["s5_bbb_probability_UNRELIABLE"]) for r in top])
     a.hist(bbb, bins=42, color=GRAY, edgecolor="white", linewidth=.5)
-    for nm, col, yf in (("leu-enkephalin", RED, .97), ("met-enkephalin", ORANGE, .80),
-                        ("oxytocin", BLUE, .63)):
+    # Labels go in a block in the empty upper-right of the histogram, not beside
+    # each line: at the lines they collided with the bars (oxytocin) and with the
+    # panel title (leu-enkephalin). Found by rendering the slide.
+    lines = []
+    for nm, col in (("leu-enkephalin", RED), ("met-enkephalin", ORANGE),
+                    ("oxytocin", BLUE)):
         r = [x for x in ctrl if nm in x["sequence_id"]]
         if not r:
             continue
         v = float(r[0]["s5_bbb_probability_UNRELIABLE"])
         a.axvline(v, color=col, lw=2.4)
-        a.annotate("%s\n%.3f" % (nm, v), (v, a.get_ylim()[1]*yf),
-                   xytext=(-8 if v > .45 else 8, 0), textcoords="offset points",
-                   ha="right" if v > .45 else "left", fontsize=12, color=col)
+        lines.append((nm, v, col))
+    for j, (nm, v, col) in enumerate(lines):
+        a.annotate("%-16s %.3f" % (nm, v), (.40, .93 - j * .085),
+                   xycoords="axes fraction", fontsize=12.5, color=col,
+                   family="DejaVu Sans Mono", fontweight="bold")
     a.set_xlabel("BBB model p(permeable)")
     a.set_ylabel("candidates")
-    a.set_title("All three lines are known NON-permeants", fontsize=15,
-                fontweight="bold", color=RED, pad=10)
+    a.set_title("Every line is a known NON-permeant", fontsize=15,
+                fontweight="bold", color=RED, pad=14)
     fig.tight_layout()
     save(fig, "slide_permeability.png")
 
