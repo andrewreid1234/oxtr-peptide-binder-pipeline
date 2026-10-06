@@ -11,6 +11,62 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Documentation brought up to the run — 2026-10-06
+
+**Not a pipeline version change.** No method, threshold or script changed; this is
+the ground-truth sweep. `SUMMARY.md` — the document an outsider reads first — still
+described a project that had not launched, and the Stage 4 controls existed only in
+this file and `LIMITATIONS.md`, never in the production record.
+
+### Stale claims found and corrected
+
+| document | was | now |
+|---|---|---|
+| `SUMMARY.md` | v1.1.0, "pipeline v3.1.0 (scale-up **design**)", §8 step 1 "Launch. No blockers remain" | v2.0.0, scale-up **run**, Stages 1-4 complete |
+| `SUMMARY.md` §5 | MD listed as an active stage; Boltz2 as a live 3b gate | both marked dropped, with the reason |
+| `SUMMARY.md` §6 | 56% between-backbone variance, "docks six sequences per backbone" | **ICC 0.331**, k = **10**; planned-vs-realised columns throughout |
+| `PRODUCTION_RUN_v3.md` | header **v1.2.0 / 2026-09-30** while its own version history had reached v1.6.0 | v1.7.0 / 2026-10-06 |
+| `PRODUCTION_RUN_v3.md` §6 | "**No** structure prediction, **no** docking, **no** energetics have run" | false since Stage 3 — rewritten to the affinity-vs-discrimination distinction |
+| `PRODUCTION_RUN_v3.md` §6 | six "immediate next steps", all done or superseded | the five live ones |
+| `PRODUCTION_RUN_v3.md` history | v1.5.0 row still asserted the withdrawn selector failure | annotated **[WITHDRAWN at v3.9.0]** inline |
+
+### New: `PRODUCTION_RUN_v3.md` §5d
+
+The controls and the end-point arithmetic now live in the production record rather
+than only here: the 30 composition-matched scrambles, oxytocin at rank 1,516/3,000,
+and 3,000 → 272 → **178**.
+
+### Three counting facts established while reconciling the 178
+
+The figure is confirmed at **178**, but reproducing it exposed three traps that were
+not written down anywhere:
+
+1. **Selectivity coverage is not a limitation on it.** This file previously said the
+   unchecked 2,000 were "the binding constraint on the 178". They are not — the
+   shortlist is ranked on `dG/dSASAx100` itself, so all 272 efficiency-passers sit
+   at ranks 1-272, necessarily inside the checked top 1,000. Verified 272/272 carry
+   a margin. That job could not have changed the number.
+2. **Two definitions of the ranking metric coexist in every result JSON.**
+   `dG_per_dSASAx100` is the **mean of five per-structure ratios** (canonical, and
+   what the docs mean by the ranking target); `dG_per_dSASAx100_ratio_of_means` is
+   mean(dG)/mean(dSASA)×100. Irrelevant to ranking, but against a fixed threshold
+   they give **272** and **268**. Any threshold count must name its definition.
+3. **178 is "177 clear plus one on the line."** `shard1_out_251_u121` and
+   `shard3_out_296_u34` both sit at −3.0000 and flip across the cut on a ~1×10⁻¹⁵
+   float difference between the JSON and the CSV; one passes selectivity, one does
+   not. The authoritative count uses the JSONs.
+
+Also corrected: the Stage 4 controls commit message says "the 26 that kept an
+interface"; it is **25** (30 − 5).
+
+### Unchanged and still open
+
+The **−3.0 cut has no derivation behind it.** It is the one number in the pipeline
+chosen rather than computed, and it sets the headline survivor count. Flagged in
+both documents as the largest open methodological gap at the end of the pipeline.
+
+---
+
 ## Stage 4 controls — 2026-10-06
 
 **Not a pipeline version change.** The first controls Stage 4 has ever had, and
@@ -170,15 +226,34 @@ Applying thresholds for the first time, of the 3,000 scored:
 | **dG/dSASAx100 < -3.0 AND selectivity margin >= 0** | **178** | — |
 
 **178** is adopted as the working "survived everything measured" figure: binds
-efficiently and prefers OXTR over all three vasopressin receptors. Two caveats
-stand with it — the -3.0 cut is a choice, not a derived threshold, and selectivity
-was only evaluated on the top 1,000, so the true count across all 3,000 is unknown.
+efficiently and prefers OXTR over all three vasopressin receptors.
+
+**Correction (2026-10-06): the selectivity-coverage caveat was wrong.** This
+paragraph originally read that "selectivity was only evaluated on the top 1,000, so
+the true count across all 3,000 is unknown". That does not follow. The shortlist is
+ranked on `dG/dSASAx100` itself, so the 272 candidates meeting the efficiency cut
+occupy ranks 1-272 and are necessarily *inside* the checked top 1,000 — verified,
+272 of 272 carry a selectivity margin. Extending Stage 7 to the other 2,000 cannot
+change the 178. The caveat below about the running selectivity job is therefore
+also void.
+
+Two caveats do stand:
+
+- **The -3.0 cut is a choice, not a derived threshold** — the one number in the
+  pipeline with nothing behind it.
+- **178 is "177 clear plus one on the line."** Two candidates sit at
+  `dG/dSASAx100` = -3.0000 and flip across the cut on a ~1e-15 float difference;
+  one of the two passes selectivity. Separately, the canonical per-structure-mean
+  definition gives 272 above where `_ratio_of_means` gives **268**, so any count
+  against a fixed threshold must name its definition. See
+  `PRODUCTION_RUN_v3.md` §5d.
 
 ### Running: two jobs to extend the pool
 
-- **Selectivity on the remaining 2,000** Stage 4 candidates (6,000 predictions,
-  ~1.4 h GPU). 40% of candidates fail selectivity and only the top 1,000 had been
-  checked, so this is the binding constraint on the 178.
+- ~~**Selectivity on the remaining 2,000** Stage 4 candidates (6,000 predictions,
+  ~1.4 h GPU) — "the binding constraint on the 178".~~ **Void:** no candidate
+  ranked 1,001-3,000 can meet the efficiency cut, so this job could not have moved
+  the 178. See the correction above.
 - **Rosetta batch 2**, a further 3,000 survivors selected with the same stratified
   rule and `--exclude` against batch 1 (~42 h CPU, 48 cores). 31,507 survivors at
   `hotspot_residues` >= 7 remain unscored.

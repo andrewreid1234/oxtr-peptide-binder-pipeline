@@ -1,7 +1,7 @@
 # Production Run v3 — Methods and Results
 
-**Document version:** v1.2.0
-**Last updated:** 2026-09-30
+**Document version:** v1.7.0
+**Last updated:** 2026-10-06
 **Describes pipeline:** v3.9.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
@@ -21,12 +21,24 @@ values actually produced*. [`LIMITATIONS.md`](LIMITATIONS.md) catalogues what is
 still weak. [`SOP.md`](SOP.md) is the runbook. [`CHANGELOG.md`](CHANGELOG.md)
 holds superseded values.
 
-> **Status: Stages 1-3 complete; Stage 4 RUNNING.** Stage 1 finished
-> 2026-09-29 08:07, Stage 2 at 11:25, Stage 3 scouting at 15:39, Stage 3 deepening
-> at 04:04 on 2026-10-01. Stage 3 total: 143,595 candidates docked, 33.1 h wall,
-> 132.8 GPU-h, zero failures, **87,338 survivors** (q = 0.608). **Stage 4 launched
-> 2026-10-02 14:03:05** on a stratified 3,000-candidate cap at `NSTRUCT=5`,
-> projected ~3.0 days — see §5c. Stages 5-8 have not started.
+> **Status: Stages 1-4 complete, with controls; Stage 4 batch 2 running.** Stage 1
+> finished 2026-09-29 08:07, Stage 2 at 11:25, Stage 3 scouting at 15:39, Stage 3
+> deepening at 04:04 on 2026-10-01. Stage 3 total: 143,595 candidates docked, 33.1 h
+> wall, 132.8 GPU-h, zero failures, **87,338 survivors** (q = 0.608). **Stage 4
+> batch 1 completed 2026-10-04 08:12:57** — 3,000/3,000, zero FAIL, 42.16 h,
+> 2,344 core-hours (§5c). **Stage 4 is now calibrated**: 30 sequence scrambles all
+> score worse than their parents (30/30 paired, p = 1.9e-09) and five lose the
+> interface outright, while oxytocin lands at rank 1,516/3,000 — the median of an
+> unselected pool (§5d). Stage 5 (BBB, annotation only) and Stage 7 (selectivity,
+> 3,000/3,000) have run. **Batch 2** — a further 3,000 survivors, disjoint from
+> batch 1 — is running, ETA 2026-10-07 ~09:00. Stage 6 (N-methylation) is written
+> and not yet run; Stage 8 (shortlist) awaits batch 2.
+>
+> **The working end-of-pipeline figure is 178** candidates that bind efficiently
+> (`dG/dSASAx100 < -3.0`) *and* prefer OXTR over all three vasopressin receptors.
+> Note what that is not: Stage 4 **ranks and does not gate**, so the -3.0 cut is a
+> choice rather than a derived threshold. The only true pass/fail step in the
+> pipeline is the Stage 3 pocket gate.
 
 ---
 
@@ -953,6 +965,100 @@ that set.**
 
 ---
 
+# 5d. Stage 4 — controls, and what survived the whole pipeline
+
+Stage 4 had scored 3,000 candidates and had never been shown a molecule known not
+to bind. `dG_separated` and `dG_separated/dSASAx100` were therefore **uncalibrated**:
+a metric that genuinely reads binding could not be told apart from one reading
+buried area and composition. Both controls have now run, through AfCycDesign and
+then Stage 4 — the candidates' own path, `NSTRUCT=5` with `-in:fix_disulf`.
+Data: [`analysis/stage4_controls/scramble_results.csv`](../analysis/stage4_controls/scramble_results.csv).
+
+### Negative control — 30 sequence scrambles
+
+Each scramble shuffles only the **non-cysteine** residues of a top candidate, so
+length, composition, net charge, MW and cysteine spacing — hence ring size — are
+held *exactly* constant. Only residue identity-by-position is destroyed. This is
+the control that a composition-reading metric would fail.
+
+| set | median `dG/dSASAx100` |
+|---|---:|
+| the 30 parents | **−3.347** |
+| all 3,000 candidates | −2.616 |
+| oxytocin | −2.612 |
+| the 30 scrambles | **−2.404** |
+
+**30/30 paired** — every parent beats its own scramble. Median gap **0.972**,
+Wilcoxon signed-rank **p = 1.9×10⁻⁹**; Mann–Whitney against all 3,000,
+p = 3.7×10⁻⁵. Since the gap survives holding composition fixed, the metric is
+responding to *sequence arrangement*, which is the thing design controls.
+
+**The strongest signal is not in the score.** **Five of thirty** scrambles lost
+their interface entirely — `dSASA_int` ≤ 200 Å², two at exactly zero — against
+**0 of 3,000** candidates. Median buried area fell 1,767 → 1,442 Å². For a sixth
+of them, scrambling did not produce a worse binder, it **destroyed binding**, and
+AfCycDesign could no longer place the peptide on the receptor. Those five also
+explain why the scramble *mean* (−2.064) is worse than its median: the ratio is
+undefined at zero dSASA. Among the **25** that kept an interface, median −2.461
+against their parents' −3.345.
+
+### Positive control — oxytocin
+
+Oxytocin ranks **1,516/3,000** — the median of the unselected pool, which is where
+a real binder carrying no design optimisation belongs. It sits at 990/1,000 within
+the filtered shortlist, but that shortlist is a selected top slice, so the two
+facts are consistent rather than contradictory. The ordering the controls give is
+coherent: **designed candidates > oxytocin ≈ pool median > scrambles > scrambles
+that lost the interface.**
+
+What this does *not* establish is affinity. The controls show the metric
+discriminates arrangement from composition; they do not calibrate REU to Kd.
+
+### What survived the whole pipeline — 178
+
+Stage 4 **ranks and does not gate**, so "survived Stage 4" is 3,000 of 3,000. The
+only true pass/fail step in the pipeline is the Stage 3 pocket gate
+(87,338 of 143,595). Applying end-point criteria for the first time:
+
+| criterion | n | % of 3,000 |
+|---|---:|---:|
+| `dG` < −45.99 (our own median) | 1,502 | 50.1 |
+| `dG` < −50 | 842 | 28.1 |
+| `dG/dSASAx100` < −3.0 | **272** | 9.1 |
+| **and prefers OXTR over all three AVPRs** | **178** | 5.9 |
+
+**178** is the working "survived everything measured" figure: binds efficiently
+*and* selectively.
+
+**Selectivity coverage is complete for this criterion.** Stage 7 ran on 1,000 of
+3,000, and an earlier note in `CHANGELOG.md` treated the unchecked 2,000 as the
+binding constraint on the 178. They are not: the shortlist is ranked on
+`dG/dSASAx100` itself, so all 272 candidates meeting the efficiency cut occupy
+ranks 1–272 and are **necessarily inside** the checked top 1,000. Verified — 272
+of 272 carry a selectivity margin, none missing. Extending Stage 7 to the other
+2,000 cannot change this number.
+
+**Two caveats stand.**
+
+1. **The −3.0 cut is a choice, not a derived threshold.** It is the one number in
+   the pipeline with no derivation behind it, and 9.1% passing is a consequence of
+   where it was put, not a measured property of the molecules.
+2. **178 is really "177 clear plus one on the line."** Two candidates
+   (`shard1_out_251_u121`, `shard3_out_296_u34`) sit at `dG/dSASAx100` = −3.0000 to
+   four decimals and flip across the cut on a floating-point difference of
+   ~1×10⁻¹⁵ between the JSON and the CSV; one of the two passes selectivity and one
+   fails. The authoritative count uses the per-structure mean in the result JSONs.
+
+**One more definitional trap.** The worker stores two non-identical quantities:
+`dG_per_dSASAx100`, the **mean of the five per-structure ratios** (canonical — this
+is the documented ranking target), and `dG_per_dSASAx100_ratio_of_means`,
+mean(dG)/mean(dSASA)×100. They differ by ~0.003 typically, which is irrelevant to
+ranking but moves a hard threshold: the efficiency cut yields **272** under the
+canonical definition and **268** under ratio-of-means. Any count quoted against a
+fixed threshold must name which it used.
+
+---
+
 # 6. What this run establishes
 
 ### Established
@@ -980,9 +1086,12 @@ that set.**
 
 ### Not established
 
-- **Nothing about binding.** No structure prediction, no docking, no energetics
-  have run. pLDDT 0.966 is the model's confidence in its own geometry and is
-  not evidence of affinity.
+- **Nothing about affinity.** Docking and energetics have now run (§5–§5d), and
+  the Stage 4 metric is calibrated against scrambles and oxytocin — but a
+  discriminating score is not a Kd. No number in this document estimates affinity,
+  and none has been compared to a measurement. *(This bullet previously read "no
+  structure prediction, no docking, no energetics have run", which was true at
+  v1.0.0 and has been false since Stage 3.)*
 - **Nothing about permeability.** The composition is suggestive, not a result.
 - **That occupying the right pocket means binding it.** Overlapping oxytocin's
   epitope is necessary, not sufficient. Shape complementarity, side-chain
@@ -990,27 +1099,40 @@ that set.**
 - **That B = 1500 bought site diversity.** It did not. It bought geometric
   diversity within one site. An alternative epitope would need its own run.
 - **That any of these 265,700 sequences folds as designed.** ProteinMPNN
-  proposes; nothing has yet checked that a sequence adopts its parent backbone.
-  That is Stage 3's first job, and the pilot's experience is that most
-  backbones are undesignable in exactly this sense.
+  proposes. Stage 3 checked this for the 143,595 it docked and 87,338 passed the
+  pocket gate; the remaining 122,105 sequences have never been folded, and the
+  747 deepened backbones span per-backbone pass rates of 0.000–1.000, so
+  "undesignable backbone" remains a real category.
+- **That the ranking identifies the best five molecules.** It does not — 90%
+  containment of the true top-5 needs a shortlist of **86** (§5c). Synthesis
+  should take the top ~25–50 and choose within that band on diversity and
+  synthesisability.
+- **Anything about the 2,000 selectivity-unchecked candidates**, except that none
+  of them can meet the efficiency cut (§5d).
 
 ### Immediate next steps
 
-1. **Drop `shard1_out_288_u303`** (contains `X`) from the pool, and add `X` to
-   `--omit_AAs` so the case cannot recur.
-2. **Decide scout depth k** — see §4. k = 10 costs +2.2% dockings over k = 6 and
-   raises backbone-ranking reliability from 0.770 to 0.848 at the measured
-   ICC = 0.358; k = 14 restores the originally planned 0.885 for +4.3%.
-3. **Run Stage 3 scouting.** Docking all 265,700 exhaustively would cost
-   ~413 GPU-h at the pilot's 5.6 s/run; the scout-and-keep design exists for
-   this reason. At k = 6 the staged cost is 137,350 dockings / 213.7 GPU-h.
-4. **Allocate Stage 3 by realised pool size, not uniformly.** Per-backbone
-   yield varies 98-fold and is now known exactly for every backbone.
-5. **Decide AF3 vs Boltz2 for the Stage 3b cross-check** — still n = 2,
-   leaning AF3.
-6. **Correct the Stage 3 figures in `CHANGELOG.md` v3.3.3** (151,275 dockings /
-   235 GPU-h), which were computed from the pre-run pool estimate of ~289,000
-   rather than the realised 265,700.
+*The six items listed here at v1.1.0 are all done or superseded — the `X` sequence
+was dropped and `--omit_AAs CMX` applied, k = 10 was adopted, Stage 3 ran at
+143,595 dockings / 132.8 GPU-h, allocation was by realised pool size, and the
+Stage 3 figures were corrected. The AF3-vs-Boltz2 cross-check decision was
+overtaken: pose agreement never became a gate. Current state:*
+
+1. **Stage 4 batch 2** — 3,000 further survivors, disjoint from batch 1, running;
+   ETA 2026-10-07 ~09:00. 31,507 survivors at `hotspot_residues` ≥ 7 remain
+   unscored even after it.
+2. **Derive the −3.0 threshold, or stop quoting a single survivor count.** This is
+   the largest open methodological gap at the end of the pipeline (§5d).
+3. **Stage 6, the N-methylation scan** — written
+   (`scripts/stage6_nmethyl/nmethyl_scan.py`), CPU-only, reads the existing
+   relaxed structures, not yet run.
+4. **Stage 8, the shortlist** — take the top ~25–50 on diversity and
+   synthesisability, not the top 5 on score, and deliberately span the score range
+   so the ranking can be *tested* rather than confirmed.
+5. **Fix the length bias at source in the next cycle.** It is a placement
+   problem, not a scoring one: `P(pass | peptide near the pocket)` = 1.000 at every
+   length, but 74% of 8-mers land somewhere other than the pocket. Rank backbones
+   *within* length bands and shuffle `jobs.tsv`.
 
 ---
 
@@ -1018,8 +1140,9 @@ that set.**
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.7.0** | 2026-10-06 | Added **§5d — Stage 4 controls and what survived the whole pipeline**, which existed only in `CHANGELOG.md`/`LIMITATIONS.md` and had never reached the production record: the 30 composition-matched scrambles (30/30 paired, median gap 0.972, p = 1.9×10⁻⁹, **five losing the interface entirely** against 0 of 3,000), oxytocin at rank 1,516/3,000, and the end-point arithmetic 3,000 → 272 → **178**. Established that **selectivity coverage is complete for the 178** — all 272 efficiency-passers occupy ranks 1–272 and so are necessarily inside the checked top 1,000, correcting the `CHANGELOG.md` note that treated the unchecked 2,000 as the binding constraint. Documented two counting traps: the canonical `dG_per_dSASAx100` (mean of five ratios) gives 272 where `_ratio_of_means` gives **268**, and two candidates sit at exactly −3.0000 so 178 is "177 clear plus one on the line". Fixed the stale header (**v1.2.0 → v1.7.0**, date 2026-09-30 → 2026-10-06; the history had already reached v1.6.0). Rewrote the status block for Stages 1–4 complete with batch 2 running. Corrected §6 *Not established*, whose lead bullet still read "no structure prediction, no docking, no energetics have run" — false since Stage 3 — and replaced the six superseded *Immediate next steps* with the live five. Flagged the withdrawn selector claim inline in the v1.5.0 row so the history is not read as current. |
 | **v1.6.0** | 2026-10-05 | Added four figures to §5c (prod_fig9–12) with standalone captions: Stage 4 results against the random-survivor baseline and the noise check; the selector failure and shortlist identifiability; the ranking-target effect on which molecules win; and chemistry, the control-anchored BBB annotation and Stage 7 selectivity. Section headings promoted to h1 so stages are findable. Corrected "top ~50 within 2 SEM" to the measured **14**, and recorded the production r(dSASA, dG) = **−0.711** against the n=200 estimate of −0.766. |
-| **v1.5.0** | 2026-10-05 | §5c moved from *launched* to *complete*: 3000/3000, zero FAIL, 42.16 h, 2,344 core-hours, 99% efficiency. Added the result distributions, the top candidates on both targets (the normalised target picks 8–9-mers, raw dG picks 14-mers from one backbone), the finding that **a top-5 is not identifiable** (90% containment needs a shortlist of 86 against the pilot's 8, because the top ~50 sit within ~2 SEM), and that **`hotspot_residues` did not replicate** (r = −0.005 against the −0.530 benchmark). |
+| **v1.5.0** | 2026-10-05 | §5c moved from *launched* to *complete*: 3000/3000, zero FAIL, 42.16 h, 2,344 core-hours, 99% efficiency. Added the result distributions, the top candidates on both targets (the normalised target picks 8–9-mers, raw dG picks 14-mers from one backbone), the finding that **a top-5 is not identifiable** (90% containment needs a shortlist of 86 against the pilot's 8, because the top ~50 sit within ~2 SEM), and that **`hotspot_residues` did not replicate** (r = −0.005 against the −0.530 benchmark). **[WITHDRAWN at v3.9.0 — this was range restriction, not a failure to replicate; the selector worked. See §5c and `LIMITATIONS.md` O0f.]** |
 | **v1.4.0** | 2026-10-02 | Added §5c *Stage 4 — Rosetta, launched*: the as-run parameters (3,000 candidates, 578 backbones, quota 10, `hotspot_residues`, `NSTRUCT=5` averaged, `dG/dSASAx100`), the full pre-flight table (3,000/3,000 on six checks), the split-input-directory risk and how the production runner mitigates it, live verification of amidation and forced disulfide on the first candidates, and the completion criterion. Status block moved to Stage 4 running. |
 | **v1.3.0** | 2026-10-01 | Added §5b *Stage 3 — Deepening docking*, which completes the Stage 3 record: 128,608 candidates in 29.62 h / **118.7 GPU-h** (within 2% of the 120.7 projected from measured scouting throughput), zero failures, 2.2% shard spread; **q = 0.622** against scouting's 0.494, with i_ptm median 0.216 → 0.341 and the ≥0.30 fraction 42.8% → 56.2%; the length confound tabulated per length (14-mer median i_ptm 2.1x an 8-mer's); per-backbone q spanning 0.000–1.000 over the 747 deepened backbones with 3 producing zero survivors, which argues for backbone-stratified rather than flat top-N capping at Stage 4; **Stage 3 combined — 143,595 docked, 33.1 h, 132.8 GPU-h, 87,338 survivors, q = 0.608**, 43% under the 235 GPU-h in `CHANGELOG.md` v3.3.3 and 38% under §4's 213.7; the top-5 candidates and the two convergent sequence motifs that make diversity an explicit shortlist constraint; and the Stage 4 arithmetic — **19.7 days uncapped**, worse than the 15.7 days at q = 0.494. Status block updated to Stages 1–3 complete, Stage 4 blocked on the cap decision. |
 | **v1.2.0** | 2026-09-30 | Added §5 *Stage 3 — Scout docking*: 14,987 candidates in 3.50 h / 14.1 GPU-h (3.38 s/candidate, 1.66x faster than the 5.6 s budget), zero failures; **q = 0.494** against 0.465 projected; **ICC = 0.331** on all 1,500 backbones, which passes derivation §17's pre-registered check and confirms k=10 (reliability 0.832 against k=6's 0.748); scout bias check exactly 0.500; backbone-mean distribution and the f=0.50 / MAX-i_ptm deepening set of 128,608 candidates over 747 backbones. Status block updated: deepening launched 2026-09-29 22:27. Renumbered *What this run establishes* to §6. |

@@ -1,14 +1,22 @@
 # De Novo Cyclic Peptide Binders Against the Oxytocin Receptor
 
-**Document version:** v1.1.0
-**Last updated:** 2026-09-25
-**Describes pipeline:** v3.1.0 (scale-up design)
+**Document version:** v2.0.0
+**Last updated:** 2026-10-06
+**Describes pipeline:** v3.9.0 (scale-up **run**, Stages 1-4 complete)
 
 This is the document to read first. It explains what the project is trying to
-do, why each choice was made, what the pilot established, and what it did not.
+do, why each choice was made, what has now been established, and what has not.
 It assumes a molecular-biology background but explains every computational
 method from first principles, because the interesting decisions are all on the
 computational side.
+
+> **Where the project is.** The scale-up has run. 1,500 backbones became 265,700
+> unique sequences, 143,595 were docked, 87,338 passed the pocket gate, and 3,000
+> were scored with Rosetta — all complete, zero failures. A second 3,000 is
+> running. **178 candidates bind efficiently and selectively** on the computed
+> metrics, and those metrics are now calibrated against controls. There is still
+> **no wet-lab data**, and that remains the only thing that can settle whether any
+> of this predicts binding.
 
 Where a claim rests on data, the table or figure lives in
 [`METHODS_AND_RESULTS.md`](METHODS_AND_RESULTS.md); where it rests on a
@@ -89,9 +97,9 @@ amino acid sequence is most likely to adopt it? It is fast, and it can be run
 with residues pinned — which is what forces the cysteines to survive into the
 designed sequence.
 
-**Will it actually bind?** *(AfCycDesign, Boltz2, Rosetta, MD)*
-This is the hard question, and no single tool answers it. The pipeline stacks
-four partial answers:
+**Will it actually bind?** *(AfCycDesign, Boltz2, Rosetta)*
+This is the hard question, and no single tool answers it. The pipeline stacked
+four partial answers; **three survived testing.**
 - **AfCycDesign** (an AlphaFold2 derivative adapted for cyclic peptides)
   predicts the complex structure and reports a confidence score, `i_ptm`, for
   the interface.
@@ -99,8 +107,10 @@ four partial answers:
   cross-check rather than a score.
 - **Rosetta** computes an interface energy on the relaxed complex — a largely
   physics-based number, though in arbitrary units.
-- **Molecular dynamics** asks whether the predicted pose survives 20 ns of
-  simulation rather than being a static artefact.
+- ~~**Molecular dynamics** asks whether the predicted pose survives 20 ns of
+  simulation.~~ **Dropped.** The negative control was *more* stable than five
+  candidates that passed every other gate, so 20 ns of stability carries no
+  information about binding here (`LIMITATIONS.md` A4).
 
 None of these is ground truth. The project's central methodological commitment
 is that **every one of them was tested against known-good and known-bad controls
@@ -139,34 +149,53 @@ recovering the other direction does not fix it. Boltz2 is retained for
 **structural cross-checking only**, never for ranking.
 
 **MD does not discriminate among candidates that already passed.** The negative
-control survived 20 ns indistinguishably from the "good" candidates. MD is
-therefore **confirmation-only**, run on a small post-filter set, and read as a
-coarse pass/fail rather than a ranking.
+control survived 20 ns indistinguishably from the "good" candidates — in fact it
+was *more* stable than five candidates that had passed every other gate. MD was
+first demoted to confirmation-only and has since been **dropped from the pipeline
+entirely**: it predicts neither `i_ptm` nor dG, so it was spending wall clock to
+produce a number nothing depended on (`LIMITATIONS.md` A4).
 
 **Pose agreement between two independent predictors does discriminate**, at
 almost no cost, catching both the negative control and an entire family of
-related designs that the ranking alone had passed.
+related designs that the ranking alone had passed. In the event it was never
+promoted to a gate at production scale, and Stage 3b is inactive.
 
-The pattern worth noting: four of the five checks were found to be weaker than
-assumed, and the pipeline was changed in each case. The filters that survived
-did so on evidence.
+**The Rosetta interface score discriminates arrangement from composition.** This
+control is new, ran on the production data rather than the pilot, and is the
+strongest single result in the project — 30 composition-matched scrambles all
+score worse than their parents and five lose the interface outright. It is
+described in §7 and in [`PRODUCTION_RUN_v3.md`](PRODUCTION_RUN_v3.md) §5d.
+
+The pattern worth noting: four of the five original checks were found to be weaker
+than assumed, and the pipeline was changed in each case. The filters that survived
+did so on evidence — and the one that was added last, the scramble control, was
+added because Stage 4 had scored 3,000 molecules without ever being shown one known
+not to bind.
 
 ## 5. The funnel as it now stands
 
 Each stage, and why it sits where it does.
 
-| Stage | What it does | Why here |
-|---|---|---|
-| **1. RFdiffusion** | Generate backbone geometries against OXTR with the two cysteines planted | Shape first — sequence is meaningless without one |
-| **2. ProteinMPNN** | Design sequences onto each backbone, cysteines pinned, then deduplicate | Cheap; receptor-aware so sequences are designed for complementarity |
-| **3. AfCycDesign** | Predict each complex, score the interface | The main binding signal, applied to everything |
-| **3b. Boltz2** | Independent structure prediction on the top 5,000 by Rosetta energy | Pose agreement only; runs *after* Rosetta because it confirms candidates that would otherwise advance |
-| **4. Rosetta** | Relax, force the disulfide, score the interface | Physics-based check on the best candidates |
-| **5a. B3BPFN** | Predict BBB permeability | **Late, as a router not a gate** — see below |
-| ~~5b. MD~~ | *deferred* | Predicts neither i_ptm nor dG; the negative control was more stable than five candidates that passed every gate |
-| **6. N-methylation** | Identify sites where methylation is structurally tolerated | The route to rescue a strong binder with poor permeability |
-| **7. Selectivity** | Cofold against AVPR1A/1B/2 | Informational; no control yet, so not gating |
-| **8. Shortlist** | Select the synthesis wave | 12 compounds |
+| Stage | What it does | Why here | Status |
+|---|---|---|---|
+| **1. RFdiffusion** | Generate backbone geometries against OXTR with the two cysteines planted | Shape first — sequence is meaningless without one | **done** — 1,500, 35.0 GPU-h |
+| **2. ProteinMPNN** | Design sequences onto each backbone, cysteines pinned, then deduplicate | Cheap; receptor-aware so sequences are designed for complementarity | **done** — 265,700 unique, 7.8 GPU-h |
+| **3. AfCycDesign** | Predict each complex, score the interface; **gate on pocket occupancy** | The main binding signal, and the pipeline's only true pass/fail | **done** — 143,595 docked, 132.8 GPU-h, **87,338 pass** (q = 0.608) |
+| ~~3b. Boltz2~~ | *dropped as a gate* | Its confidence returns 0.88-0.98 for everything including negatives; pose agreement never became a filter | retained for structural cross-check only |
+| **4. Rosetta** | Relax, force the disulfide, score the interface, **rank** | Physics-based check on the best candidates | **done** — 3,000 at `NSTRUCT=5`, 42.16 h, 2,344 core-h, zero FAIL; a 2nd 3,000 running |
+| **4c. Controls** | 30 composition-matched scrambles + oxytocin | Without them the Stage 4 metric is uncalibrated | **done** — 30/30, p = 1.9e-09 |
+| **5a. B3BPFN** | Predict BBB permeability | **Annotation, not a gate** — see below | **done, and shown unusable** — see §7 |
+| ~~5b. MD~~ | *dropped* | The negative control was more stable than five candidates that passed every gate | removed from the pipeline |
+| **6. N-methylation** | Identify sites where methylation is structurally tolerated | The route to rescue a strong binder with poor permeability | **written, not run** |
+| **7. Selectivity** | Cofold against AVPR1A/1B/2 | Informational; no control yet, so not gating | **done** — top 1,000; **40.1% prefer an off-target** |
+| **8. Shortlist** | Select the synthesis wave | Top ~25-50 on diversity, *not* top 5 on score | pending batch 2 |
+
+**Read the funnel carefully: there is one filter in it.** 87,338 of 143,595 is a
+gate. Every other narrowing — 143,595 docked of 265,700, 3,000 scored of 87,338,
+1,000 selectivity-checked of 3,000 — is a **compute budget**, not a filter. A funnel
+diagram that does not distinguish the two implies five filters where there is one.
+The end-point count of **178** comes from applying thresholds *after* the fact, and
+one of those thresholds is an undefended choice (§7).
 
 **Why BBB permeability moved late.** It used to gate early, which is efficient —
 it discards ~92% of designs before any expensive docking. But measured against a
@@ -185,28 +214,47 @@ Nothing in the pipeline is a round number picked by feel. Each was derived from
 an explicit model; the derivations are in
 [`sampling_parameter_derivation.md`](sampling_parameter_derivation.md).
 
-| Quantity | Value | Basis |
-|---|---|---|
-| Backbones | **1,500** | A budget choice, not an optimum — see caveat below |
-| Sequences per backbone | **600** | A budget choice. Yields 192.3 unique/backbone; marginal yield is still +22.5 unique per 100 extra draws, so this is not a saturation point — see `CHANGELOG.md` v3.3.4 |
-| Sampling temperature | **0.2** | Binding quality flat across 0.1–0.3; 2.1× the distinct sequences |
-| Design pool | **omit C and M** | Exactly 2 sulfur atoms per sequence — no disulfide scrambling |
-| Scout depth | **10 per backbone** | Reliability 0.848 at the measured ICC = 0.358. Raised from 6 on 2026-09-29: k=6 was set when ICC was believed to be 0.562, where it gave 0.885; at the measured ICC it gives only 0.770, and k=10 costs just +2.2% dockings |
-| Backbones deepened | **top 50%** | Recovers 99.2% of the genuinely best backbones |
-| Docked | **~151,000** | Follows from the above |
-| Rosetta | **top 40% of ~36,300 survivors** | Bounded by the GPU floor; recovers 78% of the top decile by dG |
-| MD | **24** | Confirmation only |
-| Synthesised | **~150** | Parallel synthesiser handles 192 per batch. At this size hit-confidence is no longer the constraint and a real score-vs-affinity calibration becomes possible (needs ~85 compounds for 80% power at ρ=0.3). **Assay throughput must be confirmed** — Part V assumed assay, not synthesis, was the bottleneck. |
+| Quantity | Planned | Realised | Basis |
+|---|---|---|---|
+| Backbones | **1,500** | 1,500 | A budget choice, not an optimum — see caveat below |
+| Sequences per backbone | **600** | 178.8 unique/backbone | Projection was 192.3 — came in **7% low**. Marginal yield still +21.0 unique per 100 draws, so not a saturation point |
+| Sampling temperature | **0.2** | 0.2 | Binding quality flat across 0.1-0.3; 2.1x the distinct sequences |
+| Design pool | **omit C, M and X** | 0 of 265,700 lost the disulfide | Exactly 2 sulfur atoms per sequence. `X` was added after one slipped through — ProteinMPNN's 21-token alphabet leaves it samplable when only C and M are masked |
+| Unique pool | ~289,000 | **265,700** | Two independent counts |
+| Scout depth | **10 per backbone** | 10 | Reliability 0.832 at the **measured ICC = 0.331**, which passed the pre-registered check. Raised from 6, which would have given only 0.748 |
+| Backbones deepened | **top 50%** | 747 | Recovers 99.2% of the genuinely best backbones |
+| Docked | ~151,000 | **143,595** | 33.1 h wall, **132.8 GPU-h**, zero failures — 43% under the 235 GPU-h first projected |
+| Pocket gate | q ≈ 0.465 | **q = 0.608** (87,338) | The one true filter in the pipeline |
+| Rosetta | top 40% of survivors | **3,000** (3.4%), + 3,000 more running | Uncapped would have been **19.7 days**; the stratified cap exists for that reason |
+| `NSTRUCT` | — | **5**, reported as the mean | Within-candidate sd on dG is 3.53 REU, so one trajectory is not a measurement |
+| ~~MD~~ | 24 | **0** | Dropped — does not discriminate |
+| Synthesised | ~150 | pending | Parallel synthesiser handles 192 per batch; a real score-vs-affinity calibration needs ~85 compounds for 80% power at rho = 0.3. **Assay throughput still unconfirmed** |
 
-**The idea that makes this affordable.** Binding quality turns out to be largely
-a property of the *backbone*, not the sequence — 56% of the variance in
-interface score sits between backbones rather than between sequences sharing
-one. So rather than docking everything, the pipeline docks six sequences per
-backbone to find which backbones are good, then concentrates the remaining
-compute on the best half. Total cost is roughly 66 hours of wall clock on 4
-GPUs. (Not 66 GPU-hours: this document had been using "GPU-hours" to mean
-wall-clock hours on four cards. Stage 1 alone is 34.5 GPU-h. See `CHANGELOG.md`
-v3.3.3.)
+**Costs came in as budgeted or better.** Stage 1 at 35.0 GPU-h against 34.5
+predicted and Stage 2 at 7.8 against 7.4 — both within 6%. Stage 3 came in 43%
+*under* its first projection. Stage 4 was the expensive one in a different
+currency: 2,344 core-hours of CPU, 56 of 64 cores at 99% efficiency.
+
+**The idea that makes this affordable.** Binding quality is substantially a
+property of the *backbone*, not the sequence. So rather than docking everything,
+the pipeline docks **ten** sequences per backbone to find which backbones are
+good, then concentrates the remaining compute on the best half.
+
+**The measurement came in weaker than the pilot suggested, and the design absorbed
+it.** The pilot put the between-backbone share of variance at 56%; at production
+scale the ICC is **0.331** — so roughly a third, not over half. That is why scout
+depth is 10 rather than 6: at ICC = 0.331, k = 6 gives backbone-ranking reliability
+of only 0.748, where k = 10 gives 0.832 for 2.2% more dockings. The check was
+pre-registered against the first completed shard precisely so this could be caught
+before the deepening commitment, and it passed on its own terms. Per-backbone pass
+rates across the 747 deepened backbones span the full **0.000-1.000**, with three
+producing no survivors at all — backbone identity matters, just less uniformly than
+the pilot implied.
+
+Realised cost across generation, docking and scoring: **~176 GPU-h** (35.0 + 7.8 +
+132.8) plus **2,344 CPU core-hours** at Stage 4. (Earlier drafts of this document
+used "GPU-hours" to mean wall-clock hours on four cards; the figures here are true
+GPU-hours. See `CHANGELOG.md` v3.3.3.)
 
 **The honest caveat on backbone count.** The textbook way to set it requires
 knowing how many *distinct* backbones RFdiffusion can produce. That quantity
@@ -222,45 +270,108 @@ pinned residues silently when misconfigured. The experiment was re-run correctly
 and the temperature conclusion survived, but the sequence count changed
 substantially. Details in [`LIMITATIONS.md`](LIMITATIONS.md) R1–R3.
 
-## 7. What the pilot showed — and did not
+## 7. What has been established — and what has not
 
-A 100-backbone pilot ran the full funnel and produced a 27-candidate shortlist.
+The 100-backbone pilot produced a 27-candidate shortlist and justified each
+filter. The scale-up then ran the full funnel at B = 1,500. Taking both together:
 
-**It showed:**
-- The method produces candidates with plausible interface geometry, favourable
-  computed interface energies, and disulfides that survive forced formation.
-- Predicted poses are stable over 20 ns.
-- Two independent structure predictors agree on the pose for most candidates.
-- Candidates exist with the target profile: strong predicted binding *and*
-  predicted BBB permeability, without the two trading off against each other.
-- The filters that remain in the pipeline discriminate; the ones that did not
-  were removed.
+### Established
 
-**It did not show:**
-- **That any candidate binds OXTR.** There is no wet-lab data. Every number is
-  a prediction, and the computational scores rank candidates rather than
-  estimating affinity.
-- **That the computational ranking predicts real binding at all.** This is the
-  single biggest open question, and the reason the first synthesis wave is
-  deliberately designed to span the score range rather than take only the top
-  compounds — so that the ranking can be tested, not merely confirmed.
-- **That the permeability predictions are right.** The classifier has a known
-  blind spot for exactly this molecular class.
-- **Anything about selectivity.** OXTR and the vasopressin receptors are closely
-  homologous; this check exists but has no control.
+- **The geometric constraints work at scale.** 99.9% of 1,500 backbones are
+  disulfide-compatible; 100% sit in the favourable cysteine-separation regime.
+  Zero of 265,700 unique sequences lost the disulfide across 900,000 draws.
+- **The run is aimed at the right site.** From a hotspot list naming only eight
+  residues, the run recovers **29 of the 33** residues native oxytocin contacts in
+  7RYC (88%). The two residues that dominate the designed interface, O315 and
+  O187, are both genuine native contacts and neither was requested.
+- **The Stage 4 metric discriminates arrangement, not just composition.** This is
+  the strongest result in the project. Thirty scrambles holding length,
+  composition, charge, MW and ring size *exactly* constant all score worse than
+  their parents — **30/30**, p = 1.9×10⁻⁹ — and **five of thirty lose the interface
+  entirely** against 0 of 3,000 candidates. Oxytocin lands at the median of the
+  unselected pool, which is where an undesigned real binder belongs.
+- **The selection worked.** The 3,000 chosen for Rosetta score 7.6 REU better than
+  a random sample of survivors.
+- **Noise is characterised and the reporting accounts for it.** Within-candidate sd
+  on dG is 3.53 REU, matching 3.48 and 3.86 from two independent prior
+  measurements, so every Stage 4 value is a mean of five trajectories.
+- **The ranking target changes which molecules win, and was chosen in advance.**
+  Ranked on raw dG the leaders are all 14-mers from a single backbone; normalised
+  by buried area they are 8-10-mers across 16 backbones. Since raw dG correlates
+  r = −0.711 with interface *size*, it is substantially an area measure. The
+  normalised target reaches the size class a BBB programme needs — **and the
+  decision was taken before these data existed.**
+- **Sampling parameters were correctly derived**, within 7% on unique yield and
+  1.5 sequences per 100 draws on marginal yield.
+
+### Not established
+
+- **That any candidate binds OXTR.** There is no wet-lab data. Every number is a
+  prediction, the scores rank rather than estimate affinity, and a discriminating
+  metric is not a calibrated one — nothing here converts REU to a Kd.
+- **That the computational ranking predicts real binding.** Still the single
+  biggest open question, and the reason the first synthesis wave must span the
+  score range rather than take only the top compounds, so the ranking can be
+  *tested* instead of confirmed.
+- **That a top-5 is identifiable.** It is not. 90% containment of the true top-5
+  requires a shortlist of **86**; the pilot implied 8. The rank-1-to-rank-5 gap is
+  2.1 SEM and 14 candidates sit within ±2 SEM of the leader. More `NSTRUCT` cannot
+  fix this — halving the SEM costs 4× the trajectories. **Synthesise from the top
+  ~25-50 on diversity, not the top 5 on score.**
+- **Anything about permeability.** The BBB classifier is **unusable for this
+  molecular class**, and we know this because the controls were run in the same
+  batch: leu-enkephalin, a literature-confirmed non-permeant, scores 0.959 BBB+.
+  The column is retained as annotation and named `_UNRELIABLE`. Every candidate
+  also sits far above the TPSA 140 Å² line (median 433 Å², cLogP −4.51), which is
+  the expected and unresolved tension of the whole molecular class.
+- **Selectivity, beyond a warning.** 40.1% of the top 1,000 prefer a vasopressin
+  receptor, and selectivity is **independent of binding rank** (r = −0.065), so it
+  is information nothing upstream supplied. But there is still no selectivity
+  control, so the margin is uncalibrated.
+- **That the −3.0 efficiency cut is the right threshold.** It is a choice with no
+  derivation behind it, which makes **178** a defensible working figure rather than
+  a measured one. Two candidates sit exactly on the line.
+
+### A methodological lesson worth carrying forward
+
+Four of the five binding checks were found to be **weaker than assumed** when
+tested against controls, and the pipeline changed each time: ProteinMPNN was not
+seeing the receptor, AlphaFold confidence ranks these molecules poorly, Boltz2
+cannot discriminate at all, and MD does not discriminate among candidates that
+already passed.
+
+A fifth lesson came from the scale-up itself. `hotspot_residues`, the feature the
+3,000 were selected on, measured r = −0.005 against the physics at n = 3,000
+versus −0.530 at n = 200. This was initially read — and briefly documented — as the
+selector failing to replicate. **That reading was wrong.** The 3,000 contain only
+`hotspot_residues` 7 and 8, because that is what the selection picked; restricting
+the n = 200 benchmark to the same range gives +0.031, matching what was measured.
+It is pure **range restriction**, and the general rule is now recorded in
+`LIMITATIONS.md` O0f: **a feature used to select a set cannot be validated on that
+set.** The same caution applies to `i_ptm` and `centroid_dist`.
 
 ## 8. What happens next
 
-1. **Launch.** No blockers remain — see [`LIMITATIONS.md`](LIMITATIONS.md).
-2. **Run the scale-up** — ~3.3 days wall clock, Rosetta-bound (~66 h of that on 4 GPUs) across generation, docking and
-   scoring, with an early checkpoint on the first shard to confirm the backbone
-   statistics hold at scale.
-3. **Select 12 compounds** for synthesis: 8 top-ranked, 4 spread across the
-   score range.
-4. **Assay them, and compute the rank correlation** between predicted score and
+1. **Finish Stage 4 batch 2** — a second disjoint 3,000, running, ETA
+   2026-10-07 ~09:00. Even after it, 31,507 gate survivors remain unscored.
+2. **Settle the threshold question.** Either derive the efficiency cut or stop
+   quoting a single survivor count. This is the largest open methodological gap at
+   the end of the pipeline.
+3. **Run the N-methylation scan** (Stage 6) over the shortlist, to see which strong
+   binders have a route to improved permeability.
+4. **Select the synthesis wave** — top ~25-50 on diversity and synthesisability,
+   deliberately spanning the score range.
+5. **Assay them, and compute the rank correlation** between predicted score and
    measured affinity. If it correlates, the pipeline is predictive and the
-   remaining shortlist is worth pursuing. If it does not, that is a more
-   important finding than any individual hit, and no larger batch fixes it.
+   remaining shortlist is worth pursuing. If it does not, that is a more important
+   finding than any individual hit, and no larger batch fixes it.
+
+**For the next cycle, fix the length bias at source.** 8-mers are
+under-represented and it is **not** a scoring artefact: `P(pass | peptide near the
+pocket)` = 1.000 at every length, but 74% of 8-mers land somewhere other than the
+pocket. It is a *placement* problem, so the fixes are upstream — rank backbones
+within length bands rather than globally, and shuffle `jobs.tsv` so length does not
+correlate with run order.
 
 The project is at the point where further computation has diminishing returns
 relative to a single wet-lab measurement.
@@ -271,7 +382,10 @@ relative to a single wet-lab measurement.
 
 | If you want | Read |
 |---|---|
-| The data behind any claim here | [`METHODS_AND_RESULTS.md`](METHODS_AND_RESULTS.md) |
+| **What the scale-up actually produced, stage by stage** | [`PRODUCTION_RUN_v3.md`](PRODUCTION_RUN_v3.md) |
+| The pilot's data and the control experiments | [`METHODS_AND_RESULTS.md`](METHODS_AND_RESULTS.md) |
+| How the Stage 4 set was chosen | [`stage4_selection_derivation.md`](stage4_selection_derivation.md) |
+| A 10-slide overview for a group meeting | [`presentations/OXTR_pipeline_update.pptx`](presentations/OXTR_pipeline_update.pptx) |
 | Why a number is that number | [`sampling_parameter_derivation.md`](sampling_parameter_derivation.md) |
 | What is weak or unresolved | [`LIMITATIONS.md`](LIMITATIONS.md) |
 | How to actually run it | [`SOP.md`](SOP.md) |
