@@ -11,6 +11,125 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Stage 4 controls — 2026-10-06
+
+**Not a pipeline version change.** The first controls Stage 4 has ever had.
+Recorded because they recalibrate how the shortlist and `dslf_fa13` are read.
+Full discussion in [`LIMITATIONS.md`](LIMITATIONS.md) O14.
+
+### Stage 4 had never been shown a control
+
+3,000 candidates scored in batch 1, 3,000 more in batch 2, every one a real
+design candidate — no decoys, no scrambles, no positive control. Stage 3 has the
+`out_39` negative control, Stage 5 has leu-/met-enkephalin and held-out BBB+/−,
+Stage 1 has crystal disulfide geometry. The stage whose number drives selection
+had none, so `dG_separated` and `dG_per_dSASAx100` were uncalibrated.
+
+| control | status | what it establishes |
+|---|---|---|
+| **oxytocin**, 7RYC pose through the production worker | **complete** | what a known nanomolar binder scores |
+| **30 sequence scrambles** of the top candidates | poses built, Stage 4 queued | what a non-binder of identical composition scores |
+
+Scrambles shuffle only non-cysteine residues, so length, composition, net charge,
+MW and cysteine spacing (hence ring size) are held constant and only residue
+identity-by-position is destroyed. Built by
+`scripts/stage0_controls/make_scramble_controls.py` (median 8 positions changed),
+and run through AfCycDesign then Stage 4 — the candidates' own path.
+
+### Oxytocin scores at the median of 3,000, and below 99% of the shortlist
+
+Run through the production worker, NSTRUCT=5, `-in:fix_disulf`, C-terminally
+amidated — identical treatment to every candidate:
+
+| | oxytocin | filtered top 1,000 |
+|---|---:|---|
+| `dG_separated` | −43.74 ± 3.06 | median −48.75 |
+| `dG_per_dSASAx100` | **−2.612 ± 0.181** | median −2.811 |
+| `dSASA_int` | 1,675 Å² | mean 1,740 Å² |
+| `designed_dslf_fa13` | **−0.194 ± 0.259** | all ≤ 0 by construction |
+
+**Rank 1,516 / 3,000** — dead median. Within the disulfide-filtered shortlist it
+places **990 / 1,000**: 99% of the shortlist outscores the native hormone.
+
+That is the finding. Either these designs really are better binders than
+oxytocin — possible, since it evolved under constraints Rosetta does not score,
+but a strong claim on 1,000 molecules — or `dG_per_dSASAx100` discriminates
+weakly and the shortlist's ordering is worth less than it appears. **The
+scrambles decide it:** if molecules with identical composition and a destroyed
+sequence also beat oxytocin, the metric is not measuring binding.
+
+> **Supersedes an earlier number.** `stage_0_1_benchmark/oxytocin_forced_relax_result.json`
+> records `dslf_fa13_sum` **+1.317** from an older single-structure forced-relax
+> protocol. Under the production protocol the value is **−0.194**. The earlier
+> figure should not be used; in particular it is **not** true that the
+> `dslf ≤ 0` filter would reject oxytocin — it passes, with 4 of 5 replicates
+> favourable.
+
+### Its disulfide is genuinely strained, but the penalty is small
+
+All five production trajectories, with the bond forced closed:
+
+| replicate | SG–SG | χ3 (CB-SG-SG-CB) | `dslf_fa13` |
+|---:|---:|---:|---:|
+| 1 | 2.14 Å | +141.5° | +0.223 |
+| 2 | 2.08 Å | +137.0° | −0.202 |
+| 3 | 2.09 Å | +137.1° | −0.173 |
+| 4 | 2.04 Å | +135.8° | −0.391 |
+| 5 | 2.04 Å | +135.8° | −0.427 |
+| **ideal** | 2.02–2.05 Å | **±87°** | |
+
+The SG–SG distance is essentially perfect throughout. The **dihedral is
+consistently ~50° off optimum**, where the sulfur lone pairs eclipse rather than
+stagger — real, reproducible strain. But its energetic cost in `ref2015` is
+modest: mean −0.194, and 45% of candidates score worse.
+
+**The strain is specific to oxytocin, not to its ring size.** Sep-5 designs —
+oxytocin's own Cys1–Cys6 spacing — have the *least* strained disulfides in the
+set:
+
+| cys separation | n | median `dslf` | `dG/dSASAx100` | `dG` |
+|---:|---:|---:|---:|---:|
+| 5 | 766 | **−0.694** | −2.687 | −44.04 |
+| 6 | 1,028 | −0.122 | −2.623 | −45.90 |
+| 7 | 1,206 | −0.138 | −2.564 | −47.40 |
+
+RFdiffusion builds sep-5 backbones that accommodate an ideal χ3. Oxytocin's
+backbone is set by its biology, not chosen to suit a disulfide.
+
+### `dslf_fa13` is not a binding criterion
+
+Across the 3,000 it is essentially uncorrelated with binding score, and the sign
+flips with the measure because interface size is the confound:
+
+| ρ(`dslf`, …) | value |
+|---|---:|
+| `dG_per_dSASAx100` | +0.098 |
+| `dG_separated` | −0.077 |
+| `sc_value` | −0.093 |
+| `dSASA_int` | **+0.172** |
+
+Strained disulfides sit on larger interfaces — better raw dG, worse
+per-unit-area efficiency. Neither is "better binding".
+
+**Stage 4 cannot in principle settle whether strain helps.** The case *for*
+strain is pre-organisation: a rigid ring loses less conformational entropy on
+binding, which is the whole rationale for macrocyclic peptides, and oxytocin is
+its textbook case. That is a **free-state ensemble** effect, while
+`dG_separated` scores a single relaxed **bound** pose with no ensemble and no
+entropy term — so it is invisible by construction. Settling it needs free-state
+MD of the unbound peptides, or wet-lab data.
+
+### How the shortlist filter should be described
+
+`top1000_dslf_filtered.csv` removed 1,113 of 3,000 on `dslf ≤ 0`. That is a
+**synthesisability and stability** criterion — strained disulfides form less
+cleanly, scramble more readily against competing cysteines, and reduce more
+easily. **It is not a binding filter**, and the measured correlations above are
+why. Oxytocin passes it, so a positive `dslf` should be read as a chemistry
+liability, never as "this will not cyclise".
+
+---
+
 ## Pipeline v3.9.0 — 2026-10-05
 
 **Current.** A claim made in v3.7.0 is **withdrawn**: the selector did not fail.
