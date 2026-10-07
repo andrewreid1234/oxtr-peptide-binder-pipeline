@@ -28,12 +28,37 @@ V = "/scratch/drewdog/denovo_binder_100_pilot_v2"
 HOTSPOTS = [34, 38, 96, 188, 200, 295, 299, 316]   # true 7RYC numbering
 CONTACT = 4.5          # A, heavy atom
 
-# The structures do NOT carry 7RYC numbering. The Stage 1 contig
-# O31-67/O69-236/O266-345 was renumbered from 1, so the receptor runs 1-315 with
-# the inter-segment gaps preserved. Verified against 7RYC chain O: all 285
-# residue names match at an offset of exactly +30. Everything reported to the
-# reader is converted back, so O34 means O34 and not residue 4.
-OFFSET = 30
+# Receptor numbering is NOT consistent across these structures, so it is
+# DETECTED per file rather than assumed.
+#   designed candidates : the Stage 1 contig O31-67/O69-236/O266-345 was
+#                         renumbered from 1, so the receptor runs 1-315 and the
+#                         true residue is model + 30.
+#   oxytocin control    : built straight from 7RYC, so it already carries true
+#                         numbering (31-345) and the offset is 0.
+# Hardcoding +30 would silently mislabel every oxytocin contact. The offset is
+# resolved by matching residue NAMES against 7RYC chain O and requiring a
+# perfect match over all 285.
+REF_PDB = ("/scratch/drewdog/denovo_binder_100_pilot/project_files/"
+           "pdb_references/7RYC.pdb")
+
+
+def ref_names():
+    d = {}
+    for l in open(REF_PDB):
+        if l.startswith("ATOM") and l[21] == "O":
+            d[int(l[22:26])] = l[17:20].strip()
+    return d
+
+
+REF = ref_names()
+
+
+def detect_offset(rec):
+    """rec = {resnum: {'name':..}} for chain A -> integer offset to 7RYC."""
+    for off in (0, 30):
+        if all(REF.get(r + off) == rec[r]["name"] for r in rec):
+            return off
+    raise SystemExit("FATAL: receptor numbering matches 7RYC at no known offset")
 AA3 = {"ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C", "GLN": "Q",
        "GLU": "E", "GLY": "G", "HIS": "H", "ILE": "I", "LEU": "L", "LYS": "K",
        "MET": "M", "PHE": "F", "PRO": "P", "SER": "S", "THR": "T", "TRP": "W",
@@ -74,6 +99,9 @@ h2{font-size:19px;margin:40px 0 12px;letter-spacing:-.01em}
   padding:16px 18px;border-bottom:1px solid var(--line)}
 .rank{font-size:13px;font-weight:700;color:#fff;background:var(--blue);
   border-radius:5px;padding:3px 9px}
+.rank.bm{background:var(--orange)}
+.card.bm{border-color:var(--orange);border-width:2px}
+.card.bm .seq{color:var(--orange)}
 .seq{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:19px;
   font-weight:600;letter-spacing:.06em}
 .sid{color:var(--muted);font-size:12.5px;font-family:ui-monospace,monospace}
@@ -288,9 +316,9 @@ function card(d){
   const ss = d.ss.sg_sg!==undefined
     ? `C${d.ss.cys[0]}–C${d.ss.cys[1]} &middot; S–S ${d.ss.sg_sg} Å &middot; &chi;<sub>3</sub> ${d.ss.chi3}&deg;`
     : "not resolved";
-  return `<div class="card">
+  return `<div class="card${d.benchmark?' bm':''}">
     <div class="chead">
-      <span class="rank">#${d.rank}</span>
+      <span class="rank${d.benchmark?' bm':''}">${d.benchmark?'BENCHMARK':'#'+d.rank}</span>
       <span class="seq">${d.seq}</span>
       <span class="sid">${d.id} &middot; ${d.length} residues &middot; backbone ${d.backbone}</span>
     </div>
@@ -416,6 +444,7 @@ def analyse(path):
     if "A" not in ch or "B" not in ch:
         return None
     rec, pep = ch["A"], ch["B"]
+    off = detect_offset(rec)
     pnums = sorted(pep)
 
     # per-peptide-residue contacts, and the receptor residues they touch
@@ -461,13 +490,14 @@ def analyse(path):
     return {
         "pdb": "\n".join(lines),
         "per_res": per_res,
-        "contacts": [{"resi": k + OFFSET, "resi_model": k,
+        "contacts": [{"resi": k + off, "resi_model": k,
                       "aa": AA3.get(v[0], v[0]), "d": round(v[1], 2),
-                      "hotspot": (k + OFFSET) in HOTSPOTS} for k, v in cl],
-        "hotspots_hit": sorted(k + OFFSET for k in contacted
-                               if (k + OFFSET) in HOTSPOTS),
+                      "hotspot": (k + off) in HOTSPOTS} for k, v in cl],
+        "hotspots_hit": sorted(k + off for k in contacted
+                               if (k + off) in HOTSPOTS),
         "hotspots_hit_model": sorted(k for k in contacted
-                                     if (k + OFFSET) in HOTSPOTS),
+                                     if (k + off) in HOTSPOTS),
+        "offset": off,
         "ss": ss,
     }
 
@@ -495,6 +525,35 @@ for rank, r in enumerate(top, 1):
     cards.append(a)
     print("  %2d %-22s %-14s %s" % (rank, r["sequence_id"], r["sequence"],
                                     a["hotspots_hit"]))
+
+# ------------------------------------------------- OXYTOCIN BENCHMARK
+# The native ligand, through the identical production worker (NSTRUCT=5,
+# -in:fix_disulf, amidated). Appended rather than ranked: it is the yardstick
+# the candidates are measured against, not a candidate.
+OXY = V + "/stage_4_controls"
+oxy_json = OXY + "/results/CTRL_oxytocin.json"
+oxy_pdb = sorted(glob.glob(OXY + "/relaxed/CTRL_oxytocin/*_relaxed_0001.pdb"))
+if os.path.exists(oxy_json) and oxy_pdb:
+    r = json.load(open(oxy_json))
+    a = analyse(oxy_pdb[0])
+    if a:
+        a.update({
+            "rank": 0, "benchmark": True, "id": "oxytocin (7RYC)",
+            "seq": "CYIQNCPLG", "backbone": "native ligand", "length": 9,
+            "ratio": round(r["dG_per_dSASAx100"], 4),
+            "ratio_sd": r["dG_per_dSASAx100_sd"],
+            "dG": round(r["dG_separated"], 2), "dG_sd": r["dG_separated_sd"],
+            "dsasa": round(r["dSASA_int"], 0), "sc": round(r["sc_value"], 3),
+            "hb": round(r["hbonds_int"], 1),
+            "unsat": round(r["delta_unsatHbonds"], 1),
+            "dslf": r["designed_dslf_fa13"],
+            "dslf_sd": r["designed_dslf_fa13_sd"],
+        })
+        cards.append(a)
+        print("  BM oxytocin             CYIQNCPLG      %s  (offset %d)"
+              % (a["hotspots_hit"], a["offset"]))
+else:
+    print("  NOTE: oxytocin benchmark not found, page will omit it")
 
 out = os.path.abspath(args.out)
 os.makedirs(os.path.dirname(out), exist_ok=True)
