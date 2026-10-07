@@ -67,6 +67,35 @@ both documents as the largest open methodological gap at the end of the pipeline
 
 ---
 
+## Stage 4 single-process rewrite — measured, NOT adopted — 2026-10-07
+
+**A negative result, recorded so the claim is not revived.** The 3.8x speedup
+advocated for Stage 4 since 2026-09-29 does not exist against the current
+worker. Measured head to head on `shard1_out_334_u314`, NSTRUCT=5:
+
+| | per candidate |
+|---|---:|
+| shell worker, 5 processes | **39.7 min** |
+| single PyRosetta process | **39.4 min** |
+| saving | **0.8%** |
+
+Output agrees: `dG_per_dSASAx100` -2.9548 against the shell worker's -2.9516,
+inside a tenth of one replicate sd. The script is correct; it saves nothing.
+
+**Why the premise was wrong.** The 3.8x came from benchmarking an in-process
+prototype at 326 s against the pilot's documented **1,245 s/candidate**. That
+baseline was stale -- the production worker had already reached ~476 s per
+structure through other changes, so there was never 3.8x to win against it.
+PyRosetta init measures **2.1-2.3 s**, so the four redundant process starts cost
+about 10 s out of 2,380: **0.4%, not 74%**. The relax trajectories are the cost,
+and they are irreducible.
+
+`scripts/stage4_rosetta/rosetta_stage4_worker_v2.py` is kept with this verdict
+in its header. **Stage 4 gets faster only by scoring fewer candidates, or fewer
+structures each** -- not by restructuring the worker.
+
+---
+
 ## Stage 4 controls — 2026-10-06
 
 **Not a pipeline version change.** The first controls Stage 4 has ever had, and
