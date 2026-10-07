@@ -103,6 +103,13 @@ td.n{text-align:right;font-variant-numeric:tabular-nums;font-family:ui-monospace
 @media(max-width:560px){.grid2{grid-template-columns:1fr}}
 code{font-family:ui-monospace,monospace;font-size:.92em;background:var(--bg);
   border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+h3{font-size:15px;margin:26px 0 8px;letter-spacing:-.01em;color:var(--ink)}
+table.ref{margin-bottom:6px}
+table.ref th:first-child,table.ref td:first-child{width:28%}
+table.ref td.n{text-align:left;width:24%;color:var(--ink);font-weight:500}
+table.ref td.mono,table.ref .mono{font-family:ui-monospace,monospace;font-size:12.5px}
+table.ref td:last-child{color:var(--ink2);font-size:12.5px}
+.warn{color:var(--orange);font-weight:700}
 </style></head><body><div class="wrap">
 
 <h1>OXTR peptide binders — top 10</h1>
@@ -156,6 +163,115 @@ regional prior. It used them very unevenly — O188 is contacted by 64% of all 1
 O200 by 1.5%. But the run recovered <b>29 of the 33 residues native oxytocin contacts</b> in
 7RYC, including O315 (every backbone) and O187 (95%), <i>neither of which was requested</i>.
 The hotspot list named a neighbourhood; the model found the pocket inside it.</p>
+
+<h2>Reference values — every threshold this pipeline applies</h2>
+<p class="sub" style="margin-bottom:18px">What each filter targets, what it is actually set to, and
+where the number comes from. Values marked <span class="warn">⚠</span> are known weaknesses, not
+settled criteria.</p>
+
+<h3>Disulfide geometry</h3>
+<p class="small" style="margin:0 0 10px"><b>SG</b> is the <i>gamma sulfur</i> — protein atoms are
+named by Greek-letter position out from the backbone, so a cysteine runs
+<span class="mono">N–CA(–CB–SG)–C=O</span> and the disulfide is the <span class="mono">SG–SG</span>
+bond joining two of them. <b>&chi;<sub>3</sub></b> is the torsion <i>about that S–S bond</i>:
+walking the bridge you pass <span class="mono">CA–CB–SG–SG–CB–CA</span>, where
+&chi;<sub>1</sub>&nbsp;=&nbsp;N-CA-CB-SG, &chi;<sub>2</sub>&nbsp;=&nbsp;CA-CB-SG-SG and
+&chi;<sub>3</sub>&nbsp;=&nbsp;CB-SG-SG-CB. It prefers <b>&plusmn;87&deg;</b> because each sulfur
+carries two lone pairs that sit staggered near 90&deg;; rotating toward 0&deg; or 180&deg; eclipses
+them and costs energy. This is oxytocin's strain exactly — its S–S <i>distance</i> is ideal at
+2.03&nbsp;Å and its &chi;<sub>3</sub> is ~+137&deg;, about 50&deg; past the optimum.</p>
+<table class="ref">
+<tr><th>quantity</th><th>ideal / survey</th><th>7RYC native</th><th>what we apply</th></tr>
+<tr><td>S–S distance</td><td class="n">2.02 – 2.05 Å</td><td class="n">2.029 Å</td><td>not gated directly</td></tr>
+<tr><td>C<sub>β</sub>–C<sub>β</sub></td><td class="n">3.4 – 4.5 Å <span class="small">(mean 3.8)</span></td><td class="n">4.063 Å</td><td>Stage 1: 3.0 – 5.0 Å, <b>99.9% pass</b></td></tr>
+<tr><td>C<sub>α</sub>–C<sub>α</sub></td><td class="n">4.6 – 6.8 Å <span class="small">(mean 5.6)</span></td><td class="n">4.227 Å</td><td>reported, not gated</td></tr>
+<tr><td>χ<sub>3</sub> (CB-SG-SG-CB)</td><td class="n">±87°</td><td class="n">+137° <span class="small">strained</span></td><td>not gated — enters via <code>dslf_fa13</code></td></tr>
+<tr><td>CB–SG–SG angle</td><td class="n">~104°</td><td class="n">102 / 113°</td><td>not gated — enters via <code>dslf_fa13</code></td></tr>
+<tr><td>SG–SG at Stage 3</td><td class="n">—</td><td class="n">—</td><td><span class="warn">⚠</span> <code>ss ≤ 4.0 Å</code> — <b>maximum only, no lower bound</b></td></tr>
+<tr><td><code>dslf_fa13</code></td><td class="n">&lt; 0 = relaxed</td><td class="n">−0.194</td><td>shortlist filter <code>≤ 0</code>; 60.2% of 6,000 pass</td></tr>
+</table>
+<p class="small"><span class="warn">⚠</span> The Stage 3 check cannot see a <i>collapsed</i>
+disulfide. Across the 1,500 backbones SG–SG ran 0.18 – 15.14 Å and <b>27.9% sat below 1.5 Å</b>,
+shorter than a C–C bond and physically impossible — every one passed. It does not corrupt the
+scores, because Stage 4 re-forms the bond with <code>-in:fix_disulf</code> regardless of input
+distance, but the gate is blind to that failure mode.</p>
+<p class="small"><b><code>dslf_fa13</code> is a chemistry criterion, not a binding one.</b> Across
+the 6,000 it is uncorrelated with binding score (ρ = +0.098 vs <code>dG/dSASA×100</code>, −0.077 vs
+<code>dG</code>, +0.172 vs buried area — the sign flips because interface size is the confound).
+Strained disulfides form less cleanly and reduce more easily; that is the reason to filter on it.
+Native oxytocin's own disulfide is strained and still binds at nanomolar, so a positive value is a
+liability, never "this will not cyclise".</p>
+
+<h3>Stage 1 — backbone generation</h3>
+<table class="ref">
+<tr><th>parameter</th><th>value</th><th>note</th></tr>
+<tr><td>contig</td><td class="mono">1-3 / Cys / 4-6 / Cys / 1-3</td><td>gives 8–14 residues; peak at 10–11 is the convolution, not a preference</td></tr>
+<tr><td>receptor</td><td class="mono">O31-67 / O69-236 / O266-345</td><td>285 residues of 7RYC</td></tr>
+<tr><td>cysteine separation</td><td class="n">5 – 7</td><td>brackets oxytocin's native 5; narrowed from 4–8 because ρ = +0.511 (p = 0.007) linked wider spacing to worse forced-disulfide energy</td></tr>
+<tr><td>hotspots</td><td class="mono">O34 O38 O96 O188 O200 O295 O299 O316</td><td>a regional prior, not a per-residue requirement</td></tr>
+<tr><td>diffuser steps</td><td class="n">T = 50</td><td>—</td></tr>
+<tr><td>B</td><td class="n">1,500</td><td>budget choice; D<sub>b</sub> is not identifiable so there is no derived optimum</td></tr>
+</table>
+
+<h3>Stage 2 — sequence design</h3>
+<table class="ref">
+<tr><th>parameter</th><th>value</th><th>note</th></tr>
+<tr><td>draws per backbone</td><td class="n">S = 600</td><td>budget choice — diversity is still accumulating, +21 unique per 100 extra draws</td></tr>
+<tr><td>sampling temperature</td><td class="n">T = 0.2</td><td>2.14× the unique yield of T = 0.1</td></tr>
+<tr><td>omitted residues</td><td class="mono">C, M, X</td><td>stops extra sulfurs forming a competing disulfide; X is an unassigned-residue token</td></tr>
+<tr><td>cysteines</td><td class="n">exactly 2, pinned</td><td><b>hard gate</b> — without it ProteinMPNN designs them away and exits 0</td></tr>
+</table>
+
+<h3>Stage 3 — docking gate</h3>
+<table class="ref">
+<tr><th>criterion</th><th>threshold</th><th>note</th></tr>
+<tr><td>SG–SG</td><td class="n">≤ 4.0 Å</td><td><span class="warn">⚠</span> one-sided, see above</td></tr>
+<tr><td>hotspot contacts</td><td class="n">≥ 1</td><td>within 8 Å</td></tr>
+<tr><td>measured pass rate</td><td class="n">q = 0.465</td><td>—</td></tr>
+<tr><td>Stage 4 selection</td><td class="n">hotspot_residues ∈ {7, 8}</td><td><span class="warn">⚠</span> both batches contain <b>only</b> 7s and 8s, so whether this feature predicts dG is <b>untestable</b> from this data — range restriction, not failure</td></tr>
+<tr><td>i<sub>ptm</sub></td><td class="n">prior, not a gate</td><td>ρ with measured dG is only −0.14 at n = 4,857</td></tr>
+</table>
+
+<h3>Stage 4 — Rosetta scoring</h3>
+<table class="ref">
+<tr><th>quantity</th><th>value / reference</th><th>note</th></tr>
+<tr><td>ranking target</td><td class="mono">dG_separated / dSASA × 100</td><td>normalised by buried area; ranking on raw dG instead selects 14-mers from one backbone family</td></tr>
+<tr><td>units</td><td class="n">REU, not kcal/mol</td><td>ranks candidates; does <b>not</b> predict a K<sub>d</sub></td></tr>
+<tr><td>replicates</td><td class="n">NSTRUCT = 5, mean</td><td>reliability 0.579 → 0.873 from 1 → 5; the mean, never best-of-N</td></tr>
+<tr><td>shape complementarity</td><td class="n">~0.65 well-packed</td><td>observed median 0.62</td></tr>
+<tr><td>buried unsatisfied H-bonds</td><td class="n">lower is better</td><td><span class="warn">⚠</span> observed median <b>15</b> — high across the whole set</td></tr>
+<tr><td>within-candidate noise</td><td class="n">sd 3.53 REU (median)</td><td>ratio sd 0.186 → SEM of 5 = <b>0.083</b></td></tr>
+<tr><td>rank-1 to rank-5 gap</td><td class="n">2.1 SEM</td><td><span class="warn">⚠</span> the top ~50 are <b>not separable</b></td></tr>
+</table>
+
+<h3>Calibration — what the controls score</h3>
+<table class="ref">
+<tr><th>reference</th><th>dG/dSASA×100</th><th>note</th></tr>
+<tr><td><b>best candidate</b></td><td class="n">−3.682</td><td>SGCLFGSCP</td></tr>
+<tr><td>shortlist median</td><td class="n">−2.811</td><td>disulfide-filtered top 1,000</td></tr>
+<tr><td>all 6,000 median</td><td class="n">−2.603</td><td>—</td></tr>
+<tr><td><b>oxytocin</b> (positive control)</td><td class="n">−2.612</td><td>rank 2,921 / 6,000 — the median of the unselected pool</td></tr>
+<tr><td><b>sequence scrambles</b> (negative)</td><td class="n">−2.404</td><td>30/30 worse than their parent, p = 1.9×10<sup>−9</sup>; <b>5 of 30 lost their interface entirely</b> (&lt; 200 Å², vs 0 of 6,000 candidates)</td></tr>
+</table>
+
+<h3>Stages 5–7</h3>
+<table class="ref">
+<tr><th>filter</th><th>target</th><th>status</th></tr>
+<tr><td>BBB permeability</td><td class="n">HBD ≤ 5, TPSA ≤ 140 Å²</td><td><span class="warn">⚠</span> <b>0 of 1,000 meet either</b> — observed HBD 14, TPSA 431 Å². The classifier also scores leu-enkephalin, a literature non-permeant, at 0.959 BBB+. <b>Unusable on this molecule class.</b></td></tr>
+<tr><td>N-methylation site</td><td class="n">backbone N–H &gt; 3.5 Å from any acceptor</td><td>free in all 5 replicates. Pro / Gly / Cys skipped. Median 1 site; <b>cannot rescue permeability</b> — full methylation moves TPSA 431 → 413 Å²</td></tr>
+<tr><td>selectivity margin</td><td class="n">i<sub>ptm</sub>(OXTR) − max(AVPR1A/1B/2) ≥ 0</td><td>41% prefer an off-target and are dropped. Read asymmetrically: negative is a red flag, <b>positive is absence of evidence, not evidence of selectivity</b>. <span class="warn">⚠</span> this stage has no control of its own</td></tr>
+<tr><td>off-target size matching</td><td class="n">256 – 285 residues</td><td>AVPR1B trimmed to pLDDT ≥ 70; i<sub>ptm</sub> depends on the context it is computed in</td></tr>
+</table>
+
+<h3>Contact definitions used</h3>
+<table class="ref">
+<tr><th>where</th><th>cutoff</th><th>atoms</th></tr>
+<tr><td>Stage 1 / Stage 3 hotspot counting</td><td class="n">8.0 Å</td><td>backbone + virtual C<sub>β</sub> (no side chains exist yet)</td></tr>
+<tr><td><b>this page</b></td><td class="n">4.5 Å</td><td>all heavy atoms of the relaxed complex</td></tr>
+</table>
+<p class="small">This is why the hotspot counts above (4–7 of 8) are higher than the Stage 1
+figures (0–5 of 8) despite the tighter cutoff: Stage 1 measured backbone-only models, these are
+fully relaxed complexes with side chains that reach considerably further.</p>
 
 <script>
 const DATA = __DATA__;
