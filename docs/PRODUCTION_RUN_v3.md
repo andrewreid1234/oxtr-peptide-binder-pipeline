@@ -1,7 +1,7 @@
 # Production Run v3 — Methods and Results
 
-**Document version:** v1.7.0
-**Last updated:** 2026-10-06
+**Document version:** v1.8.0
+**Last updated:** 2026-10-08
 **Describes pipeline:** v3.9.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
@@ -21,24 +21,27 @@ values actually produced*. [`LIMITATIONS.md`](LIMITATIONS.md) catalogues what is
 still weak. [`SOP.md`](SOP.md) is the runbook. [`CHANGELOG.md`](CHANGELOG.md)
 holds superseded values.
 
-> **Status: Stages 1-4 complete, with controls; Stage 4 batch 2 running.** Stage 1
-> finished 2026-09-29 08:07, Stage 2 at 11:25, Stage 3 scouting at 15:39, Stage 3
-> deepening at 04:04 on 2026-10-01. Stage 3 total: 143,595 candidates docked, 33.1 h
-> wall, 132.8 GPU-h, zero failures, **87,338 survivors** (q = 0.608). **Stage 4
-> batch 1 completed 2026-10-04 08:12:57** — 3,000/3,000, zero FAIL, 42.16 h,
-> 2,344 core-hours (§5c). **Stage 4 is now calibrated**: 30 sequence scrambles all
-> score worse than their parents (30/30 paired, p = 1.9e-09) and five lose the
-> interface outright, while oxytocin lands at rank 1,516/3,000 — the median of an
-> unselected pool (§5d). Stage 5 (BBB, annotation only) and Stage 7 (selectivity,
-> 3,000/3,000) have run. **Batch 2** — a further 3,000 survivors, disjoint from
-> batch 1 — is running, ETA 2026-10-07 ~09:00. Stage 6 (N-methylation) is written
-> and not yet run; Stage 8 (shortlist) awaits batch 2.
+> **Status: Stages 1-5 and 7 complete. 6,000 candidates scored; 267 survive
+> everything measured.** Stage 1 finished 2026-09-29 08:07, Stage 2 at 11:25,
+> Stage 3 scouting at 15:39, Stage 3 deepening at 04:04 on 2026-10-01. Stage 3
+> total: 143,595 docked, 33.1 h wall, 132.8 GPU-h, zero failures, **87,338
+> survivors** (q = 0.608). **Stage 4 batch 1** completed 2026-10-04 (3,000, 42.16 h,
+> 2,344 core-h) and **batch 2** on 2026-10-07 (a disjoint 3,000) — both zero FAIL,
+> all at `NSTRUCT=5` (§5c, §5e). **Stage 4 is calibrated**: 30 composition-matched
+> scrambles all score worse than their parents (30/30, p = 1.9e-09) and five lose
+> the interface entirely, against 0 of 6,000 candidates; oxytocin lands at the
+> median of an unselected pool (§5d, Figure 14). **Stage 7 selectivity** has run
+> over **all 481** efficiency passers (§5e). Stage 5 (BBB) is annotation only and
+> demonstrably unusable for this class. Stage 6 (N-methylation) is written and not
+> yet run; Stage 8 (shortlist) is the next decision.
 >
-> **The working end-of-pipeline figure is 178** candidates that bind efficiently
-> (`dG/dSASAx100 < -3.0`) *and* prefer OXTR over all three vasopressin receptors.
-> Note what that is not: Stage 4 **ranks and does not gate**, so the -3.0 cut is a
-> choice rather than a derived threshold. The only true pass/fail step in the
-> pipeline is the Stage 3 pocket gate.
+> **The end-of-pipeline figure is 267** — candidates that bind efficiently
+> (`dG/dSASAx100 < -3.0`) *and* show no preference for any vasopressin receptor.
+> Two things that figure is not. Stage 4 **ranks and does not gate**, so the -3.0
+> cut is a choice, not a derived threshold — the one number in the pipeline with
+> nothing behind it. And a positive selectivity margin is **absence of evidence,
+> not evidence of selectivity**, so 267 means "no off-target preference detected".
+> The only true pass/fail step in the pipeline is the Stage 3 pocket gate.
 
 ---
 
@@ -1014,6 +1017,20 @@ that lost the interface.**
 What this does *not* establish is affinity. The controls show the metric
 discriminates arrangement from composition; they do not calibrate REU to Kd.
 
+![Stage 4 controls](figures/prod_fig14_stage4_controls.png)
+
+**Figure 14 — the control that calibrates everything downstream.** Panel A is the
+ordering: the 30 parents at −3.347, the 6,000 scored candidates at −2.603,
+oxytocin at −2.612 (rank 1,516/3,000, the median of an unselected pool), the
+scrambles at −2.461. Panel B is the paired test — **every one of the 30 pairs moves
+the same way**, which is what makes Wilcoxon p = 1.9×10⁻⁹ meaningful at n = 30.
+Panel C carries the strongest signal, and it is not in the score at all: five
+scrambles fall below 200 Å² of buried interface against **0 of 6,000** candidates;
+for a sixth of them, scrambling did not make a worse binder, it **abolished
+binding**. Panel E is the reason the control counts — length, composition, net
+charge, MW and ring size are all held *exactly* constant, so a metric that merely
+read molecular size or amino-acid content would score each pair identically.
+
 ### What survived the whole pipeline — 178
 
 Stage 4 **ranks and does not gate**, so "survived Stage 4" is 3,000 of 3,000. The
@@ -1056,6 +1073,92 @@ mean(dG)/mean(dSASA)×100. They differ by ~0.003 typically, which is irrelevant 
 ranking but moves a hard threshold: the efficiency cut yields **272** under the
 canonical definition and **268** under ratio-of-means. Any count quoted against a
 fixed threshold must name which it used.
+
+---
+
+# 5e. Stage 4 batch 2, and selectivity over the full set
+
+Batch 1 scored 3,000 of 87,338 survivors — 3.4%. Batch 2 extends that with a
+further 3,000, selected by the identical stratified rule with `--exclude` against
+batch 1, so the two are disjoint by construction (verified: zero shared
+`sequence_id`).
+
+**Batch 2 completed 2026-10-07 08:21:17** — 3,000/3,000, zero FAIL, every
+candidate at `nstruct_scored == 5`.
+
+### It was worth running
+
+| | batch 1 | batch 2 | combined |
+|---|---:|---:|---:|
+| scored | 3,000 | 3,000 | **6,000** |
+| median `dG_separated` (REU) | −45.99 | −46.01 | −46.00 |
+| median `dG/dSASAx100` | −2.616 | −2.589 | −2.603 |
+| `dG/dSASAx100` < −3.0 | 272 | **209** | **481** |
+| best `dG/dSASAx100` | −3.682 | −3.642 | −3.682 |
+
+The two batches are **statistically indistinguishable on the Rosetta energetics**,
+which is the check that matters: batch 1 had not already skimmed the good
+candidates, and the stratified selector reproduces on a disjoint draw. Four of the
+new overall top ten come from batch 2, including `shard0_out_215_u153` at
+dG **−65.8** and `shard0_out_2_u252` at **−64.9** — both well beyond batch 1's
+leader on raw dG (−51.1).
+
+### Selectivity over all 481 efficiency passers
+
+Batch 2's 209 had no selectivity data — Stage 7 had only ever run on batch 1's top
+1,000. Run 2026-10-07 across 4 GPUs: **627 predictions** (209 × 3 receptors) in
+11 min, all four shards passing VERIFY with zero missing and zero stray IDs, and
+the input md5 logged on every shard.
+
+| | batch 1 | batch 2 | combined |
+|---|---:|---:|---:|
+| efficiency passers | 272 | 209 | **481** |
+| selectivity-checked | 272 | 209 | **481** (none missing) |
+| no off-target preference | **178** | **89** | **267** |
+| pass rate | 65.4% | **42.6%** | 55.5% |
+
+**Batch 2's pass rate is 23 points lower, and the cause is measurable rather than
+procedural.** Two shifts push the same way:
+
+| median | batch 1 | batch 2 |
+|---|---:|---:|
+| `i_ptm` OXTR | 0.565 | **0.523** |
+| `i_ptm` AVPR2 | 0.484 | **0.525** |
+| selectivity margin | +0.039 | **−0.022** |
+
+Batch 2 binds OXTR with *less* predicted confidence and AVPR2 with *more*, so its
+median candidate sits on the wrong side of zero. This is consistent with how the
+batches were built — batch 1 selected first, batch 2 with `--exclude`, so batch 1
+took the stronger `i_ptm` tier. It does **not** contradict the Rosetta result:
+`i_ptm` and dG correlate only −0.19 to −0.49, and selectivity is computed on the
+`i_ptm` axis while the efficiency cut is computed on the physics axis.
+
+**AVPR2 is the problem receptor** — the worst off-target for 293 of 481 (61%), and
+for 148 of batch 2's 209. The renal antidiuretic receptor is where this molecular
+class keeps cross-reacting, which matters because a V2 agonist has a real clinical
+liability profile.
+
+**Selectivity remains independent of binding rank** — combined r = **+0.010**
+against batch 1's −0.065. It is information nothing upstream supplied, and it
+cannot be obtained by taking more of the top: of batch 2's top 25 by binding, only
+9 survive.
+
+### Read the sign asymmetrically
+
+This is the same AfCycDesign `i_ptm` whose correlation with measured Rosetta dG is
+−0.19 to −0.49, and the predictor is given no information about where to bind on
+any of the four receptors. So:
+
+- a **negative** margin is a genuine red flag — an unconditioned predictor is more
+  confident about the wrong receptor than the intended one;
+- a **positive** margin is **absence of evidence, not evidence of selectivity**.
+
+**267 is therefore "no off-target preference detected", not "267 selective
+compounds".** This stage can remove candidates; it cannot certify them. There is
+still no selectivity positive control.
+
+Survivors ranked by binding efficiency:
+`stage_7_batch2/combined_survivors.csv` (267 rows).
 
 ---
 
@@ -1140,6 +1243,7 @@ overtaken: pose agreement never became a gate. Current state:*
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.8.0** | 2026-10-08 | Added **§5e — Stage 4 batch 2 and selectivity over the full set**: a disjoint second 3,000 completed 2026-10-07 zero-FAIL, **statistically indistinguishable** from batch 1 on the energetics (median dG −46.01 vs −45.99), contributing **209** further efficiency passers for **481** combined. Stage 7 then ran over all 481 (627 predictions, 4 GPUs, 11 min, VERIFY clean) giving **267** survivors — 178 + 89. Documented that batch 2's selectivity pass rate is **23 points lower** (42.6% vs 65.4%) and why: its median `i_ptm` is lower against OXTR (0.523 vs 0.565) and *higher* against AVPR2 (0.525 vs 0.484), consistent with batch 1 having been selected first and taking the stronger `i_ptm` tier — and not contradicting the Rosetta parity, since `i_ptm` and dG correlate only −0.19 to −0.49. **AVPR2 is the worst off-target for 61% of the set.** Added **Figure 14**, the first figure for the scramble controls — the ordering, the 30/30 paired test, the five lost interfaces against 0 of 6,000, and what the control holds constant. Status block moved from 178 to **267**. |
 | **v1.7.0** | 2026-10-06 | Added **§5d — Stage 4 controls and what survived the whole pipeline**, which existed only in `CHANGELOG.md`/`LIMITATIONS.md` and had never reached the production record: the 30 composition-matched scrambles (30/30 paired, median gap 0.972, p = 1.9×10⁻⁹, **five losing the interface entirely** against 0 of 3,000), oxytocin at rank 1,516/3,000, and the end-point arithmetic 3,000 → 272 → **178**. Established that **selectivity coverage is complete for the 178** — all 272 efficiency-passers occupy ranks 1–272 and so are necessarily inside the checked top 1,000, correcting the `CHANGELOG.md` note that treated the unchecked 2,000 as the binding constraint. Documented two counting traps: the canonical `dG_per_dSASAx100` (mean of five ratios) gives 272 where `_ratio_of_means` gives **268**, and two candidates sit at exactly −3.0000 so 178 is "177 clear plus one on the line". Fixed the stale header (**v1.2.0 → v1.7.0**, date 2026-09-30 → 2026-10-06; the history had already reached v1.6.0). Rewrote the status block for Stages 1–4 complete with batch 2 running. Corrected §6 *Not established*, whose lead bullet still read "no structure prediction, no docking, no energetics have run" — false since Stage 3 — and replaced the six superseded *Immediate next steps* with the live five. Flagged the withdrawn selector claim inline in the v1.5.0 row so the history is not read as current. |
 | **v1.6.0** | 2026-10-05 | Added four figures to §5c (prod_fig9–12) with standalone captions: Stage 4 results against the random-survivor baseline and the noise check; the selector failure and shortlist identifiability; the ranking-target effect on which molecules win; and chemistry, the control-anchored BBB annotation and Stage 7 selectivity. Section headings promoted to h1 so stages are findable. Corrected "top ~50 within 2 SEM" to the measured **14**, and recorded the production r(dSASA, dG) = **−0.711** against the n=200 estimate of −0.766. |
 | **v1.5.0** | 2026-10-05 | §5c moved from *launched* to *complete*: 3000/3000, zero FAIL, 42.16 h, 2,344 core-hours, 99% efficiency. Added the result distributions, the top candidates on both targets (the normalised target picks 8–9-mers, raw dG picks 14-mers from one backbone), the finding that **a top-5 is not identifiable** (90% containment needs a shortlist of 86 against the pilot's 8, because the top ~50 sit within ~2 SEM), and that **`hotspot_residues` did not replicate** (r = −0.005 against the −0.530 benchmark). **[WITHDRAWN at v3.9.0 — this was range restriction, not a failure to replicate; the selector worked. See §5c and `LIMITATIONS.md` O0f.]** |

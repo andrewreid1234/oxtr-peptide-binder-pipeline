@@ -1,8 +1,8 @@
 # De Novo Cyclic Peptide Binders Against the Oxytocin Receptor
 
-**Document version:** v2.0.0
-**Last updated:** 2026-10-06
-**Describes pipeline:** v3.9.0 (scale-up **run**, Stages 1-4 complete)
+**Document version:** v2.1.0
+**Last updated:** 2026-10-08
+**Describes pipeline:** v3.9.0 (scale-up **run**, Stages 1-5 and 7 complete)
 
 This is the document to read first. It explains what the project is trying to
 do, why each choice was made, what has now been established, and what has not.
@@ -11,12 +11,13 @@ method from first principles, because the interesting decisions are all on the
 computational side.
 
 > **Where the project is.** The scale-up has run. 1,500 backbones became 265,700
-> unique sequences, 143,595 were docked, 87,338 passed the pocket gate, and 3,000
-> were scored with Rosetta — all complete, zero failures. A second 3,000 is
-> running. **178 candidates bind efficiently and selectively** on the computed
-> metrics, and those metrics are now calibrated against controls. There is still
-> **no wet-lab data**, and that remains the only thing that can settle whether any
-> of this predicts binding.
+> unique sequences, 143,595 were docked, 87,338 passed the pocket gate, and
+> **6,000 were scored with Rosetta** across two disjoint batches — all complete,
+> zero failures. **267 candidates bind efficiently and show no off-target
+> preference**, and the scoring metric is now calibrated against controls: 30
+> composition-matched scrambles all score worse than their parents, and five stop
+> binding altogether. There is still **no wet-lab data**, and that remains the only
+> thing that can settle whether any of this predicts binding.
 
 Where a claim rests on data, the table or figure lives in
 [`METHODS_AND_RESULTS.md`](METHODS_AND_RESULTS.md); where it rests on a
@@ -182,20 +183,20 @@ Each stage, and why it sits where it does.
 | **2. ProteinMPNN** | Design sequences onto each backbone, cysteines pinned, then deduplicate | Cheap; receptor-aware so sequences are designed for complementarity | **done** — 265,700 unique, 7.8 GPU-h |
 | **3. AfCycDesign** | Predict each complex, score the interface; **gate on pocket occupancy** | The main binding signal, and the pipeline's only true pass/fail | **done** — 143,595 docked, 132.8 GPU-h, **87,338 pass** (q = 0.608) |
 | ~~3b. Boltz2~~ | *dropped as a gate* | Its confidence returns 0.88-0.98 for everything including negatives; pose agreement never became a filter | retained for structural cross-check only |
-| **4. Rosetta** | Relax, force the disulfide, score the interface, **rank** | Physics-based check on the best candidates | **done** — 3,000 at `NSTRUCT=5`, 42.16 h, 2,344 core-h, zero FAIL; a 2nd 3,000 running |
+| **4. Rosetta** | Relax, force the disulfide, score the interface, **rank** | Physics-based check on the best candidates | **done** — **6,000** at `NSTRUCT=5` in two disjoint batches, 2,344 core-h for the first, zero FAIL |
 | **4c. Controls** | 30 composition-matched scrambles + oxytocin | Without them the Stage 4 metric is uncalibrated | **done** — 30/30, p = 1.9e-09 |
 | **5a. B3BPFN** | Predict BBB permeability | **Annotation, not a gate** — see below | **done, and shown unusable** — see §7 |
 | ~~5b. MD~~ | *dropped* | The negative control was more stable than five candidates that passed every gate | removed from the pipeline |
 | **6. N-methylation** | Identify sites where methylation is structurally tolerated | The route to rescue a strong binder with poor permeability | **written, not run** |
-| **7. Selectivity** | Cofold against AVPR1A/1B/2 | Informational; no control yet, so not gating | **done** — top 1,000; **40.1% prefer an off-target** |
-| **8. Shortlist** | Select the synthesis wave | Top ~25-50 on diversity, *not* top 5 on score | pending batch 2 |
+| **7. Selectivity** | Cofold against AVPR1A/1B/2 | Informational; no control yet, so not gating | **done** — all **481** efficiency passers; **44.5% prefer an off-target**, AVPR2 worst for 61% |
+| **8. Shortlist** | Select the synthesis wave | Top ~25-50 on diversity, *not* top 5 on score | **the next decision** |
 
 **Read the funnel carefully: there is one filter in it.** 87,338 of 143,595 is a
-gate. Every other narrowing — 143,595 docked of 265,700, 3,000 scored of 87,338,
-1,000 selectivity-checked of 3,000 — is a **compute budget**, not a filter. A funnel
-diagram that does not distinguish the two implies five filters where there is one.
-The end-point count of **178** comes from applying thresholds *after* the fact, and
-one of those thresholds is an undefended choice (§7).
+gate. Every other narrowing — 143,595 docked of 265,700, 6,000 scored of 87,338 —
+is a **compute budget**, not a filter. A funnel diagram that does not distinguish
+the two implies five filters where there is one. The end-point count of **267**
+comes from applying thresholds *after* the fact, and one of those thresholds is an
+undefended choice (§7).
 
 **Why BBB permeability moved late.** It used to gate early, which is efficient —
 it discards ~92% of designs before any expensive docking. But measured against a
@@ -225,7 +226,7 @@ an explicit model; the derivations are in
 | Backbones deepened | **top 50%** | 747 | Recovers 99.2% of the genuinely best backbones |
 | Docked | ~151,000 | **143,595** | 33.1 h wall, **132.8 GPU-h**, zero failures — 43% under the 235 GPU-h first projected |
 | Pocket gate | q ≈ 0.465 | **q = 0.608** (87,338) | The one true filter in the pipeline |
-| Rosetta | top 40% of survivors | **3,000** (3.4%), + 3,000 more running | Uncapped would have been **19.7 days**; the stratified cap exists for that reason |
+| Rosetta | top 40% of survivors | **6,000** (6.9%) in two disjoint batches | Uncapped would have been **19.7 days** at `nstruct=1`, 86.5 at `nstruct=5`; the stratified cap exists for that reason |
 | `NSTRUCT` | — | **5**, reported as the mean | Within-candidate sd on dG is 3.53 REU, so one trajectory is not a measurement |
 | ~~MD~~ | 24 | **0** | Dropped — does not discriminate |
 | Synthesised | ~150 | pending | Parallel synthesiser handles 192 per batch; a real score-vs-affinity calibration needs ~85 compounds for 80% power at rho = 0.3. **Assay throughput still unconfirmed** |
@@ -288,7 +289,7 @@ filter. The scale-up then ran the full funnel at B = 1,500. Taking both together
   the strongest result in the project. Thirty scrambles holding length,
   composition, charge, MW and ring size *exactly* constant all score worse than
   their parents — **30/30**, p = 1.9×10⁻⁹ — and **five of thirty lose the interface
-  entirely** against 0 of 3,000 candidates. Oxytocin lands at the median of the
+  entirely** against 0 of 6,000 candidates. Oxytocin lands at the median of the
   unselected pool, which is where an undesigned real binder belongs.
 - **The selection worked.** The 3,000 chosen for Rosetta score 7.6 REU better than
   a random sample of survivors.
@@ -329,7 +330,7 @@ filter. The scale-up then ran the full funnel at B = 1,500. Taking both together
   is information nothing upstream supplied. But there is still no selectivity
   control, so the margin is uncalibrated.
 - **That the −3.0 efficiency cut is the right threshold.** It is a choice with no
-  derivation behind it, which makes **178** a defensible working figure rather than
+  derivation behind it, which makes **267** a defensible working figure rather than
   a measured one. Two candidates sit exactly on the line.
 
 ### A methodological lesson worth carrying forward
@@ -352,8 +353,11 @@ set.** The same caution applies to `i_ptm` and `centroid_dist`.
 
 ## 8. What happens next
 
-1. **Finish Stage 4 batch 2** — a second disjoint 3,000, running, ETA
-   2026-10-07 ~09:00. Even after it, 31,507 gate survivors remain unscored.
+1. **Decide whether to score a third batch.** 6,000 of 87,338 survivors have been
+   scored; **31,507** at `hotspot_residues` ≥ 7 remain untouched. Batch 2 returned
+   89 further survivors for ~40 h of CPU, so the marginal return is real but
+   falling — and batch 2's selectivity pass rate was 23 points below batch 1's,
+   which suggests later batches draw from a weaker tier.
 2. **Settle the threshold question.** Either derive the efficiency cut or stop
    quoting a single survivor count. This is the largest open methodological gap at
    the end of the pipeline.
