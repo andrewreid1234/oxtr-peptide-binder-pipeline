@@ -1,6 +1,6 @@
 # Production Run v3 — Methods and Results
 
-**Document version:** v1.8.0
+**Document version:** v1.9.0
 **Last updated:** 2026-10-08
 **Describes pipeline:** v3.9.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
@@ -1162,6 +1162,81 @@ Survivors ranked by binding efficiency:
 
 ---
 
+# 5f. Stage 6 — the N-methylation scan, and why it cannot rescue this series
+
+Run 2026-10-08 over **all 481** efficiency passers, not just the 267 that also
+pass selectivity, so the selectivity-strictness decision stays open. All 481
+scanned, zero missing structures.
+
+### What the scan does
+
+A geometry calculation, not a model re-run — neither AfCycDesign nor B3BPFN can
+represent an N-methylated residue, so feeding either a "methylated" sequence
+returns a number that looks meaningful and is not. Instead it asks whether each
+backbone amide N-H is **doing a job**. Methylation replaces N-H with N-CH₃ and
+destroys that hydrogen-bond donor; if the N-H is donating to something
+load-bearing, methylating it costs fold or binding.
+
+A site is adoptable only when its N is **not** within 3.5 Å of either an
+intramolecular backbone carbonyl ≥2 residues away or any receptor O/N acceptor —
+**in all five** relaxed structures. Pro (no N-H), Gly (turn flexibility) and Cys
+(disulfide-committed) are skipped outright. Input is the Rosetta-relaxed complex,
+so the disulfide is formed and the C-terminal amide applied.
+
+### Result: the sites exist, but there are nowhere near enough
+
+| adoptable sites | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| candidates | **105** | 165 | 129 | 58 | 20 | 3 | 1 |
+
+Median **1** site per candidate; 105 of 481 have none at all.
+
+Each methylation is worth a measured **−8.8 Å² TPSA** and **+0.35 cLogP**
+(calibrated on oxytocin with RDKit, then applied per candidate at its own site
+count). Applying every adoptable site:
+
+| | before | after |
+|---|---:|---:|
+| TPSA median | 421.4 | **407.6** |
+| cLogP median | −4.2 | −3.7 |
+| HBD median | 14 | 12 |
+| TPSA ≤ 140 (oral) | 0 / 481 | **0 / 481** |
+| TPSA ≤ 90 (CNS) | 0 / 481 | **0 / 481** |
+
+**The arithmetic is not close.** To reach TPSA 140 a candidate needs a median of
+**32** methylations and has a median of **1**. The best candidate in the entire
+set finishes at TPSA **246** — still **106 Å² above** the oral threshold and 156
+above the CNS one. **Zero of 481** candidates have enough adoptable sites.
+
+Nor is the limit the 3.5 Å criterion. The hard ceiling — methylating *every*
+non-Pro/Gly/Cys residue regardless of whether its N-H is load-bearing, which
+would be chemically reckless — is a median of 5 residues, leaving TPSA at **377**.
+The gap is structural, not a matter of tuning the cutoff.
+
+### What this establishes
+
+**N-methylation cannot make this series passively BBB-permeant.** That is a real
+result, not a failure of the scan: it was the designated rescue route for a strong
+binder with poor permeability (`SUMMARY.md` §1), and it is now measured and
+closed. The series is ~1,100 Da with ~14 HBD, and trimming one or two donors does
+not change the class of molecule.
+
+This does not make the candidates worthless — it means **peripheral or
+alternative-delivery use, or a different molecular class, rather than passive CNS
+penetration by medicinal chemistry on these scaffolds.** The options that remain
+are not ones this pipeline can evaluate: active transport, prodrugs, intranasal
+delivery, or restarting generation under a hard size constraint.
+
+The honest framing for the programme: **binding was solved to the extent
+computation can solve it; permeability was not, and the planned fix does not
+work.**
+
+Data: `stage_6_nmethyl/` — `summary_batch{1,2}.csv` (per-candidate sites),
+`scan_batch{1,2}.csv` (4,912 per-position rows with the reason each site was
+rejected), `nmethyl_chem_effect.csv` (before/after chemistry for all 481).
+
+---
+
 # 6. What this run establishes
 
 ### Established
@@ -1243,6 +1318,7 @@ overtaken: pose agreement never became a gate. Current state:*
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.9.0** | 2026-10-08 | Added **§5f — the N-methylation scan**, run over all 481 efficiency passers (not only the 267) so the selectivity-strictness decision stays open. **It is a negative result and an important one:** adoptable sites median **1** per candidate with 105 of 481 having none, against a median of **32** methylations needed to reach TPSA 140. Each site is worth a measured −8.8 Å² TPSA / +0.35 cLogP, so applying every adoptable site moves the median only 421 → **408**, and the best candidate in the set finishes at TPSA 246 — still 106 Å² above the oral threshold. **0 of 481** can get there, and even methylating every eligible residue leaves the median at 377, so the limit is structural rather than the 3.5 Å cutoff. N-methylation was the designated rescue route for permeability; it is now measured and closed. |
 | **v1.8.0** | 2026-10-08 | Added **§5e — Stage 4 batch 2 and selectivity over the full set**: a disjoint second 3,000 completed 2026-10-07 zero-FAIL, **statistically indistinguishable** from batch 1 on the energetics (median dG −46.01 vs −45.99), contributing **209** further efficiency passers for **481** combined. Stage 7 then ran over all 481 (627 predictions, 4 GPUs, 11 min, VERIFY clean) giving **267** survivors — 178 + 89. Documented that batch 2's selectivity pass rate is **23 points lower** (42.6% vs 65.4%) and why: its median `i_ptm` is lower against OXTR (0.523 vs 0.565) and *higher* against AVPR2 (0.525 vs 0.484), consistent with batch 1 having been selected first and taking the stronger `i_ptm` tier — and not contradicting the Rosetta parity, since `i_ptm` and dG correlate only −0.19 to −0.49. **AVPR2 is the worst off-target for 61% of the set.** Added **Figure 14**, the first figure for the scramble controls — the ordering, the 30/30 paired test, the five lost interfaces against 0 of 6,000, and what the control holds constant. Status block moved from 178 to **267**. |
 | **v1.7.0** | 2026-10-06 | Added **§5d — Stage 4 controls and what survived the whole pipeline**, which existed only in `CHANGELOG.md`/`LIMITATIONS.md` and had never reached the production record: the 30 composition-matched scrambles (30/30 paired, median gap 0.972, p = 1.9×10⁻⁹, **five losing the interface entirely** against 0 of 3,000), oxytocin at rank 1,516/3,000, and the end-point arithmetic 3,000 → 272 → **178**. Established that **selectivity coverage is complete for the 178** — all 272 efficiency-passers occupy ranks 1–272 and so are necessarily inside the checked top 1,000, correcting the `CHANGELOG.md` note that treated the unchecked 2,000 as the binding constraint. Documented two counting traps: the canonical `dG_per_dSASAx100` (mean of five ratios) gives 272 where `_ratio_of_means` gives **268**, and two candidates sit at exactly −3.0000 so 178 is "177 clear plus one on the line". Fixed the stale header (**v1.2.0 → v1.7.0**, date 2026-09-30 → 2026-10-06; the history had already reached v1.6.0). Rewrote the status block for Stages 1–4 complete with batch 2 running. Corrected §6 *Not established*, whose lead bullet still read "no structure prediction, no docking, no energetics have run" — false since Stage 3 — and replaced the six superseded *Immediate next steps* with the live five. Flagged the withdrawn selector claim inline in the v1.5.0 row so the history is not read as current. |
 | **v1.6.0** | 2026-10-05 | Added four figures to §5c (prod_fig9–12) with standalone captions: Stage 4 results against the random-survivor baseline and the noise check; the selector failure and shortlist identifiability; the ranking-target effect on which molecules win; and chemistry, the control-anchored BBB annotation and Stage 7 selectivity. Section headings promoted to h1 so stages are findable. Corrected "top ~50 within 2 SEM" to the measured **14**, and recorded the production r(dSASA, dG) = **−0.711** against the n=200 estimate of −0.766. |

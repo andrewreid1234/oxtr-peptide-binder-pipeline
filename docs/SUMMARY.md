@@ -187,7 +187,7 @@ Each stage, and why it sits where it does.
 | **4c. Controls** | 30 composition-matched scrambles + oxytocin | Without them the Stage 4 metric is uncalibrated | **done** — 30/30, p = 1.9e-09 |
 | **5a. B3BPFN** | Predict BBB permeability | **Annotation, not a gate** — see below | **done, and shown unusable** — see §7 |
 | ~~5b. MD~~ | *dropped* | The negative control was more stable than five candidates that passed every gate | removed from the pipeline |
-| **6. N-methylation** | Identify sites where methylation is structurally tolerated | The route to rescue a strong binder with poor permeability | **written, not run** |
+| **6. N-methylation** | Identify sites where methylation is structurally tolerated | Was the route to rescue a strong binder with poor permeability | **done — and it does not work.** Median 1 adoptable site against ~32 needed; 0 of 481 reach TPSA 140 |
 | **7. Selectivity** | Cofold against AVPR1A/1B/2 | Informational; no control yet, so not gating | **done** — all **481** efficiency passers; **44.5% prefer an off-target**, AVPR2 worst for 61% |
 | **8. Shortlist** | Select the synthesis wave | Top ~25-50 on diversity, *not* top 5 on score | **the next decision** |
 
@@ -319,12 +319,16 @@ filter. The scale-up then ran the full funnel at B = 1,500. Taking both together
   2.1 SEM and 14 candidates sit within ±2 SEM of the leader. More `NSTRUCT` cannot
   fix this — halving the SEM costs 4× the trajectories. **Synthesise from the top
   ~25-50 on diversity, not the top 5 on score.**
-- **Anything about permeability.** The BBB classifier is **unusable for this
-  molecular class**, and we know this because the controls were run in the same
-  batch: leu-enkephalin, a literature-confirmed non-permeant, scores 0.959 BBB+.
-  The column is retained as annotation and named `_UNRELIABLE`. Every candidate
-  also sits far above the TPSA 140 Å² line (median 433 Å², cLogP −4.51), which is
-  the expected and unresolved tension of the whole molecular class.
+- **Anything about permeability — and here the news is bad.** The BBB classifier
+  is **unusable for this molecular class**, and we know this because the controls
+  ran in the same batch: leu-enkephalin, a literature-confirmed non-permeant,
+  scores **0.959 BBB+**, higher than seven of the eight held-out positives. The
+  column is annotation only, named `_UNRELIABLE`. What *is* reliable is the
+  deterministic chemistry, and it is unambiguous: median TPSA **421 Å²** against a
+  140 threshold, median MW 1,137, median 14 HBD — **0 of 481 candidates pass any
+  single CNS criterion.** The designated fix, N-methylation, has now been measured
+  and **cannot close the gap** (§5f): ~32 methylations needed, median 1 available.
+  This is the programme's unresolved problem, and it is structural.
 - **Selectivity, beyond a warning.** 40.1% of the top 1,000 prefer a vasopressin
   receptor, and selectivity is **independent of binding rank** (r = −0.065), so it
   is information nothing upstream supplied. But there is still no selectivity
@@ -361,8 +365,12 @@ set.** The same caution applies to `i_ptm` and `centroid_dist`.
 2. **Settle the threshold question.** Either derive the efficiency cut or stop
    quoting a single survivor count. This is the largest open methodological gap at
    the end of the pipeline.
-3. **Run the N-methylation scan** (Stage 6) over the shortlist, to see which strong
-   binders have a route to improved permeability.
+3. ~~Run the N-methylation scan (Stage 6).~~ **Done 2026-10-08, and it closes the
+   route rather than opening it** — median 1 adoptable site per candidate against
+   ~32 needed to reach TPSA 140, and 0 of 481 can get there even in principle. The
+   permeability problem needs a different answer: active transport, a prodrug,
+   intranasal delivery, or a smaller molecular class. See `PRODUCTION_RUN_v3.md`
+   §5f.
 4. **Select the synthesis wave** — top ~25-50 on diversity and synthesisability,
    deliberately spanning the score range.
 5. **Assay them, and compute the rank correlation** between predicted score and
