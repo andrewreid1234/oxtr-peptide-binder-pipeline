@@ -348,10 +348,21 @@ def fig12(top, ctrl, sele):
     sc = a.scatter(clogp, tpsa, s=10, c=mw, cmap=SEQ, linewidths=0)
     cb = fig.colorbar(sc, ax=a, pad=.02); cb.set_label("MW (Da)", fontsize=9)
     cb.outline.set_visible(False)
-    a.axhspan(0, 140, color=ORANGE, alpha=.10)
-    a.axhline(140, color=ORANGE, lw=1.4, ls="--")
-    a.annotate("TPSA 140 A$^2$ -- passive permeability is\nessentially impossible above this line",
-               (.03, .015), xycoords="axes fraction", fontsize=9, color=ORANGE, va="bottom")
+    # Reference is a bRo5 MACROCYCLE, not a small-molecule rule. Lipinski/Veber
+    # thresholds (TPSA 140, MW 500) were derived from small molecules and do not
+    # apply to a ~1,100 Da macrocycle; scoring against them says only that
+    # nothing passes. Cyclosporin A is orally bioavailable and CNS-active at
+    # MW 1203 / TPSA 279 / cLogP +3.27 / HBD 5.
+    CSA_TPSA, CSA_CLOGP = 278.8, 3.27
+    a.axhline(CSA_TPSA, color=ORANGE, lw=1.4, ls="--")
+    a.axvline(CSA_CLOGP, color=ORANGE, lw=1.4, ls="--")
+    a.scatter([CSA_CLOGP], [CSA_TPSA], marker="D", s=70, color=ORANGE, zorder=6,
+              edgecolor="white", linewidths=1.0)
+    a.annotate("cyclosporin A\norally bioavailable, CNS-active, MW 1203",
+               (CSA_CLOGP, CSA_TPSA), textcoords="offset points", xytext=(-10, 14),
+               ha="right", fontsize=8.5, color=ORANGE)
+    a.annotate("smaller than CsA; ~7.5 log units more polar",
+               (.03, .015), xycoords="axes fraction", fontsize=9, color=INK, va="bottom")
     # oxytocin, from the control rows
     ox = [r for r in ctrl if "oxytocin" in r["sequence_id"]]
     if ox and ox[0]["tpsa"]:
@@ -363,7 +374,7 @@ def fig12(top, ctrl, sele):
     a.annotate("median TPSA %.0f, cLogP %.2f\nbest candidate 246 / -0.22"
                % (np.median(tpsa), np.median(clogp)), (.42, .88),
                xycoords="axes fraction", fontsize=9, color=INK)
-    panel(a, "A", "Nothing in this series crosses passively")
+    panel(a, "A", "Smaller than cyclosporin A, but far too polar")
 
     a = ax[0, 1]
     a.hist(bbb, bins=45, color=GRAY, edgecolor="white", linewidth=.4)

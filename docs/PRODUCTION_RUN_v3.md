@@ -916,8 +916,11 @@ size class the project needs. **The decision was taken before these data existed
 **Figure 12 — chemistry, permeability annotation, and selectivity.** Panel A is
 computed from SMILES built with the disulfide closed and the C-terminal amide
 applied, so it describes the molecule as synthesised and as Stage 4 scored it:
-**median TPSA 433 Å², cLogP −4.51**, with the best candidate at 246 / −0.22. Every
-candidate sits far above the TPSA 140 Å² line. Panel B is the permeability column
+**median TPSA 433 Å², cLogP −4.51**, with the best candidate at 246 / −0.22. The
+reference line is **cyclosporin A at TPSA 279 / cLogP +3.27** — an orally
+bioavailable, CNS-active macrocycle of comparable mass — not a small-molecule
+Lipinski threshold, which does not apply to this class. Against CsA the series is
+*smaller* but far more polar. Panel B is the permeability column
 with its controls in the same batch — **leu-enkephalin, a literature-confirmed
 non-permeant, scores 0.959 BBB+** — which is why that column is annotation only and
 named `_UNRELIABLE`. Panels C and D are Stage 7: **401 of 1,000 (40.1%) prefer a
@@ -1193,33 +1196,89 @@ Median **1** site per candidate; 105 of 481 have none at all.
 
 Each methylation is worth a measured **−8.8 Å² TPSA** and **+0.35 cLogP**
 (calibrated on oxytocin with RDKit, then applied per candidate at its own site
-count). Applying every adoptable site:
+count).
 
-| | before | after |
-|---|---:|---:|
-| TPSA median | 421.4 | **407.6** |
-| cLogP median | −4.2 | −3.7 |
-| HBD median | 14 | 12 |
-| TPSA ≤ 140 (oral) | 0 / 481 | **0 / 481** |
-| TPSA ≤ 90 (CNS) | 0 / 481 | **0 / 481** |
+### The benchmark: macrocyclic peptides, not small molecules
 
-**The arithmetic is not close.** To reach TPSA 140 a candidate needs a median of
-**32** methylations and has a median of **1**. The best candidate in the entire
-set finishes at TPSA **246** — still **106 Å² above** the oral threshold and 156
-above the CNS one. **Zero of 481** candidates have enough adoptable sites.
+**Lipinski/Veber thresholds do not apply to this series and are not used here.**
+TPSA ≤ 140, MW ≤ 500 and HBD ≤ 5 were derived from small molecules; a ~1,100 Da
+macrocycle is outside their domain, and scoring against them yields the useless
+result that nothing passes. The right reference is an orally bioavailable,
+CNS-active macrocyclic peptide in beyond-rule-of-5 space. **Cyclosporin A** —
+MW 1,203, TPSA 279 Å², cLogP +3.27, HBD 5 — breaks every small-molecule rule and
+works anyway.
 
-Nor is the limit the 3.5 Å criterion. The hard ceiling — methylating *every*
-non-Pro/Gly/Cys residue regardless of whether its N-H is load-bearing, which
-would be chemically reckless — is a median of 5 residues, leaving TPSA at **377**.
-The gap is structural, not a matter of tuning the cutoff.
+Measured against CsA, with every adoptable site methylated:
+
+| | candidates (before) | candidates (after) | cyclosporin A |
+|---|---:|---:|---:|
+| MW | 1,137 | 1,137 | 1,203 |
+| TPSA (Å²) | 421.4 | **407.6** | 278.8 |
+| cLogP | −4.25 | −3.7 | **+3.27** |
+| HBD | 14 | 12 | 5 |
+
+**This reframes the problem entirely. Size was never the issue** — all 481 are
+*smaller* than cyclosporin A. The deficits are:
+
+| axis | gap to CsA | methylations to close it | available |
+|---|---:|---:|---:|
+| TPSA | −143 Å² | 16 | 1 |
+| **cLogP** | **+7.5 log** | **21** | 1 |
+| HBD | −9 | 9 | 1 |
+
+Only 3 of 481 already sit below CsA's TPSA, 9 have HBD ≤ 8, and **exactly one has
+a positive cLogP**.
+
+**The dominant deficit is lipophilicity, and N-methylation is the wrong tool for
+it.** A 7.5-log-unit gap is a side-chain composition problem: Stage 2 was asked
+for interface complementarity to a polar pocket and delivered exactly that, with
+no lipophilicity objective anywhere in the pipeline. No amount of backbone
+methylation fixes a sequence built from polar residues.
+
+### A caveat in the other direction — chameleonicity
+
+Static TPSA from a 2D SMILES is an **upper bound** on the real desolvation
+penalty, because it cannot see conformational shielding. Macrocycles such as CsA
+behave as *molecular chameleons*: extended and solvated in water, but folded in
+low dielectric with intramolecular H-bonds burying their own donors, so the
+*effective* polar surface collapses. These peptides are disulfide-cyclised and
+therefore pre-organised, which is the right starting geometry for that behaviour.
+
+Two reasons it does not rescue the series:
+
+1. **Chameleonicity reduces the desolvation penalty; it does not create
+   lipophilicity.** At cLogP −4.25 there is no driving force to partition into a
+   membrane even with every donor perfectly shielded. Every known chameleon
+   carries substantial baseline lipophilicity.
+2. It is **unmeasured here.** Quantifying it needs conformational ensembles in
+   water and in a low-dielectric solvent, comparing 3D solvent-accessible PSA
+   between the two and counting intramolecular H-bonds in the folded state. That
+   is computable with the GROMACS installation already on Woody and has not been
+   done.
+
+A third point cuts against the arithmetic above in both directions: published
+work on cyclic-peptide permeability shows it is the N-methylation **pattern**,
+not the count, that governs permeability — a well-placed pair that locks a
+folded, H-bond-satisfied conformer can outperform a larger scattered set. The
+per-site linear model used here is therefore a crude approximation. It is not,
+however, a route from cLogP −4.25.
 
 ### What this establishes
 
-**N-methylation cannot make this series passively BBB-permeant.** That is a real
-result, not a failure of the scan: it was the designated rescue route for a strong
-binder with poor permeability (`SUMMARY.md` §1), and it is now measured and
-closed. The series is ~1,100 Da with ~14 HBD, and trimming one or two donors does
-not change the class of molecule.
+**N-methylation alone cannot make this series passively BBB-permeant, and the
+reason is lipophilicity rather than size.** That is a real result, not a failure
+of the scan: methylation was the designated rescue route (`SUMMARY.md` §1), and it
+is now measured. Trimming one or two donors from a molecule at cLogP −4.25 does
+not change the class.
+
+**The useful finding is the diagnosis, not the failure.** Benchmarked properly,
+the series is *smaller* than an orally bioavailable macrocycle and roughly 7.5 log
+units too polar. That is attributable to a specific, fixable omission: **no stage
+of this pipeline ever had a lipophilicity objective.** Stage 2 optimised interface
+complementarity to a polar pocket, which is what it was asked to do. Biasing the
+ProteinMPNN pool toward lipophilic residues, or filtering on predicted cLogP
+before docking, is a cheap change with a clear rationale — where "fails Lipinski"
+would have pointed nowhere.
 
 This does not make the candidates worthless — it means **peripheral or
 alternative-delivery use, or a different molecular class, rather than passive CNS
@@ -1228,8 +1287,9 @@ are not ones this pipeline can evaluate: active transport, prodrugs, intranasal
 delivery, or restarting generation under a hard size constraint.
 
 The honest framing for the programme: **binding was solved to the extent
-computation can solve it; permeability was not, and the planned fix does not
-work.**
+computation can solve it. Permeability was not — but it is now diagnosed rather
+than merely feared, and the diagnosis points upstream at sequence design rather
+than at downstream chemistry.**
 
 Data: `stage_6_nmethyl/` — `summary_batch{1,2}.csv` (per-candidate sites),
 `scan_batch{1,2}.csv` (4,912 per-position rows with the reason each site was
@@ -1318,7 +1378,7 @@ overtaken: pose agreement never became a gate. Current state:*
 
 | Version | Date | Summary |
 |---|---|---|
-| **v1.9.0** | 2026-10-08 | Added **§5f — the N-methylation scan**, run over all 481 efficiency passers (not only the 267) so the selectivity-strictness decision stays open. **It is a negative result and an important one:** adoptable sites median **1** per candidate with 105 of 481 having none, against a median of **32** methylations needed to reach TPSA 140. Each site is worth a measured −8.8 Å² TPSA / +0.35 cLogP, so applying every adoptable site moves the median only 421 → **408**, and the best candidate in the set finishes at TPSA 246 — still 106 Å² above the oral threshold. **0 of 481** can get there, and even methylating every eligible residue leaves the median at 377, so the limit is structural rather than the 3.5 Å cutoff. N-methylation was the designated rescue route for permeability; it is now measured and closed. |
+| **v1.9.0** | 2026-10-08 | Added **§5f — the N-methylation scan**, run over all 481 efficiency passers (not only the 267) so the selectivity-strictness decision stays open. **It is a negative result and an important one:** adoptable sites median **1** per candidate with 105 of 481 having none, against a median of **16** methylations needed to reach even cyclosporin A's TPSA of 279. Each site is worth a measured −8.8 Å² TPSA / +0.35 cLogP, so applying every adoptable site moves the median only 421 → **408**. **0 of 481** can get there, and even methylating every eligible residue leaves the median at 377, so the limit is structural rather than the 3.5 Å cutoff. N-methylation was the designated rescue route for permeability; it is now measured and closed. |
 | **v1.8.0** | 2026-10-08 | Added **§5e — Stage 4 batch 2 and selectivity over the full set**: a disjoint second 3,000 completed 2026-10-07 zero-FAIL, **statistically indistinguishable** from batch 1 on the energetics (median dG −46.01 vs −45.99), contributing **209** further efficiency passers for **481** combined. Stage 7 then ran over all 481 (627 predictions, 4 GPUs, 11 min, VERIFY clean) giving **267** survivors — 178 + 89. Documented that batch 2's selectivity pass rate is **23 points lower** (42.6% vs 65.4%) and why: its median `i_ptm` is lower against OXTR (0.523 vs 0.565) and *higher* against AVPR2 (0.525 vs 0.484), consistent with batch 1 having been selected first and taking the stronger `i_ptm` tier — and not contradicting the Rosetta parity, since `i_ptm` and dG correlate only −0.19 to −0.49. **AVPR2 is the worst off-target for 61% of the set.** Added **Figure 14**, the first figure for the scramble controls — the ordering, the 30/30 paired test, the five lost interfaces against 0 of 6,000, and what the control holds constant. Status block moved from 178 to **267**. |
 | **v1.7.0** | 2026-10-06 | Added **§5d — Stage 4 controls and what survived the whole pipeline**, which existed only in `CHANGELOG.md`/`LIMITATIONS.md` and had never reached the production record: the 30 composition-matched scrambles (30/30 paired, median gap 0.972, p = 1.9×10⁻⁹, **five losing the interface entirely** against 0 of 3,000), oxytocin at rank 1,516/3,000, and the end-point arithmetic 3,000 → 272 → **178**. Established that **selectivity coverage is complete for the 178** — all 272 efficiency-passers occupy ranks 1–272 and so are necessarily inside the checked top 1,000, correcting the `CHANGELOG.md` note that treated the unchecked 2,000 as the binding constraint. Documented two counting traps: the canonical `dG_per_dSASAx100` (mean of five ratios) gives 272 where `_ratio_of_means` gives **268**, and two candidates sit at exactly −3.0000 so 178 is "177 clear plus one on the line". Fixed the stale header (**v1.2.0 → v1.7.0**, date 2026-09-30 → 2026-10-06; the history had already reached v1.6.0). Rewrote the status block for Stages 1–4 complete with batch 2 running. Corrected §6 *Not established*, whose lead bullet still read "no structure prediction, no docking, no energetics have run" — false since Stage 3 — and replaced the six superseded *Immediate next steps* with the live five. Flagged the withdrawn selector claim inline in the v1.5.0 row so the history is not read as current. |
 | **v1.6.0** | 2026-10-05 | Added four figures to §5c (prod_fig9–12) with standalone captions: Stage 4 results against the random-survivor baseline and the noise check; the selector failure and shortlist identifiability; the ranking-target effect on which molecules win; and chemistry, the control-anchored BBB annotation and Stage 7 selectivity. Section headings promoted to h1 so stages are findable. Corrected "top ~50 within 2 SEM" to the measured **14**, and recorded the production r(dSASA, dG) = **−0.711** against the n=200 estimate of −0.766. |

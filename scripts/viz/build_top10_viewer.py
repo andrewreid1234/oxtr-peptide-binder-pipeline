@@ -285,8 +285,8 @@ liability, never "this will not cyclise".</p>
 <h3>Stages 5–7</h3>
 <table class="ref">
 <tr><th>filter</th><th>target</th><th>status</th></tr>
-<tr><td>BBB permeability</td><td class="n">HBD ≤ 5, TPSA ≤ 140 Å²</td><td><span class="warn">⚠</span> <b>0 of 1,000 meet either</b> — observed HBD 14, TPSA 431 Å². The classifier also scores leu-enkephalin, a literature non-permeant, at 0.959 BBB+. <b>Unusable on this molecule class.</b></td></tr>
-<tr><td>N-methylation site</td><td class="n">backbone N–H &gt; 3.5 Å from any acceptor</td><td>free in all 5 replicates. Pro / Gly / Cys skipped. Median 1 site; <b>cannot rescue permeability</b> — full methylation moves TPSA 431 → 413 Å²</td></tr>
+<tr><td>BBB permeability</td><td class="n">cyclosporin A (bRo5 reference):<br>MW 1203, TPSA 279 Å², cLogP +3.27, HBD 5</td><td><span class="warn">⚠</span> Small-molecule rules (Lipinski/Veber) do not apply to a ~1,100 Da macrocycle and are not used. Against CsA the series is <b>smaller</b> (MW 1137) but far more polar — TPSA 431, cLogP −4.25, HBD 14. <b>The deficit is lipophilicity, not size.</b> The classifier scores leu-enkephalin, a literature non-permeant, at 0.959 BBB+ and is <b>unusable on this molecule class</b>.</td></tr>
+<tr><td>N-methylation site</td><td class="n">backbone N–H &gt; 3.5 Å from any acceptor</td><td>free in all 5 replicates. Pro / Gly / Cys skipped. Median 1 site; <b>insufficient alone</b> — full methylation moves TPSA 431 → 413 Å², against the 16 sites needed to reach CsA’s 279</td></tr>
 <tr><td>selectivity margin</td><td class="n">i<sub>ptm</sub>(OXTR) − max(AVPR1A/1B/2) ≥ 0</td><td>41% prefer an off-target and are dropped. Read asymmetrically: negative is a red flag, <b>positive is absence of evidence, not evidence of selectivity</b>. <span class="warn">⚠</span> this stage has no control of its own</td></tr>
 <tr><td>off-target size matching</td><td class="n">256 – 285 residues</td><td>AVPR1B trimmed to pLDDT ≥ 70; i<sub>ptm</sub> depends on the context it is computed in</td></tr>
 </table>
