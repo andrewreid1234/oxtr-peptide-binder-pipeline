@@ -343,7 +343,7 @@ Asked how many peptides survived to the end of Stage 4, the answer is **3,000 �
 all of them.** Stage 4 ranks; it does not gate, and no dG or dG/dSASAx100 threshold
 has ever been defined. The only genuine pass/fail step in the whole pipeline is the
 Stage 3 pocket gate (87,338 of 143,595). Everything else — 143,595 docked of
-265,700, 3,000 scored of 87,338, 1,000 selectivity-checked of 3,000 — is a compute
+265,700, 6,000 scored of 87,338, 3,209 selectivity-checked of 6,000 — is a compute
 budget, not a filter.
 
 Applying thresholds for the first time, of the 3,000 scored:
@@ -415,7 +415,7 @@ comparable — the pilot compared against the untrimmed full-length model.
 
 | | |
 |---|---:|
-| prefers an off-target (margin < 0) | **401 / 1000  (40.1%)** |
+| prefers an off-target (margin < 0) | **401 / 1000  (40.1%)** — *superseded 2026-10-09: 1,542 / 3,209 (48.1%) at full coverage* |
 | margin >= +0.10 | 212 (21.2%) |
 | worst off-target | **AVPR2 510**, AVPR1B 409, AVPR1A 81 |
 | r(margin, binding rank) | **-0.065** |

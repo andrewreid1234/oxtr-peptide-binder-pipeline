@@ -339,8 +339,9 @@ filter. The scale-up then ran the full funnel at B = 1,500. Taking both together
   objective**, so biasing Stage 2 sequence design is the obvious next-cycle fix.
   Chameleonicity (conformational shielding in low dielectric) means static TPSA
   overstates the penalty, and is computable but unmeasured.
-- **Selectivity, beyond a warning.** 40.1% of the top 1,000 prefer a vasopressin
-  receptor, and selectivity is **independent of binding rank** (r = −0.065), so it
+- **Selectivity, beyond a warning.** **48.1% of all 3,209 compounds measured**
+  prefer a vasopressin receptor — AVPR2 in 48% of cases, rising to 61% among the
+  481 efficiency passers, and selectivity is **independent of binding rank** (r = −0.065), so it
   is information nothing upstream supplied. But there is still no selectivity
   control, so the margin is uncalibrated.
 - **That the −3.0 efficiency cut is the right threshold.** It is a choice with no

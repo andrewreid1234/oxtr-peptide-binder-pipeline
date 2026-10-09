@@ -1,7 +1,7 @@
 # Production Run v3 — Methods and Results
 
-**Document version:** v1.9.0
-**Last updated:** 2026-10-08
+**Document version:** v1.10.0
+**Last updated:** 2026-10-09
 **Describes pipeline:** v3.9.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
 
@@ -925,9 +925,11 @@ Lipinski threshold, which does not apply to this class. Against CsA the series i
 *smaller* but far more polar. Panel B is the permeability column
 with its controls in the same batch — **leu-enkephalin, a literature-confirmed
 non-permeant, scores 0.959 BBB+** — which is why that column is annotation only and
-named `_UNRELIABLE`. Panels C and D are Stage 7: **401 of 1,000 (40.1%) prefer a
-vasopressin receptor**, and selectivity is independent of binding rank
-(r = −0.065), so it is information nothing upstream supplied.
+named `_UNRELIABLE`. Panels C and D are Stage 7 **as it stood at the top-1,000
+slice**: 401 of 1,000 (40.1%) prefer a vasopressin receptor. Coverage has since
+been reconciled at **3,209 compounds**, where the figure is **48.1%** and
+r = −0.134 — see §5e. Selectivity remains essentially independent of binding
+rank, so it is information nothing upstream supplied.
 
 ### A top-5 is not identifiable from this data
 
@@ -1158,10 +1160,17 @@ leader on raw dG (−51.1).
 
 ### Selectivity over all 481 efficiency passers
 
-Batch 2's 209 had no selectivity data — Stage 7 had only ever run on batch 1's top
-1,000. Run 2026-10-07 across 4 GPUs: **627 predictions** (209 × 3 receptors) in
-11 min, all four shards passing VERIFY with zero missing and zero stray IDs, and
-the input md5 logged on every shard.
+Batch 2's 209 efficiency passers had no selectivity data. Run 2026-10-07 across
+4 GPUs: **627 predictions** (209 × 3 receptors) in 11 min, all four shards
+passing VERIFY with zero missing and zero stray IDs, and the input md5 logged on
+every shard.
+
+**Total Stage 7 coverage is 3,209 compounds** — all 3,000 of batch 1 plus batch
+2's 209, every one complete across all three off-targets with no partial records.
+An earlier draft of this section said Stage 7 had run on "batch 1's top 1,000",
+which undercounted: batch 1 was extended to the full 3,000 in a separate session.
+See §5d for the coverage reconciliation and the figure-script glob defect it
+exposed. Unified table: `stage_7_selectivity_merged/selectivity_all.csv`.
 
 | | batch 1 | batch 2 | combined |
 |---|---:|---:|---:|
@@ -1186,15 +1195,40 @@ took the stronger `i_ptm` tier. It does **not** contradict the Rosetta result:
 `i_ptm` and dG correlate only −0.19 to −0.49, and selectivity is computed on the
 `i_ptm` axis while the efficiency cut is computed on the physics axis.
 
-**AVPR2 is the problem receptor** — the worst off-target for 293 of 481 (61%), and
-for 148 of batch 2's 209. The renal antidiuretic receptor is where this molecular
-class keeps cross-reacting, which matters because a V2 agonist has a real clinical
-liability profile.
+### At full scale: 3,209 compounds
 
-**Selectivity remains independent of binding rank** — combined r = **+0.010**
-against batch 1's −0.065. It is information nothing upstream supplied, and it
-cannot be obtained by taking more of the top: of batch 2's top 25 by binding, only
-9 survive.
+| | n | prefers an off-target |
+|---|---:|---:|
+| all Stage 7 coverage | 3,209 | **1,542 (48.1%)** |
+| batch 1, all 3,000 | 3,000 | 1,422 (47.4%) |
+| *batch 1's top 1,000 — the previously quoted slice* | *1,000* | *401 (40.1%)* |
+| the 481 efficiency passers | 481 | 214 (44.5%) |
+
+**Roughly half of everything scored prefers a vasopressin receptor.** The 40.1%
+previously reported was the top-1,000 slice, which is mildly optimistic relative
+to the 47.4% across all of batch 1.
+
+**AVPR2 is the problem receptor, and it worsens with binding quality.** Across all
+3,209 it is the worst off-target for 1,540 (48%), AVPR1B for 1,404 (44%), AVPR1A
+for only 265 (8%). Among the 481 efficiency passers AVPR2's share rises to **61%**.
+The renal antidiuretic receptor is where this molecular class keeps
+cross-reacting, which matters because V2 activity carries a real clinical
+liability.
+
+**Selectivity is close to independent of binding rank.** Over the full 3,209,
+r = **−0.134** between margin and `dG/dSASAx100` — weak, and it accounts for under
+2% of variance, but it is not zero and its sign says *better* binders are
+marginally *more* selective. Within the 481 passers it vanishes (r = +0.009),
+which is range restriction again. By binding decile the keep-rate runs 55% at the
+best end to 38% at the worst — a real gradient, but far too shallow to substitute
+for measuring it:
+
+| binding decile (0 = best) | 0 | 3 | 6 | 9 |
+|---|---:|---:|---:|---:|
+| keep rate | 55.4% | 55.8% | 52.3% | **38.3%** |
+
+Selectivity therefore remains information nothing upstream supplied, and it cannot
+be obtained by taking more of the top.
 
 ### Read the sign asymmetrically
 
@@ -1429,6 +1463,7 @@ overtaken: pose agreement never became a gate. Current state:*
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.10.0** | 2026-10-09 | **Stage 7 coverage reconciled against disk.** §5e had said Stage 7 ran on "batch 1's top 1,000"; it had in fact been extended to all 3,000 in a separate session writing to `stage_7_selectivity_batch2/` and `stage_7_selectivity_merged/`, directories the earlier count missed. True coverage is **3,209** compounds, all complete across AVPR1A/1B/2, none partial. At that scale **48.1% prefer an off-target**, against the 40.1% quoted from the top-1,000 slice. AVPR2 is the worst off-target for 48% overall and **61% of the 481 efficiency passers**. r(margin, dG/dSASAx100) = **−0.134** over 3,209 — weak but non-zero, and signed so that better binders are marginally more selective; keep-rate by binding decile runs 55% → 38%. **The 267 is unchanged**, since all 481 efficiency passers occupy ranks 1–481 and are necessarily inside any checked slice (verified 481/481). Batch 2's other 2,791 remain unchecked, which matters only if the −3.0 cut is loosened. Unified table written to `selectivity_all.csv`. |
 | **v1.9.0** | 2026-10-08 | Added **§5f — the N-methylation scan**, run over all 481 efficiency passers (not only the 267) so the selectivity-strictness decision stays open. **It is a negative result and an important one:** adoptable sites median **1** per candidate with 105 of 481 having none, against a median of **16** methylations needed to reach even cyclosporin A's TPSA of 279. Each site is worth a measured −8.8 Å² TPSA / +0.35 cLogP, so applying every adoptable site moves the median only 421 → **408**. **0 of 481** can get there, and even methylating every eligible residue leaves the median at 377, so the limit is structural rather than the 3.5 Å cutoff. N-methylation was the designated rescue route for permeability; it is now measured and closed. |
 | **v1.8.0** | 2026-10-08 | Added **§5e — Stage 4 batch 2 and selectivity over the full set**: a disjoint second 3,000 completed 2026-10-07 zero-FAIL, **statistically indistinguishable** from batch 1 on the energetics (median dG −46.01 vs −45.99), contributing **209** further efficiency passers for **481** combined. Stage 7 then ran over all 481 (627 predictions, 4 GPUs, 11 min, VERIFY clean) giving **267** survivors — 178 + 89. Documented that batch 2's selectivity pass rate is **23 points lower** (42.6% vs 65.4%) and why: its median `i_ptm` is lower against OXTR (0.523 vs 0.565) and *higher* against AVPR2 (0.525 vs 0.484), consistent with batch 1 having been selected first and taking the stronger `i_ptm` tier — and not contradicting the Rosetta parity, since `i_ptm` and dG correlate only −0.19 to −0.49. **AVPR2 is the worst off-target for 61% of the set.** Added **Figure 14**, the first figure for the scramble controls — the ordering, the 30/30 paired test, the five lost interfaces against 0 of 6,000, and what the control holds constant. Status block moved from 178 to **267**. |
 | **v1.7.0** | 2026-10-06 | Added **§5d — Stage 4 controls and what survived the whole pipeline**, which existed only in `CHANGELOG.md`/`LIMITATIONS.md` and had never reached the production record: the 30 composition-matched scrambles (30/30 paired, median gap 0.972, p = 1.9×10⁻⁹, **five losing the interface entirely** against 0 of 3,000), oxytocin at rank 1,516/3,000, and the end-point arithmetic 3,000 → 272 → **178**. Established that **selectivity coverage is complete for the 178** — all 272 efficiency-passers occupy ranks 1–272 and so are necessarily inside the checked top 1,000, correcting the `CHANGELOG.md` note that treated the unchecked 2,000 as the binding constraint. Documented two counting traps: the canonical `dG_per_dSASAx100` (mean of five ratios) gives 272 where `_ratio_of_means` gives **268**, and two candidates sit at exactly −3.0000 so 178 is "177 clear plus one on the line". Fixed the stale header (**v1.2.0 → v1.7.0**, date 2026-09-30 → 2026-10-06; the history had already reached v1.6.0). Rewrote the status block for Stages 1–4 complete with batch 2 running. Corrected §6 *Not established*, whose lead bullet still read "no structure prediction, no docking, no energetics have run" — false since Stage 3 — and replaced the six superseded *Immediate next steps* with the live five. Flagged the withdrawn selector claim inline in the v1.5.0 row so the history is not read as current. |
