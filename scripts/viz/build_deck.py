@@ -200,14 +200,15 @@ notes(s, "178 against a need of about 100 — comfortably covered. Be honest abo
 
 # ------------------------------------------------------------------- 6
 s = prs.slides.add_slide(BLANK); footer(s, 6)
-title(s, "You cannot pick a top 5. So make 100")
+title(s, "You cannot pick a top 5. You can pick the best one")
 figure(s, FIG + "slide_shortlist.png", 1.61, 1.20, 10.12, 4.95)
-takeaway(s, "Resampling the five structures per candidate: capturing the true best five with 90% "
-            "confidence needs a shortlist of 86. A 20-candidate pilot had implied 8.")
-notes(s, "This reframes the project. The leaders sit inside each other's error bars — only fourteen "
-         "candidates are within two standard errors of the best. More sampling does not fix it, "
-         "because the gap from rank one to rank five is about two standard errors to begin with. "
-         "The answer is to synthesise breadth rather than rank harder.")
+takeaway(s, "Resampling the five structures per candidate across the full 6,000: 14 compounds "
+            "secure the single best at 90% confidence, but the true best five need 654.")
+notes(s, "This reframes the project. The leaders sit inside each other's error bars — twenty-six "
+         "candidates fall within two standard errors of the best. On the full 6,000-candidate pool the "
+         "median rank of the true best five is 17, but the tail runs to 654 at 90% confidence, which is "
+         "not a synthesisable number. The single best is cheap to secure; ranking below it is not "
+         "supported. So the synthesis set is chosen for diversity, with the leader guaranteed.")
 
 # ------------------------------------------------------------------- 7
 s = prs.slides.add_slide(BLANK); footer(s, 7)

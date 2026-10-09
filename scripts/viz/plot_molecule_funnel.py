@@ -28,6 +28,7 @@ import os
 import sys
 from pathlib import Path
 
+import textwrap
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -215,8 +216,8 @@ STAGES = [
      "first full-atom structure with\ncorrect chemistry, in the receptor\ndisulfide open in 43% of cases"),
     ("Stage 4", "Rosetta", "6,000", "scored",
      "relaxed, C-terminally amidated\ndisulfide forced closed\nthis is the geometry that is scored"),
-    ("Synthesis", "", "12", "to be made",
-     "the molecule itself\n866 Da, 9 residues\ndisulfide-cyclised, C-term amide"),
+    ("Synthesis", "", "14+", "to be made",
+     "number not yet fixed\n14 secures the single best at 90%\nconfidence; a true top 5 needs 654"),
 ]
 
 fig = plt.figure(figsize=(15.5, 7.6))
@@ -257,11 +258,11 @@ ax.axis("off")
 
 # ---- the count silhouette
 # NOT a narrowing funnel: this pipeline EXPANDS then contracts
-# (1,500 backbones -> 265,699 sequences -> 12 synthesised), so a funnel shape
+# (1,500 backbones -> 265,699 sequences -> ~14+ synthesised), so a funnel shape
 # would misrepresent it. Half-height is log10(count), so the silhouette shows
 # the real profile.
 axf = fig.add_subplot(gs[1, :])
-counts = [1500, 265699, 143595, 6000, 12]
+counts = [1500, 265699, 143595, 6000, 14]
 xs = np.array([(i + .5) / 5 for i in range(5)])
 h = np.array([np.log10(c) for c in counts])
 h = 0.08 + 0.42 * h / h.max()
@@ -304,17 +305,22 @@ fig.text(.5, .947,
          "one lineage: backbone shard3_out_350  →  SGCLFGSCP, the top-ranked candidate of 6,000 scored. "
          "Panels 1–4 are the real files, superimposed on a common frame.",
          ha="center", fontsize=10.5, color=GRAY)
-fig.text(.5, .045,
-         "Atom colours: carbon grey · nitrogen blue · oxygen red · sulfur gold. "
-         "Bonds are drawn from peptide topology, never inferred from distance.\n"
-         "Stage 1 geometry is approximate: over 200 backbones only 64% of peptide bonds "
-         "fall within 10% of ideal and 16% are under 1.10 Å. "
-         "AfCycDesign rebuilds correct chemistry at Stage 3.",
+# The footnote is wrapped to roughly the width of the panel row above it --
+# left unwrapped it ran wider than the figure and read as a stray line of prose.
+FOOT = (
+    "Atom colours: carbon grey \u00b7 nitrogen blue \u00b7 oxygen red \u00b7 sulfur gold. "
+    "Bonds are drawn from peptide topology, never inferred from distance. "
+    "Stage 1 geometry is approximate: over 200 backbones only 64% of peptide bonds fall within "
+    "10% of ideal and 16% are under 1.10 \u00c5. AfCycDesign rebuilds correct chemistry at Stage 3. "
+    "The synthesis number is undecided. Figure 10D resamples the five relaxations per candidate: "
+    "14 compounds contain the single best at 90% confidence, but the true best five need 654, "
+    "so only the leader is securable at synthesisable scale.")
+fig.text(.5, .105, textwrap.fill(FOOT, 118),
          ha="center", va="top", fontsize=9, color=GRAY, style="italic",
-         linespacing=1.6)
+         linespacing=1.7)
 
-out = FIG / "prod_fig14_molecule_funnel.png"
-fig.subplots_adjust(bottom=0.20)
+out = FIG / "prod_fig15_molecule_funnel.png"
+fig.subplots_adjust(bottom=0.26)
 fig.savefig(out, dpi=180, bbox_inches="tight", pad_inches=0.28)
 plt.close(fig)
 print("wrote %s" % out)

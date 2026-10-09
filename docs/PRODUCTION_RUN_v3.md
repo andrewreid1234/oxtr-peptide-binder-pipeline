@@ -893,14 +893,16 @@ interface-size measure.
 
 ![Selector and shortlist](figures/prod_fig10_selector_shortlist.png)
 
-**Figure 10 — the two findings that overturned earlier conclusions.** Panel A is
-the uncomfortable one: `hotspot_residues`, the feature the 3,000 were *selected*
-on, has **r = −0.005** against the physics, versus the −0.530 measured at n = 200.
-The group medians differ by 0.363 REU against noise of 3.53. Panel B shows the
-feature rejected on length-confounding grounds held up at −0.487. Panels C and D
-quantify the shortlist: only **14 candidates** lie within ±2 SEM of the leader, and
-capturing the true best five with 90% confidence needs a shortlist of **86** — the
-n = 20 pilot implied 8.
+**Figure 10 — the two findings that overturned earlier conclusions.**
+*Recomputed on the full 6,000 at v5.4.0; the numbers below replace the batch-1
+values.* Panel A: `hotspot_residues`, the feature the candidates were *selected*
+on, has **r = −0.018** against the physics, versus the −0.530 measured at n = 200.
+The group medians differ by 0.63 REU against noise of 3.53. Panel B shows the
+feature rejected on length-confounding grounds held up at **−0.467**. Panels C and
+D quantify the shortlist: **26 candidates** lie within ±2 SEM of the leader, and
+the containment curve is far worse than batch 1 suggested — the median rank of
+the true best five is 17, but a 90% guarantee needs **654**. The single best needs
+only **14**. See §*A top-5 is not identifiable* below.
 
 ![Target choice](figures/prod_fig11_target_choice.png)
 
@@ -929,17 +931,32 @@ vasopressin receptor**, and selectivity is independent of binding rank
 
 ### A top-5 is not identifiable from this data
 
-| true set | shortlist needed for 90% containment |
-|---|---:|
-| top-1 | 8 |
-| top-3 | 24 |
-| **top-5** | **86** |
+Measured on the **full 6,000** (2,000 bootstrap draws over the five per-structure
+`dG/dSASAx100` values, one set of draws shared across all three targets so the
+numbers are monotone in *k*):
 
-The n=20 pilot said ~1.6×; **the real factor is ~17×**. SEM of the mean-of-5 is 0.0831
-and the rank-1-to-rank-5 gap is only **2.1 SEM**; measured directly, **14 candidates lie within ±2 SEM of the leader** (Figure 10C).
-A disjoint 2-vs-3 split gives top-5 overlap of **1.00/5**. More `nstruct` cannot fix
-this — halving the SEM costs 4× the trajectories. **Synthesise from the top ~25–50 on
-diversity grounds, not the top 5 on score.**
+| true set | median rank | shortlist needed for 90% containment |
+|---|---:|---:|
+| top-1 | 5 | **14** |
+| top-3 | 11 | 654 |
+| **top-5** | **17** | **654** |
+
+The batch-1 figures (8 / 24 / 86) were measured on half this pool and are
+superseded. Doubling the pool does not double the shortlist: it fills the region
+just below the leader, so the *tail* of the rank distribution explodes while the
+median barely moves. The three targets share a p90 of 654 because a single
+candidate in the true top 3 is unstable enough to land around that rank on a
+re-run; it alone sets the bound.
+
+SEM of the mean-of-5 is **0.0837** (median within-candidate sd 0.1872) and the
+rank-1-to-rank-5 gap is only **0.65 SEM**; measured directly, **26 candidates lie
+within ±2 SEM of the leader** (Figure 10C). More `nstruct` cannot fix this —
+halving the SEM costs 4× the trajectories.
+
+**What this means for synthesis.** A true top 5 is not purchasable: 654 compounds
+is not a synthesis campaign. The *single* best is cheap to secure at 14. So the
+synthesis set should guarantee the leader and otherwise be chosen on diversity,
+not on rank — the ordering below rank 1 is not supported by this data.
 
 ### Measuring the selector on the selected set does not work
 
@@ -1010,7 +1027,7 @@ against their parents' −3.345.
 
 ### Positive control — oxytocin
 
-Oxytocin ranks **1,516/3,000** — the median of the unselected pool, which is where
+Oxytocin ranks **2,921/6,000** — the median of the unselected pool, which is where
 a real binder carrying no design optimisation belongs. It sits at 990/1,000 within
 the filtered shortlist, but that shortlist is a selected top slice, so the two
 facts are consistent rather than contradictory. The ordering the controls give is
@@ -1024,7 +1041,7 @@ discriminates arrangement from composition; they do not calibrate REU to Kd.
 
 **Figure 14 — the control that calibrates everything downstream.** Panel A is the
 ordering: the 30 parents at −3.347, the 6,000 scored candidates at −2.603,
-oxytocin at −2.612 (rank 1,516/3,000, the median of an unselected pool), the
+oxytocin at −2.612 (rank 2,921/6,000, the median of an unselected pool), the
 scrambles at −2.461. Panel B is the paired test — **every one of the 30 pairs moves
 the same way**, which is what makes Wilcoxon p = 1.9×10⁻⁹ meaningful at n = 30.
 Panel C carries the strongest signal, and it is not in the score at all: five
@@ -1034,29 +1051,62 @@ binding**. Panel E is the reason the control counts — length, composition, net
 charge, MW and ring size are all held *exactly* constant, so a metric that merely
 read molecular size or amino-acid content would score each pair identically.
 
-### What survived the whole pipeline — 178
+### Two overview figures
 
-Stage 4 **ranks and does not gate**, so "survived Stage 4" is 3,000 of 3,000. The
+![Sequence logo](figures/prod_fig13_sequence_logo.png)
+
+**Figure 13 — what the design actually converged on.** Position-wise information
+content over the disulfide-filtered top 1,000, aligned on the two cysteines. The
+Cys positions carry the full 4.17 bits by construction (they are a hard gate, not
+a finding); everything else is the signal. Enrichment is shown as a log-odds
+against the realised Stage 2 background rather than a uniform prior, because a
+uniform prior put spurious +4 log-odds on residues that are simply rare in the
+pool.
+
+![What the molecule is at each stage](figures/prod_fig15_molecule_funnel.png)
+
+**Figure 15 — the molecule itself at each stage.** One lineage (backbone
+`shard3_out_350` → `SGCLFGSCP`, the top-ranked candidate) carried through all five
+stages, with the real coordinate files at panels 1–4. It makes two points the
+count funnel cannot: Stage 2 changes *identity only* — the coordinates are
+byte-identical to Stage 1 — and the first chemically correct full-atom structure
+does not exist until Stage 3. Bonds are drawn from peptide topology, never
+inferred from interatomic distance. The final count is deliberately open: see
+*A top-5 is not identifiable* for why it is bounded below by 14 and not by 5.
+
+### What survived the whole pipeline — 173
+
+*Recomputed on all 6,000 at v5.4.0.*
+
+Stage 4 **ranks and does not gate**, so "survived Stage 4" is 6,000 of 6,000. The
 only true pass/fail step in the pipeline is the Stage 3 pocket gate
-(87,338 of 143,595). Applying end-point criteria for the first time:
+(87,338 of 143,595). Applying end-point criteria:
 
-| criterion | n | % of 3,000 |
+| criterion | n | % of 6,000 |
 |---|---:|---:|
-| `dG` < −45.99 (our own median) | 1,502 | 50.1 |
-| `dG` < −50 | 842 | 28.1 |
-| `dG/dSASAx100` < −3.0 | **272** | 9.1 |
-| **and prefers OXTR over all three AVPRs** | **178** | 5.9 |
+| `dG` < −46.00 (our own median) | 3,000 | 50.0 |
+| `dG` < −50 | 1,686 | 28.1 |
+| `dG/dSASAx100` < −3.0 | 481 | 8.0 |
+| and prefers OXTR over all three AVPRs | 267 | 4.5 |
+| **and a relaxed disulfide** (`designed_dslf_fa13` ≤ 0) | **173** | 2.9 |
 
-**178** is the working "survived everything measured" figure: binds efficiently
-*and* selectively.
+**173** is the working "survived everything measured" figure: binds efficiently,
+is selective, *and* is synthesisable as a disulfide macrocycle. Dropping the
+disulfide criterion gives the **267** quoted at v1.8.0. The 303 candidates that
+pass efficiency with a relaxed disulfide span **164 distinct backbones**, so this
+is not one scaffold.
 
-**Selectivity coverage is complete for this criterion.** Stage 7 ran on 1,000 of
-3,000, and an earlier note in `CHANGELOG.md` treated the unchecked 2,000 as the
-binding constraint on the 178. They are not: the shortlist is ranked on
-`dG/dSASAx100` itself, so all 272 candidates meeting the efficiency cut occupy
-ranks 1–272 and are **necessarily inside** the checked top 1,000. Verified — 272
-of 272 carry a selectivity margin, none missing. Extending Stage 7 to the other
-2,000 cannot change this number.
+**Selectivity coverage is complete for this criterion.** Stage 7 has measured
+**3,209** candidates in three batches, and all **481** past the efficiency cut are
+among them — 481 of 481 carry a selectivity margin, none missing. Extending Stage
+7 to the remaining ~2,800 unmeasured candidates cannot change 267 or 173, because
+nothing below the efficiency cut is eligible either way.
+
+> **A loading defect found during the 2026-10-09 figure audit:** the third
+> selectivity batch lives in `stage_7_batch2`, which does not match the
+> `stage_7_selectivity*` glob the figure scripts used. They therefore saw 3,000
+> of the 3,209 measurements and only 272 of the 481. The glob is now `stage_7_*`.
+> The *figures* were affected, not the Stage 7 run itself.
 
 **Two caveats stand.**
 
@@ -1341,10 +1391,11 @@ rejected), `nmethyl_chem_effect.csv` (before/after chemistry for all 481).
   pocket gate; the remaining 122,105 sequences have never been folded, and the
   747 deepened backbones span per-backbone pass rates of 0.000–1.000, so
   "undesignable backbone" remains a real category.
-- **That the ranking identifies the best five molecules.** It does not — 90%
-  containment of the true top-5 needs a shortlist of **86** (§5c). Synthesis
-  should take the top ~25–50 and choose within that band on diversity and
-  synthesisability.
+- **That the ranking identifies the best five molecules.** It does not — on the
+  full 6,000, 90% containment of the true top-5 needs a shortlist of **654**
+  (§5c), which is not a synthesis campaign. The *single* best needs only **14**.
+  Synthesis should guarantee the leader and choose the rest on diversity and
+  synthesisability, not on rank order.
 - **Anything about the 2,000 selectivity-unchecked candidates**, except that none
   of them can meet the efficiency cut (§5d).
 

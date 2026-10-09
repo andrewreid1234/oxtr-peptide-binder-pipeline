@@ -68,18 +68,48 @@ BENCH = {"hotspot_residues": -0.530, "hotspot_contacts": -0.583}
 
 
 def load():
-    sel = {r["sequence_id"]: r for r in csv.DictReader(open(S4 / "stage4_set.csv"))}
+    # Both Rosetta batches. Loading batch 1 alone was the defect behind the
+    # stale n=3,000 captions; the selection files and the results directories
+    # are per-batch, so every one of them has to be walked.
+    sel = {}
+    for f in ("stage4_set.csv", "stage4_set_batch2.csv"):
+        fp = S4 / f
+        if fp.exists():
+            for r in csv.DictReader(open(fp)):
+                sel[r["sequence_id"]] = r
     ros = {}
-    for f in glob.glob(str(S4 / "results" / "*.json")):
-        d = json.load(open(f))
-        ros[d["sequence_id"]] = d
-    top = [r for r in csv.DictReader(open(S4 / "top1000_full.csv"))
-           if r.get("row_type", "candidate") == "candidate"]
-    ctrl = [r for r in csv.DictReader(open(S4 / "top1000_full.csv"))
-            if r.get("row_type", "candidate").startswith("control")]
-    selp = W / "stage_7_selectivity" / "selectivity_summary.csv"
-    sele = list(csv.DictReader(open(selp))) if selp.exists() else []
-    return sel, ros, top, ctrl, sele
+    for d in ("stage_4_rosetta", "stage_4_rosetta_batch2"):
+        for f in glob.glob(str(W / d / "results" / "*.json")):
+            j = json.load(open(f))
+            ros[j["sequence_id"]] = j
+    # prefer the disulfide-filtered shortlist once it exists
+    shortlist = S4 / "top1000_dslf_filtered.csv"
+    src = shortlist if shortlist.exists() else (S4 / "top1000_full.csv")
+    rows = list(csv.DictReader(open(src)))
+    top = [r for r in rows if r.get("row_type", "candidate") == "candidate"]
+    ctrl = [r for r in rows if r.get("row_type", "candidate").startswith("control")]
+    # Every off-target prediction, across both selectivity batches. The first
+    # summary CSV covers batch 1's top 1,000 only; rebuilding from the shard
+    # JSON picks up all 3,000 measured. (The aborted run directory the glob
+    # also matches holds no shard files, and the merged directory is a copy --
+    # keying on sequence_id makes both harmless.)
+    off = {}
+    for f in glob.glob(str(W / "stage_7_*" / "offtarget_out"
+                           / "results_shard*.json")):
+        for r in json.load(open(f)):
+            off.setdefault(r["sequence_id"], {})[r["target"]] = r["i_ptm"]
+    OFF = ("AVPR1A", "AVPR1B", "AVPR2")
+    sele = []
+    for sid, v in off.items():
+        if all(t in v for t in OFF) and sid in sel:
+            sele.append({"sequence_id": sid,
+                         "selectivity_margin": float(sel[sid]["i_ptm"]) - max(v.values()),
+                         "max_offtarget_i_ptm": max(v.values()),
+                         "worst_offtarget": max(OFF, key=lambda t: v[t])})
+    # rank within the whole scored pool, not within the top 1,000
+    order = sorted(ros, key=lambda k: ros[k]["dG_per_dSASAx100"])
+    rank_of = {k: i + 1 for i, k in enumerate(order)}
+    return sel, ros, top, ctrl, sele, rank_of
 
 
 def panel(ax, letter, title):
@@ -158,13 +188,13 @@ def fig9(sel, ros):
 
     fig.suptitle("Stage 4 — Rosetta on 3,000 candidates at NSTRUCT=5 (mean of 5)",
                  x=.012, ha="left", fontsize=13, fontweight="bold", y=.985)
-    _b = caption(fig, "Figure 9. OXTR production run, Stage 4. All 3,000 selected candidates were relaxed five times "
+    _b = caption(fig, "Figure 9. OXTR production run, Stage 4. All {n} selected candidates were relaxed five times "
                  "and scored, and every value is the mean of those five structures. (A) dG_separated against the "
                  "median of 200 randomly chosen Stage 3 survivors, the only available 'no selection' baseline. "
                  "(B) the locked ranking target. (C) run-to-run noise, against two independent earlier "
                  "measurements of the same quantity. (D) raw dG tracks buried area, which is why the normalised "
                  "target is used to rank. dG_separated is in Rosetta Energy Units, not kcal/mol, and is a "
-                 "ranking heuristic rather than an affinity.")
+                 "ranking heuristic rather than an affinity.".format(n=f"{len(ros):,}"))
     fig.tight_layout(rect=[0, _b, 1, .965])
     p = FIG / "prod_fig9_stage4_results.png"
     fig.savefig(p, dpi=170); plt.close(fig); print("wrote", p)
@@ -188,7 +218,7 @@ def fig10(sel, ros):
         m = hres == v
         a.plot([v - .3, v + .3], [np.median(dg[m])]*2, color=INK, lw=2.4, zorder=5)
         a.annotate("median %.2f\nn=%d" % (np.median(dg[m]), m.sum()), (v, np.median(dg[m])),
-                   xytext=(0, -42), textcoords="offset points", ha="center",
+                   xytext=(26, 2), textcoords="offset points", ha="left",
                    fontsize=9, color=INK)
     r = np.corrcoef(hres, dg)[0, 1]
     a.set_xticks([7, 8]); a.set_xlim(6.4, 8.6)
@@ -197,7 +227,8 @@ def fig10(sel, ros):
                "The n=200 benchmark spanned 1-8 and gave %.3f;\n"
                "restricted to {7,8} it gives +0.031.\nThis is RANGE RESTRICTION, not failure."
                % (r, BENCH["hotspot_residues"]),
-               (.03, .04), xycoords="axes fraction", fontsize=8.4, color=INK)
+               (.025, .30), xycoords="axes fraction", va="top", fontsize=8.4,
+               color=INK)
     panel(a, "A", "A selected feature cannot be judged on the selected set")
 
     a = ax[0, 1]
@@ -232,17 +263,25 @@ def fig10(sel, ros):
     V = np.array([nrv[i] for i in ids])
     truth = V.mean(1); torder = np.argsort(truth)
     rng = np.random.default_rng(1234)
-    Ns = [1, 2, 3, 5, 8, 12, 20, 30, 50, 86, 120, 200, 300]
+    Ns = [1, 2, 3, 5, 8, 12, 20, 30, 50, 86, 120, 200, 300, 500, 800, 1500]
     curves = {}
-    for kk in (1, 3, 5):
-        worst = []
-        for _ in range(300):
-            idx = rng.integers(0, 5, size=V.shape)
-            est = np.take_along_axis(V, idx, axis=1).mean(1)
-            pos = {c: r for r, c in enumerate(np.argsort(est))}
-            worst.append(max(pos[c] + 1 for c in torder[:kk]))
-        worst = np.array(worst)
+    need = {}
+    # One set of draws shared across k. Drawing independently per k made the
+    # p90s non-monotone (a true top 10 cheaper than a true top 5), which cannot
+    # happen: the top 5 is a subset of the top 10.
+    REPS = 2000
+    acc = {kk: [] for kk in (1, 3, 5)}
+    for _ in range(REPS):
+        idx = rng.integers(0, 5, size=V.shape)
+        est = np.take_along_axis(V, idx, axis=1).mean(1)
+        pos = np.empty(len(est), int)
+        pos[np.argsort(est)] = np.arange(len(est))
+        for kk in acc:
+            acc[kk].append(int(pos[torder[:kk]].max()) + 1)
+    for kk in acc:
+        worst = np.array(acc[kk])
         curves[kk] = [float((worst <= n).mean()) for n in Ns]
+        need[kk] = int(np.percentile(worst, 90))
     a = ax[1, 1]
     for kk, col, ls in ((1, GRAY, ":"), (3, ORANGE, "--"), (5, BLUE, "-")):
         a.plot(Ns, curves[kk], color=col, ls=ls, lw=2, marker="o", ms=3,
@@ -250,24 +289,32 @@ def fig10(sel, ros):
     a.axhline(.9, color=INK, lw=1, ls=":")
     a.annotate("90%", (Ns[0], .9), xytext=(2, 4), textcoords="offset points",
                fontsize=9, color=INK)
-    a.axvline(86, color=RED, lw=1.4, ls="--")
-    a.annotate("86 needed for\nthe true top 5", (86, .3), xytext=(8, 0),
-               textcoords="offset points", fontsize=9, color=RED)
-    a.annotate("the n=20 pilot\nsaid 8", (8, .62), xytext=(8, 0),
-               textcoords="offset points", fontsize=9, color=MUTED)
+    BOX = dict(facecolor="white", edgecolor="none", pad=1.2)
+    a.axvline(need[1], color=GRAY, lw=1.2, ls="--")
+    a.annotate("%d for the\nsingle best" % need[1], (need[1], .99),
+               xytext=(-7, 0), textcoords="offset points", fontsize=9,
+               color=GRAY, ha="right", va="top", bbox=BOX, zorder=6)
+    a.axvline(need[5], color=RED, lw=1.4, ls="--")
+    a.annotate("%d for the true top 5 --\nnot synthesisable" % need[5],
+               (need[5], .55), xytext=(-9, 0), textcoords="offset points",
+               fontsize=9, color=RED, ha="right", va="top", bbox=BOX, zorder=6)
     a.set_xscale("log"); a.set_xlabel("shortlist size"); a.set_ylabel("probability")
     a.set_ylim(0, 1.04); a.legend(frameon=False, fontsize=8.6, loc="lower right")
     panel(a, "D", "How big must the shortlist be?")
 
     fig.suptitle("The shortlist problem, and a measurement trap",
                  x=.012, ha="left", fontsize=13, fontweight="bold", y=.985)
-    _b = caption(fig, "Figure 10. OXTR production run, Stage 4, n=3,000. Top row, the selector: the bounded feature the "
+    _b = caption(fig, "Figure 10. OXTR production run, Stage 4, n={n}. Top row, the selector: the bounded feature the "
                  "selection was made on (A) has no measurable relationship to the physics it was chosen to predict, "
                  "while the unbounded pair count we rejected on length-confounding grounds (B) held up. This "
                  "invalidates the justification, not the run -- the candidates still score 7.6 REU better than "
                  "chance. Bottom row, the shortlist: error bars in (C) are +/-2 SEM of the mean of five "
-                 "structures, and (D) resamples those five per candidate 300 times. Capturing the true best five "
-                 "with 90% confidence needs a shortlist of 86, not the 8 a 20-candidate pilot implied.")
+                 "structures, and (D) resamples those five per candidate {reps:,} times, sharing one set of draws "
+                 "across the three curves. The median rank of the true best five is only {med}, but the tail is "
+                 "long: a 90% guarantee needs {n5}, which is not a synthesisable number. The single best is far "
+                 "cheaper to secure -- {n1} candidates. Ranking below the leader is not supported by this "
+                 "data.".format(n=f"{len(ros):,}", reps=REPS, med=int(np.median(acc[5])),
+                                n1=need[1], n5=need[5]))
     fig.tight_layout(rect=[0, _b, 1, .965])
     p = FIG / "prod_fig10_selector_shortlist.png"
     fig.savefig(p, dpi=170); plt.close(fig); print("wrote", p)
@@ -323,21 +370,21 @@ def fig11(sel, ros):
 
     fig.suptitle("The ranking-target decision changed which molecules get synthesised",
                  x=.012, ha="left", fontsize=13, fontweight="bold", y=.97)
-    _b = caption(fig, "Figure 11. OXTR production run, Stage 4, n=3,000. The two candidate ranking targets are not "
+    _b = caption(fig, "Figure 11. OXTR production run, Stage 4, n={n}. The two candidate ranking targets are not "
                  "interchangeable. Raw dG_separated rewards buried interface area, so 9 of its top 20 are 14-mers "
                  "and none is shorter than 11 residues, spread over 12 backbones; the size-normalised target "
                  "reaches 8-10-residue macrocycles and 16 backbones. (The very top of the raw-dG list is more "
                  "concentrated still: its best five are all 14-mers from one scaffold.) Since this programme exists "
                  "because oxytocin does not cross the blood-brain barrier, and smaller peptides permeate better, "
                  "the normalised target reaches the size class the project needs. The decision was taken before "
-                 "these data were seen.")
+                 "these data were seen.".format(n=f"{len(ros):,}"))
     fig.tight_layout(rect=[0, _b, 1, .95])
     p = FIG / "prod_fig11_target_choice.png"
     fig.savefig(p, dpi=170); plt.close(fig); print("wrote", p)
 
 
 # ---------------------------------------------------------------- figure 12
-def fig12(top, ctrl, sele):
+def fig12(top, ctrl, sele, rank_of, n_pool):
     f = lambda rows, k: np.array([float(r[k]) for r in rows if r[k] not in ("", None)])
     tpsa, clogp = f(top, "tpsa"), f(top, "clogp")
     mw = f(top, "mw_average")
@@ -395,7 +442,7 @@ def fig12(top, ctrl, sele):
 
     if sele:
         marg = np.array([float(r["selectivity_margin"]) for r in sele])
-        rank = np.array([int(r["rank_dG_per_dSASAx100"]) for r in sele])
+        rank = np.array([rank_of[r["sequence_id"]] for r in sele])
         a = ax[1, 0]
         a.hist(marg[marg >= 0], bins=40, color=BLUE, edgecolor="white", linewidth=.4,
                label="prefers OXTR  (%d)" % int((marg >= 0).sum()))
@@ -405,10 +452,10 @@ def fig12(top, ctrl, sele):
         a.set_xlabel("selectivity margin   i_ptm(OXTR) - max i_ptm(AVPR1A/1B/2)")
         a.set_ylabel("candidates")
         a.legend(frameon=False, fontsize=8.6, loc="upper left")
-        a.annotate("%.1f%% of the top 1,000\nprefer a vasopressin receptor"
-                   % (100*(marg < 0).mean()), (.62, .62), xycoords="axes fraction",
-                   fontsize=9, color=RED)
-        panel(a, "C", "40% of the best binders are not selective")
+        a.annotate("%.1f%% of the %d measured\nprefer a vasopressin receptor"
+                   % (100*(marg < 0).mean(), len(marg)), (.58, .62),
+                   xycoords="axes fraction", fontsize=9, color=RED)
+        panel(a, "C", "Nearly half the best binders are not selective")
 
         a = ax[1, 1]
         a.scatter(rank, marg, s=7, color=LIGHT, linewidths=0)
@@ -426,26 +473,28 @@ def fig12(top, ctrl, sele):
 
     fig.suptitle("Chemistry, the permeability annotation, and selectivity",
                  x=.012, ha="left", fontsize=13, fontweight="bold", y=.985)
-    _b = caption(fig, "Figure 12. OXTR production run, top 1,000 candidates. (A) computed from SMILES built with the "
+    _b = caption(fig, "Figure 12. OXTR production run. (A,B) the disulfide-filtered top 1,000; (C,D) every candidate "
+                 "with a selectivity measurement, ranked within all {n} scored. (A) computed from SMILES built with the "
                  "disulfide closed and the C-terminal amide applied, i.e. the molecule as synthesised and as "
                  "Stage 4 scored it; oxytocin is marked for scale. (B) the B3BPFN permeability column, with three "
                  "literature-confirmed non-permeants scored in the same batch -- leu-enkephalin is called BBB+ at "
                  "0.959, which is why this column is annotation only and is named _UNRELIABLE in the data table. "
                  "(C,D) each candidate was also folded against all three vasopressin receptors, with AVPR1B "
                  "trimmed to pLDDT >= 70 so target sizes are comparable. A negative margin is a red flag; a "
-                 "positive margin is absence of evidence, not proof of selectivity.")
+                 "positive margin is absence of evidence, not proof of selectivity.".format(n=f"{n_pool:,}"))
     fig.tight_layout(rect=[0, _b, 1, .965])
     p = FIG / "prod_fig12_chem_bbb_selectivity.png"
     fig.savefig(p, dpi=170); plt.close(fig); print("wrote", p)
 
 
 if __name__ == "__main__":
-    sel, ros, top, ctrl, sele = load()
+    sel, ros, top, ctrl, sele, rank_of = load()
     print("loaded %d selection rows, %d Rosetta results, %d top-1000 rows, "
           "%d controls, %d selectivity rows" % (len(sel), len(ros), len(top), len(ctrl), len(sele)))
-    if len(ros) != 3000:
-        sys.exit("FATAL: expected 3000 Rosetta results, found %d" % len(ros))
+    if len(ros) != len(sel):
+        sys.exit("FATAL: %d Rosetta results against %d selection rows"
+                 % (len(ros), len(sel)))
     fig9(sel, ros)
     fig10(sel, ros)
     fig11(sel, ros)
-    fig12(top, ctrl, sele)
+    fig12(top, ctrl, sele, rank_of, len(ros))

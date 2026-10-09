@@ -275,17 +275,28 @@ cap against the designed pool's length shape rather than the survivors').
 
 Bootstrap over the five per-structure `dG/dSASAx100` values, re-ranking each draw:
 
-| true set | shortlist needed for 90% containment |
-|---|---:|
-| top-1 | 8 |
-| top-3 | 24 |
-| **top-5** | **86** |
-| top-10 | 101 |
+| true set | shortlist needed for 90% containment (n = 3,000) | **re-measured, n = 6,000** |
+|---|---:|---:|
+| top-1 | 8 | **14** |
+| top-3 | 24 | **654** |
+| **top-5** | **86** | **654** |
+| top-10 | 101 | **654** |
 
-**The n = 20 pilot estimated ~1.6x over-sampling (a shortlist of 8). The real factor
-is ~17x.** The pilot figure was explicitly flagged as a floor; it was a floor by an
-order of magnitude, because those 20 candidates were well separated while the top of
-3,000 is not.
+**Re-measured 2026-10-09 on the completed 6,000**, with 2,000 bootstrap draws shared
+across all four targets (drawing independently per target gave non-monotone results —
+a top-10 apparently cheaper than a top-5, which is impossible). The right-hand column
+supersedes the left.
+
+**The n = 20 pilot estimated ~1.6x over-sampling (a shortlist of 8). On the full pool
+the factor for a top-5 is ~131x.** The pilot figure was explicitly flagged as a floor;
+it was a floor by two orders of magnitude, because those 20 candidates were well
+separated while the top of 6,000 is not. Doubling the pool from 3,000 did not double
+the answer — it filled the band just below the leader, so the tail of the rank
+distribution exploded (86 → 654) while the median rank of the true top-5 stayed at 17.
+
+**The practical consequence: a top-5 cannot be bought, but the single best can.**
+14 compounds contain the rank-1 candidate with 90% confidence. Anything below rank 1
+should be selected on diversity, not on score.
 
 The cause is packing, and it is not fixable by protocol. Median within-candidate sd is
 0.1859, so SEM of the mean of 5 is **0.0831**:
@@ -655,7 +666,7 @@ interface the median is −2.461, against their parents' −3.345.
 | `dG_per_dSASAx100` | **−2.612 ± 0.181** | median −2.811 |
 | `designed_dslf_fa13` | **−0.194 ± 0.259** | all ≤ 0 by construction |
 
-Rank **1,516 / 3,000** — the median of the unselected pool, which is where a
+Rank **2,921 / 6,000** — the median of the unselected pool, which is where a
 real binder carrying no design optimisation belongs. Within the filtered
 shortlist it places 990 / 1,000, but that shortlist is a selected top slice, so
 the two facts are consistent rather than alarming.

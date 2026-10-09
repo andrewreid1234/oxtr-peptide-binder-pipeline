@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-10-09T09:56:38.451522</dc:date>
+    <dc:date>2026-10-09T10:36:08.274304</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ L 389.505405 15.093153
 L 360.304082 58.944 
 L 222.652675 58.944 
 z
-" clip-path="url(#p9c9e74f516)" style="fill: #b0d2e7; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#pd202461d07)" style="fill: #b0d2e7; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
     <path d="M 222.652675 65.960136 
@@ -43,7 +43,7 @@ L 360.304082 65.960136
 L 342.495698 109.810983 
 L 240.461059 109.810983 
 z
-" clip-path="url(#p9c9e74f516)" style="fill: #87bddc; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#pd202461d07)" style="fill: #87bddc; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 240.461059 116.827119 
@@ -51,23 +51,23 @@ L 342.495698 116.827119
 L 299.273879 160.677966 
 L 283.682878 160.677966 
 z
-" clip-path="url(#p9c9e74f516)" style="fill: #5da5d1; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#pd202461d07)" style="fill: #5da5d1; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 283.682878 167.694102 
 L 299.273879 167.694102 
-L 295.837786 211.544949 
-L 287.118971 211.544949 
+L 296.101045 211.544949 
+L 286.855712 211.544949 
 z
-" clip-path="url(#p9c9e74f516)" style="fill: #3b8bc2; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#pd202461d07)" style="fill: #3b8bc2; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
-    <path d="M 287.118971 218.561085 
-L 295.837786 218.561085 
+    <path d="M 286.855712 218.561085 
+L 296.101045 218.561085 
 L 294.419189 262.411932 
 L 288.537568 262.411932 
 z
-" clip-path="url(#p9c9e74f516)" style="fill: #1f6eb3; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#pd202461d07)" style="fill: #1f6eb3; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_7">
     <path d="M 288.537568 269.428068 
@@ -75,7 +75,7 @@ L 294.419189 269.428068
 L 293.831027 313.278915 
 L 289.12573 313.278915 
 z
-" clip-path="url(#p9c9e74f516)" style="fill: #09529d; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#pd202461d07)" style="fill: #09529d; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="text_1">
     <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end; fill: #16305a" x="169.924865" y="42.537326" transform="rotate(-0 169.924865 42.537326)">265,700</text>
@@ -178,7 +178,7 @@ z
     <text style="font-size: 10.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #6b7076" x="467.927027" y="199.971513" transform="rotate(-0 467.927027 199.971513)">budget cap, not a filter</text>
    </g>
    <g id="text_17">
-    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end; fill: #16305a" x="169.924865" y="246.005258" transform="rotate(-0 169.924865 246.005258)">3,000</text>
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end; fill: #16305a" x="169.924865" y="246.005258" transform="rotate(-0 169.924865 246.005258)">3,209</text>
    </g>
    <g id="text_18">
     <text style="font-size: 14.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #222222" x="413.031892" y="237.909975" transform="rotate(-0 413.031892 237.909975)">Checked for selectivity</text>
@@ -203,7 +203,7 @@ z
     <text style="font-size: 10.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #6b7076" x="467.927027" y="250.838496" transform="rotate(-0 467.927027 250.838496)">budget cap, not a filter</text>
    </g>
    <g id="text_21">
-    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end; fill: #16305a" x="169.924865" y="296.872242" transform="rotate(-0 169.924865 296.872242)">1,578</text>
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end; fill: #16305a" x="169.924865" y="296.872242" transform="rotate(-0 169.924865 296.872242)">1,667</text>
    </g>
    <g id="text_22">
     <text style="font-size: 14.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #222222" x="413.031892" y="288.776958" transform="rotate(-0 413.031892 288.776958)">Selective (margin &gt;= 0)</text>
@@ -230,7 +230,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p9c9e74f516">
+  <clipPath id="pd202461d07">
    <rect x="7.2" y="7.2" width="725.4" height="310.464"/>
   </clipPath>
  </defs>

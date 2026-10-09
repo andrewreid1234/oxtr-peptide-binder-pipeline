@@ -125,22 +125,33 @@ set_text(find(S[3], "TextBox 5"),
          "Batch 2's independent 3,000 reproduces it: median −46.01 against the same −38.39.")
 
 # ---------------------------------------------------------------- slide 6 (shortlist)
-set_text(find(S[4], "TextBox 3"), "303 bind efficiently. 121 of those are also selective")
+# The 86 on this slide was computed on batch 1 alone (3,000 candidates). On the
+# full 6,000 the tail is far worse: the true top 5 needs 654, which is not a
+# synthesisable number, while the single best needs only 14. Both are now
+# computed from the data in plot_slide_figures.py rather than hardcoded.
+set_text(find(S[5], "TextBox 3"),
+         "You cannot pick a top 5. You can pick the best one")
+set_text(find(S[5], "TextBox 5"),
+         "Resampling the five structures per candidate across the full 6,000: 14 compounds secure "
+         "the single best at 90% confidence, but the true best five need 654.")
+
+set_text(find(S[4], "TextBox 3"), "303 bind efficiently. 173 of those are also selective")
 set_text(find(S[4], "TextBox 4"), "303")
 set_text(find(S[4], "TextBox 5"),
          "bind efficiently AND carry\na relaxed disulfide")
-set_text(find(S[4], "TextBox 6"), "121")
+set_text(find(S[4], "TextBox 6"), "173")
 set_text(find(S[4], "TextBox 7"),
          "also prefer OXTR over all\nthree vasopressin receptors")
-set_text(find(S[4], "TextBox 8"), "75")
+set_text(find(S[4], "TextBox 8"), "164")
 set_text(find(S[4], "TextBox 9"),
          "distinct backbones —\nnot one scaffold")
 set_text(find(S[4], "TextBox 11"),
          "Every one is a disulfide-cyclised macrocycle with a C-terminal amide — scored as the "
          "molecule we would actually make, not a linear approximation.")
 set_text(find(S[4], "TextBox 12"),
-         "121 is a floor, not the answer: selectivity has only been run on 182 of the 303. "
-         "The −3.0 efficiency cut is also a choice, not a derived threshold.")
+         "Selectivity is measured on all 303 — and on all 481 past the efficiency cut, giving "
+         "267 selective before the disulfide filter. The −3.0 cut is a choice, not a derived "
+         "threshold.")
 
 tbl = None
 for sh in S[4].shapes:
@@ -162,9 +173,10 @@ for ri, row in enumerate(TOP6, start=1):
 # ---------------------------------------------------------------- slide 8 (selectivity)
 set_text(find(S[6], "TextBox 3"), "Nearly half the best binders prefer the wrong receptor")
 set_text(find(S[6], "TextBox 5"),
-         "All 3,000 of batch 1 folded against AVPR1A, AVPR1B and AVPR2 — 47% prefer an "
-         "off-target and are dropped. AVPR2, the renal antidiuretic receptor, is the worst "
-         "offender, and selectivity is independent of binding rank (r = −0.09).")
+         "3,209 candidates folded against AVPR1A, AVPR1B and AVPR2, including all 481 past "
+         "the efficiency cut — 48% prefer an off-target and are dropped. AVPR2, the renal "
+         "antidiuretic receptor, is the worst offender, and selectivity is independent of "
+         "binding rank (r = −0.09).")
 
 # ---------------------------------------------------------------- slide 9 (permeability)
 set_text(find(S[7], "TextBox 3"), "Polar, even for a macrocycle")
@@ -233,7 +245,8 @@ textbox(s11, "SettledBody", 0.90, 2.50, 5.3, 3.9,
         "interface entirely — against 0 of 6,000 candidates.\n"
         "\n"
         "303 candidates bind efficiently and carry a relaxed\n"
-        "disulfide, across 75 distinct backbones.\n"
+        "disulfide, across 164 distinct backbones; 173 of\n"
+        "them are also selective against all three AVPRs.\n"
         "\n"
         "Selection works: both independent batches of 3,000\n"
         "beat a random Stage 3 baseline by about 8 REU.",
@@ -242,14 +255,14 @@ textbox(s11, "SettledBody", 0.90, 2.50, 5.3, 3.9,
 textbox(s11, "OpenHead", 7.05, 2.00, 5.4, 0.4, "STILL OPEN",
         font="Calibri", size=13, color=AMBER, bold=True)
 textbox(s11, "OpenBody", 7.05, 2.50, 5.4, 3.9,
-        "Selectivity covers only half the pool — 121 of 303\n"
-        "qualify, and the other 121 were never tested.\n"
-        "\n"
         "Does the Stage 3 selector work? Untestable so far:\n"
         "every scored candidate sits in its top two values.\n"
         "\n"
-        "Which 12 to make. The ordering inside the top 50 is\n"
-        "inside the noise, so diversity decides, not rank.\n"
+        "The −3.0 efficiency cut is the one threshold in the\n"
+        "pipeline with no derivation behind it.\n"
+        "\n"
+        "How many to make. 14 compounds secure the single\n"
+        "best; a true top 5 would need 654. Not yet fixed.\n"
         "\n"
         "None of this is binding data. Wet-lab is the only\n"
         "thing that settles any of it.",

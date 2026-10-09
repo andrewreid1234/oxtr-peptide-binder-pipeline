@@ -39,7 +39,9 @@ plt.rcParams.update({
     "axes.facecolor": "white", "axes.grid": False, "axes.titlesize": 11,
 })
 
-OXYTOCIN_RANK, OXYTOCIN_EFF = 1516, -2.612
+# Rank is recomputed against the FULL scored pool, not batch 1: the old
+# 1,516/3,000 was the same molecule measured against half the candidates.
+OXYTOCIN_EFF = -2.6122
 LOST_INTERFACE_DSASA = 200.0
 
 
@@ -85,7 +87,9 @@ def main():
         ax.text(med, y + 0.33, "%.3f" % med, ha="center", va="bottom",
                 fontsize=9, color=INK, fontweight="bold")
     ax.axvline(OXYTOCIN_EFF, color=MUTED, lw=1.4, ls="--", zorder=2)
-    ax.text(OXYTOCIN_EFF, 2.62, " oxytocin %.3f\n (rank %d/3,000)" % (OXYTOCIN_EFF, OXYTOCIN_RANK),
+    oxy_rank = int(np.sum(cand_eff < OXYTOCIN_EFF)) + 1
+    ax.text(OXYTOCIN_EFF, 2.62, " oxytocin %.3f\n (rank %s/%s)"
+            % (OXYTOCIN_EFF, format(oxy_rank, ","), format(len(cand_eff), ",")),
             fontsize=8.5, color=MUTED, ha="left", va="top")
     ax.set_yticks(range(len(groups)))
     ax.set_yticklabels([g[0] for g in groups][::-1], fontsize=9.5)

@@ -80,7 +80,7 @@ def load():
             if r.get("row_type", "candidate").startswith("control")]
     # every off-target prediction, both selectivity batches
     off = {}
-    for f in glob.glob(str(W / "stage_7_selectivity*" / "offtarget_out"
+    for f in glob.glob(str(W / "stage_7_*" / "offtarget_out"
                            / "results_shard*.json")):
         for r in json.load(open(f)):
             off.setdefault(r["sequence_id"], {})[r["target"]] = r["i_ptm"]
@@ -195,27 +195,40 @@ def shortlist(ros):
     V = np.array([ros[i]["dG_per_dSASAx100_values"][:5] for i in ids])
     truth = V.mean(1); torder = np.argsort(truth)
     rng = np.random.default_rng(1234)
-    Ns = [1, 2, 3, 5, 8, 12, 20, 30, 50, 86, 120, 200, 300]
+    Ns = [1, 2, 3, 5, 8, 12, 20, 30, 50, 86, 120, 200, 300, 500, 800, 1500]
     out = {}
-    for kk in (1, 3, 5):
-        worst = []
-        for _ in range(300):
-            idx = rng.integers(0, 5, size=V.shape)
-            est = np.take_along_axis(V, idx, axis=1).mean(1)
-            pos = {c: r for r, c in enumerate(np.argsort(est))}
-            worst.append(max(pos[c] + 1 for c in torder[:kk]))
-        worst = np.array(worst)
+    need = {}
+    # One set of draws shared across k -- drawing independently per k made the
+    # p90s non-monotone, which cannot happen. Matches prod_fig10 panel D.
+    REPS = 2000
+    acc = {kk: [] for kk in (1, 3, 5)}
+    for _ in range(REPS):
+        idx = rng.integers(0, 5, size=V.shape)
+        est = np.take_along_axis(V, idx, axis=1).mean(1)
+        pos = np.empty(len(est), int)
+        pos[np.argsort(est)] = np.arange(len(est))
+        for kk in acc:
+            acc[kk].append(int(pos[torder[:kk]].max()) + 1)
+    for kk in acc:
+        worst = np.array(acc[kk])
         out[kk] = [float((worst <= n).mean()) for n in Ns]
+        need[kk] = int(np.percentile(worst, 90))
     fig, ax = plt.subplots(figsize=(11.4, 5.2))
     for kk, col, ls in ((1, GRAY, ":"), (3, ORANGE, "--"), (5, BLUE, "-")):
         ax.plot(Ns, out[kk], color=col, ls=ls, lw=2.6, marker="o", ms=5,
                 label="to capture the true best %d" % kk)
     ax.axhline(.9, color=INK, lw=1.2, ls=":")
-    ax.axvline(86, color=RED, lw=2.2, ls="--")
-    ax.annotate("86", (86, .06), xytext=(10, 0), textcoords="offset points",
-                fontsize=22, fontweight="bold", color=RED)
-    ax.annotate("the 20-candidate\npilot said 8", (8, .70), xytext=(10, 0),
-                textcoords="offset points", fontsize=13, color=MUTED)
+    BOX = dict(facecolor="white", edgecolor="none", pad=1.5)
+    ax.axvline(need[1], color=GRAY, lw=2.0, ls="--")
+    ax.annotate("%d\nenough for the single best" % need[1], (need[1], .99),
+                xytext=(-10, 0), textcoords="offset points", ha="right",
+                va="top", fontsize=14, color=GRAY, linespacing=1.5, bbox=BOX,
+                zorder=6)
+    ax.axvline(need[5], color=RED, lw=2.2, ls="--")
+    ax.annotate("%d\nwhat a true top 5 would cost" % need[5], (need[5], .58),
+                xytext=(-12, 0), textcoords="offset points", ha="right",
+                va="top", fontsize=14, color=RED, linespacing=1.5, bbox=BOX,
+                zorder=6)
     ax.set_xscale("log"); ax.set_ylim(0, 1.05)
     ax.set_xlabel("how many compounds you make")
     ax.set_ylabel("probability you have the real best ones")

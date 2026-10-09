@@ -314,11 +314,12 @@ filter. The scale-up then ran the full funnel at B = 1,500. Taking both together
   biggest open question, and the reason the first synthesis wave must span the
   score range rather than take only the top compounds, so the ranking can be
   *tested* instead of confirmed.
-- **That a top-5 is identifiable.** It is not. 90% containment of the true top-5
-  requires a shortlist of **86**; the pilot implied 8. The rank-1-to-rank-5 gap is
-  2.1 SEM and 14 candidates sit within ±2 SEM of the leader. More `NSTRUCT` cannot
-  fix this — halving the SEM costs 4× the trajectories. **Synthesise from the top
-  ~25-50 on diversity, not the top 5 on score.**
+- **That a top-5 is identifiable.** It is not. On the full 6,000, 90% containment
+  of the true top-5 requires a shortlist of **654** — the pilot implied 8 and
+  batch 1 implied 86. The rank-1-to-rank-5 gap is 0.65 SEM and 26 candidates sit
+  within ±2 SEM of the leader. More `NSTRUCT` cannot fix this — halving the SEM
+  costs 4× the trajectories. **The single best is cheap to secure (14 compounds);
+  everything below rank 1 should be chosen on diversity, not on score.**
 - **Permeability — unresolved, but now precisely diagnosed.** The BBB classifier
   is **unusable for this molecular class**, and we know because the controls ran
   in the same batch: leu-enkephalin, a literature-confirmed non-permeant, scores

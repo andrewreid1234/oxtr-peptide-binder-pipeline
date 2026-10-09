@@ -795,10 +795,12 @@ between independent jobs.
 | **5** | **0.887** | **3.77 / 5** |
 
 > **DO NOT LET THE SYNTHESIS LIST BE "THE TOP 5".** Measured on the completed
-> 3,000-candidate run (2026-10-05): a shortlist of **86** is needed to contain the
-> true top 5 with 90% confidence — the n=20 pilot's ~1.6x over-sampling estimate was
-> wrong by an order of magnitude. SEM of the mean of 5 is 0.0831 and the
-> rank-1-to-rank-5 gap is only **2.1 SEM**, so the top ~50 lie inside the noise; a
+> 6,000-candidate run (re-measured 2026-10-09): a shortlist of **654** is needed to
+> contain the true top 5 with 90% confidence — not a synthesisable number. The
+> single best needs only **14**, so guarantee the leader and pick the rest on
+> diversity. The n=20 pilot's ~1.6x over-sampling estimate was wrong by two orders
+> of magnitude, and the batch-1 figure of 86 by one. SEM of the mean of 5 is 0.0837
+> and the rank-1-to-rank-5 gap is only **0.65 SEM**, so the top ~50 lie inside the noise; a
 > disjoint 2-vs-3 split gives top-5 overlap of **1.00/5**. Raising `nstruct` cannot
 > close a 2.1-SEM gap at acceptable cost.
 >

@@ -611,7 +611,7 @@ seriously as a lead.
 
 # 10. Stage 8 — Synthesis selection
 
-> **Production:** a top-5 is **not identifiable** — 90% containment of the true best 5 needs a shortlist of **86**, because the top ~50 lie within ~2 SEM of the leader — `LIMITATIONS.md` O0e. Choose from the top ~25–50 on diversity and selectivity, not on score order.
+> **Production:** a top-5 is **not identifiable** — on the full 6,000, 90% containment of the true best 5 needs a shortlist of **654**, because the top ~50 lie within ~2 SEM of the leader — `LIMITATIONS.md` O0e. The single best needs only **14**. Guarantee the leader, then choose on diversity and selectivity, not on score order.
 
 Wave 1 is **12 compounds**: 8 top-ranked plus 4 deliberately spanning the score
 range.

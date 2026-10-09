@@ -11,6 +11,107 @@ checks; **PATCH** — script fixes with no methodology change.
 
 ---
 
+## Figure audit — every production figure recomputed on 6,000 — 2026-10-09
+
+**Not a pipeline version change.** No method, threshold or script that selects
+candidates changed. Every `prod_fig*` and every deck figure was checked against the
+completed run, and four classes of defect were found.
+
+### 1. Figures 9–12 were drawn from batch 1 alone
+
+`plot_stage4_results.py` loaded `stage_4_rosetta/results` and `stage4_set.csv`
+only, so it showed 3,000 candidates under captions that had already been rewritten
+to say 6,000. It also read `top1000_full.csv` (unfiltered) rather than
+`top1000_dslf_filtered.csv`, and ranked selectivity within the top 1,000 instead of
+within the scored pool. The loader now walks both batches, prefers the filtered
+shortlist, rebuilds selectivity from the shard JSON across both Stage 7 batches
+(3,000 measured, not the 1,000 in the first summary CSV), and computes rank over
+all 6,000. The hardcoded `if len(ros) != 3000` guard is now `len(ros) != len(sel)`.
+
+### 2. The shortlist requirement was wrong by an order of magnitude
+
+`LIMITATIONS.md` O0e and six other documents carried **86** as the shortlist needed
+to contain the true top 5 at 90% confidence. That was measured on batch 1.
+Re-measured on the full 6,000 with 2,000 bootstrap draws:
+
+| true set | n = 3,000 | **n = 6,000** |
+|---|---:|---:|
+| top-1 | 8 | **14** |
+| top-3 | 24 | **654** |
+| top-5 | **86** | **654** |
+| top-10 | 101 | **654** |
+
+Doubling the pool did not double the answer. It filled the band just below the
+leader, so the *tail* of the rank distribution exploded while the median rank of
+the true top-5 stayed at 17. The three larger targets share a p90 because one
+candidate in the true top 3 is unstable enough to land near rank 654 on a re-run
+and alone sets the bound.
+
+Two consequences. **A true top 5 is not purchasable** — 654 compounds is not a
+synthesis campaign. **The single best is cheap** — 14 compounds contain rank 1 at
+90% confidence. So the synthesis set should guarantee the leader and otherwise be
+chosen on diversity, which is what the previous "top ~25–50 on diversity" advice
+said for the wrong reason.
+
+The earlier figures also drew the three curves from independent bootstrap streams,
+which made the p90s non-monotone in *k* (a top-10 apparently cheaper than a
+top-5 — impossible, since the top 5 is a subset). Both `plot_stage4_results.py`
+and `plot_slide_figures.py` now share one set of draws across all targets, and
+read the thresholds off the data instead of hardcoding them.
+
+### 3. A whole selectivity batch was invisible to the figure scripts
+
+The third Stage 7 batch lives in `stage_7_batch2`, which does **not** match the
+`stage_7_selectivity*` glob the figure scripts used — only
+`stage_7_selectivity`, `_batch2` and `_merged` did. The scripts therefore saw
+3,000 of the **3,209** measurements, and only 272 of the 481 candidates past the
+efficiency cut. The glob is now `stage_7_*` in both
+`plot_stage4_results.py` and `plot_slide_figures.py`.
+
+This is a figure/deck defect, not a run defect: Stage 7 did cover all 481, as
+`PRODUCTION_RUN_v3.md` v1.8.0 recorded. But it caused a real false claim to be
+drafted and then withdrawn during this audit — that selectivity covered only half
+the shortlist. It does not. Corrected end-point counts on all 6,000:
+
+| criterion | n |
+|---|---:|
+| `dG/dSASAx100` < −3.0 | 481 |
+| and prefers OXTR over all three AVPRs | **267** |
+| and a relaxed disulfide (`designed_dslf_fa13` ≤ 0) | **173** |
+
+`PRODUCTION_RUN_v3.md` had **178** here, from batch 1. The deck carried
+**121 of 303 selective, with 182 of 303 measured** — both artefacts of the missing
+batch; the true figures are **303 of 303 measured, 173 selective**. The deck's
+"75 distinct backbones" was also batch 1: the 303 span **164**.
+
+### 4. Smaller corrections
+
+- **Figure 9's caption was malformed.** `"... %s ..." % f"{n:,}" "rest of caption"`
+  concatenates the f-string with the *next* literal before the `%` applies, so the
+  entire remaining caption was substituted in as the count: *"All 6,000and scored,
+  ... ranking heuristic rather than an affinity. selected candidates were relaxed
+  five times"*. Figures 10–12 carried the same construction. All now use `.format`
+  applied to the whole concatenated string.
+- **Oxytocin's rank was hardcoded at 1,516/3,000** in `plot_controls_figure.py`.
+  Recomputed against the full pool: **2,921/6,000** — still the pool median, which
+  is the point of the control. Now derived from the data, not a constant.
+- **Figure 10 panel A** had the two group labels overlapping the range-restriction
+  annotation; also r is **−0.018** on 6,000 (was −0.005) and `hotspot_contacts`
+  **−0.467** (was −0.487). The range-restriction reading is unchanged.
+- **`prod_fig14` named two different figures.** The molecule funnel is renamed
+  `prod_fig15_molecule_funnel.png`; `prod_fig14_stage4_controls.png` keeps the
+  number it is cited under. `prod_fig13` and `prod_fig15` were not referenced from
+  any document and are now written into `PRODUCTION_RUN_v3.md`.
+- **Figures 1–8 were verified current** and needed no change: they describe Stages
+  1 and 2, which completed before batch 2 existed.
+
+### Documents touched
+
+`PRODUCTION_RUN_v3.md`, `LIMITATIONS.md`, `SUMMARY.md`, `SOP.md`,
+`METHODS_AND_RESULTS.md`, and both presentation decks.
+
+---
+
 ## Documentation brought up to the run — 2026-10-06
 
 **Not a pipeline version change.** No method, threshold or script changed; this is
