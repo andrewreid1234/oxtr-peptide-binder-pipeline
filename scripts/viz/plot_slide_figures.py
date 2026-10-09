@@ -55,21 +55,48 @@ def save(fig, name):
 
 
 def load():
-    sel = {r["sequence_id"]: r for r in csv.DictReader(open(S4 / "stage4_set.csv"))}
+    """All 6,000 scored, the disulfide-filtered shortlist, and every selectivity
+    result -- not batch 1 alone.
+
+    This loaded only S4/results (batch 1's 3,000), top1000_full.csv (the
+    UNFILTERED shortlist) and the first selectivity summary. The deck's captions
+    were updated to 6,000 while these figures still showed 3,000, so slide 3
+    contradicted its own caption.
+    """
+    sel = {}
+    for f in ("stage4_set.csv", "stage4_set_batch2.csv"):
+        for r in csv.DictReader(open(S4 / f)):
+            sel[r["sequence_id"]] = r
     ros = {}
-    for f in glob.glob(str(S4 / "results" / "*.json")):
-        d = json.load(open(f)); ros[d["sequence_id"]] = d
-    top = [r for r in csv.DictReader(open(S4 / "top1000_full.csv"))
+    for d in ("stage_4_rosetta", "stage_4_rosetta_batch2"):
+        for f in glob.glob(str(W / d / "results" / "*.json")):
+            j = json.load(open(f))
+            ros[j["sequence_id"]] = j
+    shortlist = S4 / "top1000_dslf_filtered.csv"
+    src = shortlist if shortlist.exists() else (S4 / "top1000_full.csv")
+    top = [r for r in csv.DictReader(open(src))
            if r.get("row_type", "candidate") == "candidate"]
-    ctrl = [r for r in csv.DictReader(open(S4 / "top1000_full.csv"))
+    ctrl = [r for r in csv.DictReader(open(src))
             if r.get("row_type", "candidate").startswith("control")]
-    sp = W / "stage_7_selectivity" / "selectivity_summary.csv"
-    sele = list(csv.DictReader(open(sp))) if sp.exists() else []
+    # every off-target prediction, both selectivity batches
+    off = {}
+    for f in glob.glob(str(W / "stage_7_selectivity*" / "offtarget_out"
+                           / "results_shard*.json")):
+        for r in json.load(open(f)):
+            off.setdefault(r["sequence_id"], {})[r["target"]] = r["i_ptm"]
+    OFF = ("AVPR1A", "AVPR1B", "AVPR2")
+    sele = []
+    for sid, v in off.items():
+        if all(t in v for t in OFF) and sid in sel:
+            sele.append({"sequence_id": sid,
+                         "selectivity_margin": float(sel[sid]["i_ptm"]) - max(v.values()),
+                         "max_offtarget_i_ptm": max(v.values()),
+                         "worst_offtarget": max(OFF, key=lambda t: v[t])})
     return sel, ros, top, ctrl, sele
 
 
 # ------------------------------------------------------------------ funnel
-def funnel():
+def funnel(n_scored, n_sel, n_selective):
     """Marks GATES separately from CAPS.
 
     Only one step in this pipeline is a pass/fail result: the Stage 3 pocket
@@ -81,9 +108,9 @@ def funnel():
     stages = [("Sequences designed", 265700, "Stage 2", "cap"),
               ("Docked", 143595, "Stage 3", "cap"),
               ("Passed the pocket gate", 87338, "Stage 3", "GATE"),
-              ("Scored with physics", 3000, "Stage 4", "cap"),
-              ("Checked for selectivity", 1000, "Stage 7", "cap"),
-              ("Selective (margin >= 0)", 599, "Stage 7", "filter")]
+              ("Scored with physics", n_scored, "Stage 4", "cap"),
+              ("Checked for selectivity", n_sel, "Stage 7", "cap"),
+              ("Selective (margin >= 0)", n_selective, "Stage 7", "filter")]
     fig, ax = plt.subplots(figsize=(13.0, 5.6))
     n = len(stages)
     # Numbers live in a fixed column to the LEFT of the funnel, never inside the
@@ -119,7 +146,8 @@ def it_worked(ros):
     ax.hist(dg, bins=60, color=BLUE, edgecolor="white", linewidth=.5)
     ax.axvline(np.median(dg), color=NAVY, lw=2.4)
     ax.axvline(-38.39, color=ORANGE, lw=2.4, ls="--")
-    ax.annotate("our 3,000\nmedian −45.99", (np.median(dg), ax.get_ylim()[1]*.80),
+    ax.annotate("our %s\nmedian %.2f" % ("{:,}".format(len(dg)), np.median(dg)),
+                (np.median(dg), ax.get_ylim()[1]*.80),
                 xytext=(-14, 0), textcoords="offset points", ha="right",
                 fontsize=14, color=NAVY, fontweight="bold")
     ax.annotate("no selection\n(random survivors)\n−38.39",
@@ -279,7 +307,10 @@ if __name__ == "__main__":
     sel, ros, top, ctrl, sele = load()
     print("loaded %d results, %d top-1000, %d controls, %d selectivity"
           % (len(ros), len(top), len(ctrl), len(sele)))
-    funnel()
+    n_selective = sum(1 for r in sele if r["selectivity_margin"] >= 0)
+    print("  scored %d, selectivity on %d, selective %d"
+          % (len(ros), len(sele), n_selective))
+    funnel(len(ros), len(sele), n_selective)
     it_worked(ros)
     selector(sel, ros)
     shortlist(ros)

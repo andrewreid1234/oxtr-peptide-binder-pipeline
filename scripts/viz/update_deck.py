@@ -185,29 +185,29 @@ set_text(find(S[7], "TextBox 5"),
 # Slide 9's permeability figure is also REPLACED, not merely revectorised: the
 # old one drew the Lipinski TPSA<=140 line, which is a small-molecule rule and
 # says nothing about a macrocycle. It now marks cyclosporin A instead.
-# NOTE: these are the ORIGINAL slide numbers. This runs before the controls
-# slide is inserted at position 4, which shifts everything after it by one.
-EMF = {3: "slide_funnel", 4: "slide_itworked", 6: "slide_shortlist",
-       7: "slide_selectivity", 8: "slide_permeability", 9: "slide_selector"}
-for idx, stem in (EMF.items() if not ARGS.raster else []):
+FIGS = {3: "slide_funnel", 4: "slide_itworked", 6: "slide_shortlist",
+        7: "slide_selectivity", 8: "slide_permeability", 9: "slide_selector"}
+# NOTE: ORIGINAL slide numbers -- this runs before the controls slide is
+# inserted at position 4, which shifts everything after it by one.
+#
+# EVERY figure is re-embedded, not only the reframed permeability one. The
+# source deck's figures were generated from batch 1 alone, so its funnel read
+# "3,000 scored / 1,000 selectivity / 599 selective" while the captions had
+# already been updated to 6,000 -- the slide contradicted itself.
+# plot_slide_figures.py now loads both Rosetta batches and every selectivity
+# result; these are those outputs.
+ext = ".png" if ARGS.raster else ".emf"
+for idx, stem in FIGS.items():
     sl = S[idx - 1]
-    emf = FIG / "slides" / (stem + ".emf")
-    if not emf.exists():
-        print("  WARNING: no %s, leaving the PNG in place" % emf.name)
+    img = FIG / "slides" / (stem + ext)
+    if not img.exists():
+        print("  WARNING: no %s, leaving the embedded figure alone" % img.name)
         continue
     old_pic = find(sl, "Picture 4")
-    L, T, W, H = old_pic.left, old_pic.top, old_pic.width, old_pic.height
+    _L, _T, _W, _H = old_pic.left, old_pic.top, old_pic.width, old_pic.height
     old_pic._element.getparent().remove(old_pic._element)
-    pic = sl.shapes.add_picture(str(emf), L, T, W, H)
+    pic = sl.shapes.add_picture(str(img), _L, _T, _W, _H)
     pic.name = "Picture 4"
-
-if ARGS.raster:                      # still swap the reframed permeability PNG
-    _p = find(S[7], "Picture 4")
-    _L, _T, _W, _H = _p.left, _p.top, _p.width, _p.height
-    _p._element.getparent().remove(_p._element)
-    _n = S[7].shapes.add_picture(str(FIG / "slides" / "slide_permeability.png"),
-                                 _L, _T, _W, _H)
-    _n.name = "Picture 4"
 
 # the permeability caption was two lines and collided with the footer
 find(S[7], "TextBox 5").top = Inches(6.30)
@@ -304,11 +304,69 @@ textbox(nsl, "Caveat", 0.55, 5.15, 8.6, 0.9,
         "This settles that the metric discriminates. It does not settle the ordering inside "
         "the top 50, which sits within about 2 SEM.", size=14, color=RED, italic=True)
 
+# ------------------------------------------------- NEW slide: the BBB model
+# Goes after the permeability chemistry slide. The deck previously dismissed the
+# classifier in one clause; the retraining work deserves its own slide because
+# it is a complete, self-contained negative result and the supervisor will ask
+# "can't you just retrain it?" -- the answer is that we did.
+bsl = prs.slides.add_slide(prs.slide_layouts[6])
+textbox(bsl, "TextBox 1", 0.55, 7.02, 7.0, 0.3,
+        "OXTR de novo cyclic peptide binders", size=10, color=MUTED)
+textbox(bsl, "TextBox 2", 12.20, 7.02, 0.6, 0.3, "10", size=10, color=MUTED,
+        align=PP_ALIGN.RIGHT)
+textbox(bsl, "TextBox 3", 0.55, 0.32, 12.2, 0.9,
+        "We tried to fix the BBB model. It did not take", font="Cambria",
+        size=30, color=INK, bold=True)
+
+textbox(bsl, "B1", 0.55, 1.30, 2.9, 0.9, "0.943", font="Cambria",
+        size=42, color=BLUE, bold=True)
+textbox(bsl, "B1c", 0.55, 2.16, 2.9, 1.0,
+        "AUROC on 170 held-out\npeptides — the model is\nnot bad in aggregate",
+        size=12.5, color=CAPTION)
+textbox(bsl, "B2", 3.75, 1.30, 2.9, 0.9, "2", font="Cambria",
+        size=42, color=NAVY, bold=True)
+textbox(bsl, "B2c", 3.75, 2.16, 2.9, 1.0,
+        "training labels were simply\nwrong — met- and leu-\nenkephalin, marked permeant",
+        size=12.5, color=CAPTION)
+textbox(bsl, "B3", 6.95, 1.30, 2.9, 0.9, "0.959", font="Cambria",
+        size=42, color=RED, bold=True)
+textbox(bsl, "B3c", 6.95, 2.16, 2.9, 1.0,
+        "what it still gives leu-\nenkephalin after the label\nwas corrected to negative",
+        size=12.5, color=CAPTION)
+
+textbox(bsl, "BBody", 0.55, 3.55, 8.9, 1.9,
+        "Banks & Kastin (1985) showed both enkephalins do not cross. They sat in the "
+        "training set as positives. We corrected exactly those two labels and retrained — "
+        "held-out performance held up (Sn 0.918, Sp 0.871), and the prediction for "
+        "leu-enkephalin did not move.",
+        size=15, color=INK)
+
+textbox(bsl, "CmpHead", 9.95, 1.30, 2.9, 0.35,
+        "RETRAINING, MCC", size=12, color=MUTED, bold=True)
+CMP = [("2 labels fixed", "0.789", BLUE),
+       ("+6,839 negatives", "0.756", RED)]
+for i, (lab, val, col) in enumerate(CMP):
+    y = 1.76 + i * 0.46
+    textbox(bsl, "C%d" % i, 9.95, y, 2.0, 0.4, lab, size=13, color=CAPTION)
+    textbox(bsl, "CV%d" % i, 11.95, y, 0.85, 0.4, val, size=13, color=col,
+            bold=True, align=PP_ALIGN.RIGHT)
+textbox(bsl, "CmpNote", 9.95, 2.76, 2.9, 1.2,
+        "Adding bulk negatives\nmade it worse. Two\ncorrect labels beat\nseven thousand\napproximate ones.",
+        size=12, color=CAPTION)
+
+textbox(bsl, "BCaveat", 0.55, 5.60, 8.9, 0.9,
+        "So the column is carried as an annotation and never as a gate. Permeability is a "
+        "medicinal-chemistry problem here, not a filtering one.",
+        size=14, color=RED, italic=True)
+
 # move it into position 4 (0-based index 3)
 sldIdLst = prs.slides._sldIdLst
 ids = list(sldIdLst)
-sldIdLst.remove(ids[-1])
-sldIdLst.insert(3, ids[-1])
+ctrl_id, bbb_id = ids[-2], ids[-1]      # controls added first, then BBB
+sldIdLst.remove(ctrl_id)
+sldIdLst.remove(bbb_id)
+sldIdLst.insert(3, ctrl_id)             # controls become slide 4
+sldIdLst.insert(9, bbb_id)              # BBB model becomes slide 10
 
 # renumber the page-number box on every slide
 for i, s in enumerate(prs.slides, 1):
