@@ -62,7 +62,7 @@ S4 = (V + "/stage_4_rosetta/relaxed/shard3_out_350_u16/"
 
 
 def read(path, chain):
-    """-> list of (element, resnum, atomname, xyz), heavy atoms only."""
+    """-> list of (element, resnum, atomname, resname, xyz), heavy atoms only."""
     out = []
     for l in open(path):
         if not (l.startswith("ATOM") or l.startswith("HETATM")):
@@ -71,23 +71,70 @@ def read(path, chain):
             continue
         name = l[12:16].strip()
         el = (l[76:78].strip() or name[0]).upper()
-        if el == "H" or name.startswith("H"):
+        if el == "H" or name.startswith("H") or name[0].isdigit():
             continue
-        out.append((el, int(l[22:26]), name,
+        out.append((el, int(l[22:26]), name, l[17:20].strip(),
                     np.array([float(l[30:38]), float(l[38:46]), float(l[46:54])])))
     return out
 
 
-def bonds(atoms, cut=1.95):
-    P = np.array([a[3] for a in atoms])
-    d = np.linalg.norm(P[:, None, :] - P[None, :, :], axis=2)
+# Explicit heavy-atom connectivity. Distance-based bond inference was used in
+# the first version and produced impossible structures -- spurious rings and
+# wrong valences -- because a 1.95 A cutoff cannot tell a bond from a close
+# non-bonded contact in a compact relaxed macrocycle. Peptide topology is known
+# exactly, so it is tabulated rather than guessed.
+SIDE = {
+    "GLY": [],
+    "ALA": [("CA", "CB")],
+    "SER": [("CA", "CB"), ("CB", "OG")],
+    "CYS": [("CA", "CB"), ("CB", "SG")],
+    "THR": [("CA", "CB"), ("CB", "OG1"), ("CB", "CG2")],
+    "VAL": [("CA", "CB"), ("CB", "CG1"), ("CB", "CG2")],
+    "LEU": [("CA", "CB"), ("CB", "CG"), ("CG", "CD1"), ("CG", "CD2")],
+    "ILE": [("CA", "CB"), ("CB", "CG1"), ("CB", "CG2"), ("CG1", "CD1")],
+    "PRO": [("CA", "CB"), ("CB", "CG"), ("CG", "CD"), ("CD", "N")],
+    "MET": [("CA", "CB"), ("CB", "CG"), ("CG", "SD"), ("SD", "CE")],
+    "PHE": [("CA", "CB"), ("CB", "CG"), ("CG", "CD1"), ("CG", "CD2"),
+            ("CD1", "CE1"), ("CD2", "CE2"), ("CE1", "CZ"), ("CE2", "CZ")],
+    "TYR": [("CA", "CB"), ("CB", "CG"), ("CG", "CD1"), ("CG", "CD2"),
+            ("CD1", "CE1"), ("CD2", "CE2"), ("CE1", "CZ"), ("CE2", "CZ"),
+            ("CZ", "OH")],
+    "TRP": [("CA", "CB"), ("CB", "CG"), ("CG", "CD1"), ("CG", "CD2"),
+            ("CD1", "NE1"), ("NE1", "CE2"), ("CD2", "CE2"), ("CD2", "CE3"),
+            ("CE3", "CZ3"), ("CZ3", "CH2"), ("CH2", "CZ2"), ("CZ2", "CE2")],
+    "ASP": [("CA", "CB"), ("CB", "CG"), ("CG", "OD1"), ("CG", "OD2")],
+    "ASN": [("CA", "CB"), ("CB", "CG"), ("CG", "OD1"), ("CG", "ND2")],
+    "GLU": [("CA", "CB"), ("CB", "CG"), ("CG", "CD"), ("CD", "OE1"),
+            ("CD", "OE2")],
+    "GLN": [("CA", "CB"), ("CB", "CG"), ("CG", "CD"), ("CD", "OE1"),
+            ("CD", "NE2")],
+    "LYS": [("CA", "CB"), ("CB", "CG"), ("CG", "CD"), ("CD", "CE"),
+            ("CE", "NZ")],
+    "ARG": [("CA", "CB"), ("CB", "CG"), ("CG", "CD"), ("CD", "NE"),
+            ("NE", "CZ"), ("CZ", "NH1"), ("CZ", "NH2")],
+    "HIS": [("CA", "CB"), ("CB", "CG"), ("CG", "ND1"), ("ND1", "CE1"),
+            ("CE1", "NE2"), ("NE2", "CD2"), ("CD2", "CG")],
+}
+# N-CA-C(=O) backbone, plus OXT on a free acid and NT on the amide cap Rosetta
+# writes for CTERM_AMIDATION.
+BACKBONE = [("N", "CA"), ("CA", "C"), ("C", "O"), ("C", "OXT"), ("C", "NT")]
+
+
+def bonds(atoms):
+    """Explicit peptide connectivity -- never inferred from distance."""
+    idx = {(a[1], a[2]): k for k, a in enumerate(atoms)}
+    rname = {a[1]: a[3] for a in atoms}
+    nums = sorted(rname)
     out = []
-    n = len(atoms)
-    for i in range(n):
-        for j in range(i + 1, n):
-            lim = 2.3 if (atoms[i][0] == "S" and atoms[j][0] == "S") else cut
-            if d[i, j] < lim:
+    for rn in nums:
+        for a, b in BACKBONE + SIDE.get(rname[rn], []):
+            i, j = idx.get((rn, a)), idx.get((rn, b))
+            if i is not None and j is not None:
                 out.append((i, j))
+    for a, b in zip(nums, nums[1:]):          # peptide bond C(i)-N(i+1)
+        i, j = idx.get((a, "C")), idx.get((b, "N"))
+        if i is not None and j is not None:
+            out.append((i, j))
     return out
 
 
@@ -104,7 +151,7 @@ def kabsch(P, Q):
 bb = read(BB, "L")
 a3 = read(S3, "B")
 a4 = read(S4, "B")
-ca = lambda A: np.array([a[3] for a in A if a[2] == "CA"])
+ca = lambda A: np.array([a[4] for a in A if a[2] == "CA"])
 ref = ca(bb)
 cen_ref = ref.mean(0)
 _, _, vt = np.linalg.svd(ref - cen_ref, full_matrices=False)
@@ -116,7 +163,7 @@ def place(atoms, ref_ca, ref_cen):
     this = ca(atoms)
     n = min(len(this), len(ref_ca))
     R = kabsch(this[:n] - this[:n].mean(0), ref_ca[:n] - ref_ca[:n].mean(0))
-    P = np.array([a[3] for a in atoms])
+    P = np.array([a[4] for a in atoms])
     P = (P - this[:n].mean(0)) @ R.T + ref_ca[:n].mean(0)
     return (P - ref_cen) @ PROJ.T, P
 
@@ -161,11 +208,11 @@ def sg_pair(atoms):
 # ------------------------------------------------------------------ figure
 STAGES = [
     ("Stage 1", "RFdiffusion", "1,500", "backbones",
-     "backbone only — N/CA/C/O\nevery residue GLY but the two Cys\nno sequence, no side chains"),
+     "backbone only — N/CA/C/O\nevery residue GLY but the two Cys\ngeometry approximate: peptide bonds\nmean 1.22 Å against an ideal 1.33"),
     ("Stage 2", "ProteinMPNN", "265,699", "unique sequences",
      "a sequence is assigned\n**the coordinates do not change**\nidentity, not geometry"),
     ("Stage 3", "AfCycDesign", "143,595", "docked",
-     "first full-atom structure\nside chains placed, in the receptor\ndisulfide open in 43% of cases"),
+     "first full-atom structure with\ncorrect chemistry, in the receptor\ndisulfide open in 43% of cases"),
     ("Stage 4", "Rosetta", "6,000", "scored",
      "relaxed, C-terminally amidated\ndisulfide forced closed\nthis is the geometry that is scored"),
     ("Synthesis", "", "12", "to be made",
@@ -257,13 +304,18 @@ fig.text(.5, .947,
          "one lineage: backbone shard3_out_350  →  SGCLFGSCP, the top-ranked candidate of 6,000 scored. "
          "Panels 1–4 are the real files, superimposed on a common frame.",
          ha="center", fontsize=10.5, color=GRAY)
-fig.text(.5, .012,
-         "Atom colours: carbon grey · nitrogen blue · oxygen red · sulfur gold.  "
-         "The disulfide is drawn in gold where it exists.",
-         ha="center", fontsize=9, color=GRAY, style="italic")
+fig.text(.5, .045,
+         "Atom colours: carbon grey · nitrogen blue · oxygen red · sulfur gold. "
+         "Bonds are drawn from peptide topology, never inferred from distance.\n"
+         "Stage 1 geometry is approximate: over 200 backbones only 64% of peptide bonds "
+         "fall within 10% of ideal and 16% are under 1.10 Å. "
+         "AfCycDesign rebuilds correct chemistry at Stage 3.",
+         ha="center", va="top", fontsize=9, color=GRAY, style="italic",
+         linespacing=1.6)
 
 out = FIG / "prod_fig14_molecule_funnel.png"
-fig.savefig(out, dpi=180, bbox_inches="tight", pad_inches=0.3)
+fig.subplots_adjust(bottom=0.20)
+fig.savefig(out, dpi=180, bbox_inches="tight", pad_inches=0.28)
 plt.close(fig)
 print("wrote %s" % out)
 print("stage1 atoms %d  stage3 atoms %d  stage4 atoms %d" % (len(bb), len(a3), len(a4)))
