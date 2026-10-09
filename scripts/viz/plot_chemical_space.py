@@ -125,9 +125,18 @@ axB.set_xticks(x)
 axB.set_xlabel("position in peptide")
 axB.set_ylabel("Shannon entropy (bits)")
 axB.set_ylim(0, ceil * 1.18)
-axB.set_title("B  No consensus collapse; pins exactly invariant\n"
-              "     length %d, Cys at %d and %d, n = %s"
-              % (L, cysp[0] + 1, cysp[1] + 1, format(len(members), ",")), loc="left")
+# The class plotted is the largest single (length, Cys-position) group, NOT the
+# whole pool and NOT a typical length. Cysteine placement is only uniform at
+# lengths 8 and 14; at 9-13 several Cys-position pairs coexist (at length 11 the
+# commonest is just 17%), so a per-position entropy plot is only well defined
+# within one such class. Saying "length 14, Cys at 4 and 11" without saying it is
+# a 7.6% slice invites the reading that the whole pool is 14-mers.
+_frac = 100.0 * len(members) / len(seqs)
+axB.set_title("B  Within one scaffold class: pins exactly invariant\n"
+              "     largest class: length %d, Cys %d+%d, n = %s (%.1f%% of pool)\n"
+              "     Cys placement is uniform only at lengths 8 and 14"
+              % (L, cysp[0] + 1, cysp[1] + 1, format(len(members), ","), _frac),
+              loc="left", fontsize=10)
 axB.legend(frameon=False, fontsize=9, loc="upper right", ncol=2)
 
 # ---- C: the chemical space map -------------------------------------------

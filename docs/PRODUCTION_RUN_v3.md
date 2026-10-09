@@ -454,9 +454,12 @@ C and M are omitted from the design pool.
 ![Chemical space explored](figures/prod_fig8_chemical_space.png)
 
 *Panel A — sampling against the accessible space, log scale; labels give the
-fraction covered. Panel B — per-position Shannon entropy inside the largest
-scaffold class; the two orange bars are the pinned cysteines at exactly 0.00
-bits. Panel C — the occupied region of charge/hydrophobicity space, all 265,700
+fraction covered. Panel B — per-position Shannon entropy inside the **largest
+single scaffold class only** (length 14, Cys at 4 and 11, n = 20,095 — **7.6% of
+the pool**); the two orange bars are the pinned cysteines at exactly 0.00 bits.
+Per-position entropy is only well defined within one such class, and cysteine
+placement is uniform at **lengths 8 and 14 only**, so this panel is not
+representative of the pool's other five length bands — see below. Panel C — the occupied region of charge/hydrophobicity space, all 265,700
 sequences, log density. Panel D — exact sequences against distinct
 physicochemical patterns, per length. Regenerate with
 `python scripts/viz/plot_chemical_space.py`.*
@@ -481,7 +484,8 @@ form "the best binder in this chemical space" is unsupportable; the defensible
 claim is "the best binder among 265,700 sampled points."
 
 **Positional diversity is high and the pins are exact.** Largest class
-(length 14, Cys at 3 and 10, n = 20,095), entropy per position in bits:
+(length 14, Cys at **4 and 11**, 1-indexed, n = 20,095), entropy per position in
+bits:
 
 ```
 3.17  3.67  2.95  0.00  3.24  3.00  3.12  3.69  3.60  3.61  0.00  2.90  3.07  2.89
@@ -493,6 +497,26 @@ ProteinMPNN is not collapsing onto a consensus; it is sampling broadly at every
 free position. The two cysteine positions measure **exactly 0.00 bits** across
 all 20,095 sequences, which is independent confirmation that the fixed-position
 mechanism held for every draw.
+
+**Read this panel narrowly — it covers 7.6% of the pool, and it is the most
+favourable slice.** Cysteine placement is uniform only at the two extreme
+lengths; the five bands in between carry several pin positions at once:
+
+| length | n | commonest Cys positions |
+|---|---:|---|
+| 8 | 4,909 | (2,7) **100%** |
+| 9 | 17,973 | (3,8) 45%, (2,8) 28%, (2,7) 27% |
+| 10 | 50,339 | (2,8) 20%, (2,7) 19%, (4,9) 17% |
+| 11 | 62,097 | (2,8) 17%, (4,10) 16%, (2,9) 14% |
+| 12 | 64,416 | (3,9) 20%, (3,10) 17%, (4,9) 17% |
+| 13 | 45,870 | (3,10) 37%, (4,11) 34%, (4,10) 29% |
+| 14 | 20,095 | (4,11) **100%** |
+
+The three largest bands — 10, 11 and 12, which together are 66% of the pool —
+have no dominant pin position at all. The 0.00-bit result therefore says the
+pinning mechanism works *within a scaffold class*; it is not a statement that
+the whole run shares one cysteine geometry. The 27 scaffold classes exist
+precisely because it does not.
 
 **Physicochemical envelope** (all 265,700):
 
