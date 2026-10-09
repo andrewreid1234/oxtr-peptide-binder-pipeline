@@ -1,6 +1,6 @@
 # Production Run v3 — Methods and Results
 
-**Document version:** v1.10.0
+**Document version:** v1.10.1
 **Last updated:** 2026-10-09
 **Describes pipeline:** v3.9.0
 **Run directory:** `/scratch/drewdog/denovo_binder_100_pilot_v2` (Woody)
@@ -1094,9 +1094,16 @@ only true pass/fail step in the pipeline is the Stage 3 pocket gate
 
 **173** is the working "survived everything measured" figure: binds efficiently,
 is selective, *and* is synthesisable as a disulfide macrocycle. Dropping the
-disulfide criterion gives the **267** quoted at v1.8.0. The 303 candidates that
-pass efficiency with a relaxed disulfide span **164 distinct backbones**, so this
-is not one scaffold.
+disulfide criterion gives the **267** quoted at v1.8.0.
+
+The two criteria are close to independent, which is why the counts fall the way
+they do. Of the 481 efficiency passers, **303** have a relaxed disulfide and
+**267** are selective; **173** are both. (303 does not appear in the funnel table
+above because it is a side branch — efficiency + disulfide, skipping selectivity.)
+
+**The 173 span 93 distinct backbones, so this is not one scaffold.** *An earlier
+draft quoted 164 backbones here; that is the diversity of the 303, not of the
+173, and overstated the headline set's diversity by 76%.*
 
 **Selectivity coverage is complete for this criterion.** Stage 7 has measured
 **3,209** candidates in three batches, and all **481** past the efficiency cut are
@@ -1463,6 +1470,7 @@ overtaken: pose agreement never became a gate. Current state:*
 
 | Version | Date | Summary |
 |---|---|---|
+| **v1.10.1** | 2026-10-09 | §5d fix. The sentence introducing **173** quoted "**164** distinct backbones" as evidence it is not one scaffold — but 164 is the backbone count of the **303** (efficiency + disulfide, no selectivity), not of the 173. The 173 span **93** backbones. The conclusion holds; the number was attached to the wrong set and overstated diversity by 76%. Also made explicit where 303 comes from, since it appears nowhere in the funnel table above it (481 → 267 → 173) and had no derivation in the text. |
 | **v1.10.0** | 2026-10-09 | **Stage 7 coverage reconciled against disk.** §5e had said Stage 7 ran on "batch 1's top 1,000"; it had in fact been extended to all 3,000 in a separate session writing to `stage_7_selectivity_batch2/` and `stage_7_selectivity_merged/`, directories the earlier count missed. True coverage is **3,209** compounds, all complete across AVPR1A/1B/2, none partial. At that scale **48.1% prefer an off-target**, against the 40.1% quoted from the top-1,000 slice. AVPR2 is the worst off-target for 48% overall and **61% of the 481 efficiency passers**. r(margin, dG/dSASAx100) = **−0.134** over 3,209 — weak but non-zero, and signed so that better binders are marginally more selective; keep-rate by binding decile runs 55% → 38%. **The 267 is unchanged**, since all 481 efficiency passers occupy ranks 1–481 and are necessarily inside any checked slice (verified 481/481). Batch 2's other 2,791 remain unchecked, which matters only if the −3.0 cut is loosened. Unified table written to `selectivity_all.csv`. |
 | **v1.9.0** | 2026-10-08 | Added **§5f — the N-methylation scan**, run over all 481 efficiency passers (not only the 267) so the selectivity-strictness decision stays open. **It is a negative result and an important one:** adoptable sites median **1** per candidate with 105 of 481 having none, against a median of **16** methylations needed to reach even cyclosporin A's TPSA of 279. Each site is worth a measured −8.8 Å² TPSA / +0.35 cLogP, so applying every adoptable site moves the median only 421 → **408**. **0 of 481** can get there, and even methylating every eligible residue leaves the median at 377, so the limit is structural rather than the 3.5 Å cutoff. N-methylation was the designated rescue route for permeability; it is now measured and closed. |
 | **v1.8.0** | 2026-10-08 | Added **§5e — Stage 4 batch 2 and selectivity over the full set**: a disjoint second 3,000 completed 2026-10-07 zero-FAIL, **statistically indistinguishable** from batch 1 on the energetics (median dG −46.01 vs −45.99), contributing **209** further efficiency passers for **481** combined. Stage 7 then ran over all 481 (627 predictions, 4 GPUs, 11 min, VERIFY clean) giving **267** survivors — 178 + 89. Documented that batch 2's selectivity pass rate is **23 points lower** (42.6% vs 65.4%) and why: its median `i_ptm` is lower against OXTR (0.523 vs 0.565) and *higher* against AVPR2 (0.525 vs 0.484), consistent with batch 1 having been selected first and taking the stronger `i_ptm` tier — and not contradicting the Rosetta parity, since `i_ptm` and dG correlate only −0.19 to −0.49. **AVPR2 is the worst off-target for 61% of the set.** Added **Figure 14**, the first figure for the scramble controls — the ordering, the 30/30 paired test, the five lost interfaces against 0 of 6,000, and what the control holds constant. Status block moved from 178 to **267**. |
