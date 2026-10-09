@@ -38,10 +38,20 @@ plt.rcParams.update({
 
 
 def save(fig, name):
+    """PNG for viewing, SVG for the deck.
+
+    The deck embeds EMF converted from these SVGs so that every label is a real
+    text object in PowerPoint -- right-click, Ungroup, and a colliding
+    annotation can be dragged. A rasterised PNG cannot be repaired that way.
+    Text is kept as text rather than converted to paths for the same reason.
+    """
     p = OUT / name
     fig.savefig(p, dpi=150, bbox_inches="tight", facecolor="white")
+    with plt.rc_context({"svg.fonttype": "none"}):
+        fig.savefig(p.with_suffix(".svg"), bbox_inches="tight",
+                    facecolor="white")
     plt.close(fig)
-    print("wrote", p)
+    print("wrote", p, "+ svg")
 
 
 def load():
@@ -213,11 +223,22 @@ def permeability(top, ctrl):
     fig, ax = plt.subplots(1, 2, figsize=(12.8, 5.0))
     a = ax[0]
     a.scatter(clogp, tpsa, s=12, color=BLUE, alpha=.55, linewidths=0)
-    a.axhspan(0, 140, color=ORANGE, alpha=.14)
-    a.axhline(140, color=ORANGE, lw=2.2, ls="--")
-    a.annotate("drugs that cross the blood–brain\nbarrier passively live down here",
-               (.04, .03), xycoords="axes fraction", fontsize=12.5, color=ORANGE,
-               va="bottom")
+    # Benchmark against CYCLOSPORIN A, not Lipinski. TPSA <= 140 and HBD <= 5
+    # are small-molecule rules; cyclosporin A breaks them and is orally
+    # bioavailable, so drawing that line tells the audience nothing about a
+    # macrocycle. The honest comparison is to the archetype of the class.
+    CSA_CLOGP, CSA_TPSA = 3.0, 278.8
+    a.scatter([CSA_CLOGP], [CSA_TPSA], marker="D", s=170, color=ORANGE,
+              zorder=6, edgecolors="white", linewidths=1.4)
+    # label goes in the empty top-right corner with a leader, not beside the
+    # marker -- beside it the text ran back across the data cloud.
+    a.annotate("cyclosporin A\n1,203 Da · HBD 5\norally bioavailable",
+               xy=(CSA_CLOGP, CSA_TPSA), xycoords="data",
+               xytext=(0.97, 0.95), textcoords="axes fraction",
+               fontsize=12, color=ORANGE, ha="right", va="top",
+               fontweight="bold",
+               arrowprops=dict(arrowstyle="-", color=ORANGE, lw=1.3,
+                               shrinkA=4, shrinkB=8, alpha=.75))
     ox = [r for r in ctrl if "oxytocin" in r["sequence_id"] and r["tpsa"]]
     if ox:
         a.scatter([float(ox[0]["clogp"])], [float(ox[0]["tpsa"])], marker="*",
@@ -225,7 +246,7 @@ def permeability(top, ctrl):
         a.annotate("oxytocin", (float(ox[0]["clogp"]), float(ox[0]["tpsa"])),
                    xytext=(12, -4), textcoords="offset points", fontsize=13, color=INK)
     a.set_xlabel("cLogP"); a.set_ylabel("TPSA  (Å$^2$)")
-    a.set_title("None of our molecules is close", fontsize=15, fontweight="bold",
+    a.set_title("Mass is fine. Polarity is not", fontsize=15, fontweight="bold",
                 color=NAVY, pad=10)
     a = ax[1]
     bbb = np.array([float(r["s5_bbb_probability_UNRELIABLE"]) for r in top])
