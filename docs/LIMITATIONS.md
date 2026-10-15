@@ -20,6 +20,7 @@ clarifications, added evidence.
 
 | Version | Date | Summary |
 |---|---|---|
+| **v5.5.0** | 2026-10-15 | **O15 added (OPEN): Stage 4 may be partly ranking relaxability.** The restrained-relax control for O14 was run (`-relax:constrain_relax_to_start_coords`, n = 20 per cell, restraint validated at 0.167 Å peptide drift vs 1.993 Å free). It splits the 0.405 pose-provenance gap into **42% basin-intrinsic** (survives restraint, the legitimate share of 2.90 Å under-determination) and **58% drift-dependent**. Rank 425/6,000 **still stands** as the matched comparison, since all 6,000 are also predicted poses, also freely relaxed. But the control exposed something larger: free relax contributes **0.43–0.66** of score to the *same molecule* against a **0.289** selection margin, and free relax moves the 285-residue receptor ~1.6 Å. If relaxability varies across candidates, Stage 4 partly ranks relaxability rather than binding — untested, and now the highest-value open question. O14 unchanged otherwise. |
 | **v5.4.0** | 2026-10-14 | **O14 partly superseded: the positive control was confounded by pose provenance.** Oxytocin was scored on its 2.90 Å cryo-EM coordinates while all 6,000 candidates were scored on AlphaFold poses. Scoring oxytocin on a v4-templated pose **1.09 Å away** (n = 20 trajectories per arm) moves `dG_per_dSASAx100` from −2.617 to **−3.022** and its rank from 2,876/6,000 to **425/6,000 (top 47.9% → top 7.1%)** — a **0.405** shift, 95% CI [−0.552, −0.258], permutation p = 1×10⁻⁵, **~1.4× the shortlist's entire selection margin**, with non-overlapping rank CIs. The gain is **hydrogen-bond count alone** (`hbonds_int` 4.30 → 8.00) while `sc_value` stays flat (0.641 → 0.633) and both `delta_unsatHbonds` and `dslf` get worse — which leans towards AlphaFold/Rosetta **idealisation** rather than recovered geometry, so this is not a clean rehabilitation. "Oxytocin sits exactly where it should" is **withdrawn**; the measurement itself is vindicated at higher power. The 30-scramble negative control is **unaffected** (shared provenance) and is reproduced on a single shared v4 template, native beating all 5 scrambles by 0.313. The first pass at NSTRUCT=5 overestimated the shift (0.502) and rank (240); **ICC 0.873 justifies NSTRUCT=5 for ranking many candidates, not for locating one molecule or comparing two conditions — single-molecule controls need n ≥ 20.** **New standing rule: a control must share pose provenance with what it is compared against, or say that it cannot.** Open: restrained-relax control to split recovered resolution from idealisation. See [`oxytocin_median_defence.md`](oxytocin_median_defence.md). |
 | v1.0.0 | 2026-09-24 | Converted from the dated pre-scale-up audit into a living register. Adds everything found on 2026-09-24: the silent cysteine failure, D_s/B/S derived on non-cyclizable sequences, D_b shown to be unidentifiable, the disulfide ring-size effect, and the missing Stage 2 scale-up script. |
 | **v2.0.0** | 2026-09-24 | **Blocker closed:** `SOP.md` bumped to v3.0.0, so the runbook no longer describes a superseded pipeline (was B2, now R5). Remaining blockers renumbered. Adds O10 — the funnel figure withheld because it plots the erroneous BBB counts. |
@@ -782,6 +783,58 @@ it, so a positive `dslf` is a chemistry liability, never "this will not
 cyclise".
 
 *Data:* `analysis/stage4_controls/`.
+
+### O15. 🔴 OPEN — Stage 4 may be partly ranking relaxability, not binding (2026-10-15)
+
+**Found while running the restrained-relax control for O14, and it is a larger
+problem than the control it came from.**
+
+Free `FastRelax` contributes a large, unmeasured amount of score to a *single
+molecule in a single site*, depending only on how far relaxation is allowed to
+travel from the input coordinates:
+
+| | free relax | restrained to start coords | drift gain |
+|---|---:|---:|---:|
+| oxytocin, cryo-EM pose | −2.6170 ± 0.045 | −2.1916 ± 0.022 | **0.4254** |
+| oxytocin, v4-templated pose | −3.0222 ± 0.057 | −2.3617 ± 0.028 | **0.6605** |
+
+n = 20 trajectories per cell; permutation p < 10⁻⁵ for both drift gains.
+Restraint validated by drift measurement: peptide 0.167 Å restrained against
+1.993 Å free, receptor 0.176 Å against 1.625 Å. Note the second figure — **free
+relax moves the 285-residue receptor by ~1.6 Å**, so this is not ligand
+refinement, it is relaxing the whole complex off the experimental structure, and
+it happens to every candidate.
+
+| quantity | size |
+|---|---:|
+| Score contributed by relax travel, same molecule | **0.43 – 0.66** |
+| Shortlist's entire selection margin (−2.892 vs −2.603) | 0.289 |
+
+**How much score a pose yields to relaxation is worth more than the whole design
+selection signal.** All 6,000 candidates were free-relaxed, so every Stage 4
+score carries a travel component of this order.
+
+**This does not necessarily break the ranking.** If candidates yield to
+relaxation uniformly, the component is a common offset and the ordering is
+preserved. **That has never been tested.** The two poses measured here — the same
+molecule, 1.09 Å apart — differed by 0.43 vs 0.66, i.e. **0.23 of spread in
+relaxability alone, which is itself ~80% of the selection margin.** If that
+spread is representative across candidates, Stage 4 is partly ranking how
+relaxable a pose is rather than how well the sequence binds.
+
+**The test.** A restrained-relax arm on a sample of ranked candidates — say 20
+from the top of the shortlist and 20 from the middle of the pool — comparing
+drift gain between the groups. If drift gain is flat across rank, the ranking is
+safe and this closes. If drift gain correlates with rank, the shortlist is partly
+a relaxability artefact and Stage 4 needs either restrained scoring throughout or
+a travel-corrected metric. **Cost: ~40 candidates x 20 trajectories, trivially
+parallel, no GPU.**
+
+> **Interim guidance.** This does not invalidate the shortlist, and it does not
+> change the top 25–50 band recommendation — but the absolute values are less
+> meaningful than previously stated, and **no Stage 4 number should be compared
+> across different relax protocols.** See
+> [`oxytocin_median_defence.md`](oxytocin_median_defence.md) §5.
 
 ### O11. Housekeeping
 - `biopython` was pip-installed into the dashboard venv but is absent from

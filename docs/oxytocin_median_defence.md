@@ -200,11 +200,78 @@ resolution gain should improve packing as well as H-bond count, and `sc_value` i
 flat while `delta_unsatHbonds` and `dslf` get worse. Both mechanisms are present;
 the split is unknown and this design cannot determine it.
 
-**The control that would separate them** — not yet run — is relaxing the crystal
-pose under **coordinate restraints**, so the force field may fix local geometry
-but cannot relocate the ligand. If restrained relaxation recovers most of the
-0.405, the gain is real resolution. If it recovers little, the gain is
-idealisation. This is the single highest-value follow-up in this document.
+### RUN 2026-10-15: the restrained-relax control. Both mechanisms are real, 42/58
+
+Each pose was re-relaxed with `-relax:constrain_relax_to_start_coords` and
+`-relax:ramp_constraints false`, restraining the **backbone to its own starting
+coordinates** so the force field may clean up locally but cannot relocate the
+ligand. Sidechains deliberately left free — restraining them too would confound
+"cannot relocate" with "cannot repack".
+(`scripts/stage0_controls/rosetta_restrained_worker.sh`, n = 20 per cell.)
+
+**Restraint validated, not assumed:** peptide drift from input falls to
+**0.167 Å** against **1.993 Å** free; receptor **0.176 Å** against **1.625 Å**.
+
+|  | free relax | restrained | drift gain |
+|---|---:|---:|---:|
+| crystal pose | −2.6170 ± 0.045 | **−2.1916 ± 0.022** | **0.4254** |
+| templated pose | −3.0222 ± 0.057 | **−2.3617 ± 0.028** | **0.6605** |
+
+| gap, templated − crystal | value | p (permutation, 200k) |
+|---|---:|---:|
+| free relax | −0.4052 | 1 × 10⁻⁵ |
+| **restrained** | **−0.1701** | 3 × 10⁻⁵ |
+
+**Decomposition of the 0.405:**
+
+| component | size | share |
+|---|---:|---:|
+| **basin-intrinsic** — survives restraint | 0.170 | **42%** |
+| **drift-dependent** — needs free relax | 0.235 | **58%** |
+
+**Neither mechanism alone was right.** 42% of the templated arm's advantage is a
+genuine basin difference, which is the legitimate share attributable to 2.90 Å
+under-determination. The other 58% exists only because free relaxation is allowed
+to travel, and **the templated pose converts travel into score more efficiently
+than the experimental one does** (0.66 against 0.43). The cryo-EM control was
+doubly disadvantaged: a worse starting basin *and* less relaxable.
+
+#### This does not overturn rank 425
+
+Worth stating because it is the obvious wrong inference. The drift component is
+**not** a confound for the oxytocin-vs-candidates comparison, because all 6,000
+candidates are *also* predicted poses that were *also* freely relaxed. They enjoy
+the same drift gain. The matched comparison is therefore still
+**oxytocin on a predicted pose, freely relaxed = −3.022, rank 425 / 6,000**, and
+§3–4 stand as written.
+
+#### ⚠ Do not rank the restrained values against the pool
+
+The restrained numbers (−2.19, −2.36) must **not** be compared to the pool median
+of −2.603 or given ranks. The 6,000 were free-relaxed; the restrained arms were
+not. That is a **relax-protocol provenance mismatch** — the same error class this
+whole document exists to document, one level down. The restrained arms are
+interpretable only against *each other*.
+
+#### The broader finding, which is bigger than oxytocin
+
+| quantity | size |
+|---|---:|
+| Score contributed by free relax travel, same molecule | **0.43 – 0.66** |
+| Shortlist's entire selection margin | 0.289 |
+
+**How much score a pose yields to relaxation is worth more than the entire design
+selection signal.** Every one of the 6,000 was free-relaxed, so every score
+carries an unmeasured travel component of this order.
+
+This does not break the ranking *if* candidates yield to relaxation uniformly —
+the component would be a common offset. **It has not been tested.** If
+relaxability varies across candidates by anything approaching the 0.43 → 0.66
+spread seen between just these two poses, then Stage 4 is partly ranking
+*relaxability* rather than binding. The test is a restrained-relax arm on a
+sample of ranked candidates, comparing drift gain between the top and middle of
+the shortlist. **Not yet run, and it is now the highest-value open question in
+the pipeline** — ahead of anything about oxytocin.
 
 ---
 
@@ -319,7 +386,8 @@ made it, and should be presented that way.
 |---|---|
 | **O14 reading** | Corrected; banner added. Measurement stands at n = 20 |
 | **Positive control going forward** | Report **both** numbers with provenance labelled. The v4-templated value is the one comparable to candidates |
-| **Restrained-relax control** | **Highest-value follow-up** (§5). Separates recovered resolution from idealisation gain. Not yet run |
+| **Restrained-relax control** | **DONE 2026-10-15** (§5). 42% basin-intrinsic, 58% drift-dependent. Rank 425 stands |
+| **Relaxability across candidates** | **NEW, now the highest-value open question.** Free relax contributes 0.43–0.66 to a single molecule's score against a 0.289 selection margin. If that varies across candidates, Stage 4 partly ranks relaxability. Untested |
 | **Cross-provenance comparisons** | Banned. A control shares pose provenance with what it is compared against, or says it cannot |
 | **Single-molecule controls** | **n ≥ 20**, not NSTRUCT=5. ICC 0.873 does not transfer to this use |
 | **Next cycle (v4 poses)** | v4 scores are **not** comparable to the v3 shortlist. Re-baseline before pooling |
@@ -340,9 +408,9 @@ made it, and should be presented that way.
 |---|---|
 | "Oxytocin at the median means your metric is bad." | The median is a fact about **2.90 Å cryo-EM coordinates**. Same molecule on a pose 1.09 Å away scores 0.405 better (p = 1×10⁻⁵) and ranks **425/6,000**. §2–3 |
 | "99% of your shortlist beats the natural ligand." | That came from the confounded comparison. Matched, oxytocin beats the shortlist **median** on `dG_separated`, `hbonds_int` and the ratio — and beats it on `sc_value` on *either* pose. §4 |
-| "So you fixed it by handing the predictor the crystal answer." | Conceded up front. And §3's breakdown argues *against* a clean rescue: H-bond count nearly doubles while packing stays flat and unsatisfied H-bonds get worse. §5 |
+| "So you fixed it by handing the predictor the crystal answer." | Conceded up front. The restrained-relax control then split the gain: **42% genuine basin difference, 58% differential relax travel** (§5). Rank 425 still stands as the matched comparison, because the 6,000 are also predicted poses, also freely relaxed. |
 | "Then your 6,000 scores just measure AlphaFold idealisation." | Provenance sets the **scale**; sequence sets the **position within it**. Scrambles were idealised identically and still lost 30/30, p = 1.9×10⁻⁹. §6 |
 | "So the designs bind better than oxytocin?" | No, and it is not claimed. Nothing here is an affinity measurement. §7–8 |
 | "Your own numbers moved between drafts." | Yes — the n = 5 pass overestimated the shift by 24% and the rank by 185 places. It is logged in §10 rather than quietly corrected. The fix was more replicates, not a different metric. |
 | "Why didn't you change the metric when oxytocin scored at the median?" | Because changing a metric in response to one control, in the direction that flatters your own designs, is how you fool yourself. The right move was to find the confound. §2 |
-| "What would change your mind?" | §9, pre-registered, including the failure condition for the whole funnel. §5 names the one control that would settle the circularity. |
+| "What would change your mind?" | §9, pre-registered, including the failure condition for the whole funnel. The circularity control in §5 has now been run and split the gain 42/58. |
