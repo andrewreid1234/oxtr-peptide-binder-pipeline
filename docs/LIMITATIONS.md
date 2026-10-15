@@ -20,6 +20,7 @@ clarifications, added evidence.
 
 | Version | Date | Summary |
 |---|---|---|
+| **v5.4.0** | 2026-10-14 | **O14 partly superseded: the positive control was confounded by pose provenance.** Oxytocin was scored on its 2.90 Å cryo-EM coordinates while all 6,000 candidates were scored on AlphaFold poses. Scoring oxytocin on a v4-templated pose **1.09 Å away** (n = 20 trajectories per arm) moves `dG_per_dSASAx100` from −2.617 to **−3.022** and its rank from 2,876/6,000 to **425/6,000 (top 47.9% → top 7.1%)** — a **0.405** shift, 95% CI [−0.552, −0.258], permutation p = 1×10⁻⁵, **~1.4× the shortlist's entire selection margin**, with non-overlapping rank CIs. The gain is **hydrogen-bond count alone** (`hbonds_int` 4.30 → 8.00) while `sc_value` stays flat (0.641 → 0.633) and both `delta_unsatHbonds` and `dslf` get worse — which leans towards AlphaFold/Rosetta **idealisation** rather than recovered geometry, so this is not a clean rehabilitation. "Oxytocin sits exactly where it should" is **withdrawn**; the measurement itself is vindicated at higher power. The 30-scramble negative control is **unaffected** (shared provenance) and is reproduced on a single shared v4 template, native beating all 5 scrambles by 0.313. The first pass at NSTRUCT=5 overestimated the shift (0.502) and rank (240); **ICC 0.873 justifies NSTRUCT=5 for ranking many candidates, not for locating one molecule or comparing two conditions — single-molecule controls need n ≥ 20.** **New standing rule: a control must share pose provenance with what it is compared against, or say that it cannot.** Open: restrained-relax control to split recovered resolution from idealisation. See [`oxytocin_median_defence.md`](oxytocin_median_defence.md). |
 | v1.0.0 | 2026-09-24 | Converted from the dated pre-scale-up audit into a living register. Adds everything found on 2026-09-24: the silent cysteine failure, D_s/B/S derived on non-cyclizable sequences, D_b shown to be unidentifiable, the disulfide ring-size effect, and the missing Stage 2 scale-up script. |
 | **v2.0.0** | 2026-09-24 | **Blocker closed:** `SOP.md` bumped to v3.0.0, so the runbook no longer describes a superseded pipeline (was B2, now R5). Remaining blockers renumbered. Adds O10 — the funnel figure withheld because it plots the erroneous BBB counts. |
 | **v3.0.0** | 2026-09-25 | **Blocker closed:** the Stage 2 scale-up script now exists (was B1, now R6), along with the deduplication step the SOP specified but nothing implemented. One blocker remains, renumbered to B1. Also records that the 46,800 unique-sequence projection carries a 95% CI of [33,000, 60,500] — the per-backbone mean is estimated from 32 backbones with a 4-fold spread. |
@@ -618,7 +619,61 @@ larger and less biased, so the same compute buys a better-selected set.
 *Residual caveat:* q is measured on scouts from 100 backbones, not 1,500. It is
 retained at the first-shard checkpoint as a confirmation, no longer an estimate.
 
-### O14. 🟢 RESOLVED — Stage 4 now has controls, and they pass (2026-10-06)
+### O14. 🟡 PARTLY SUPERSEDED — Stage 4 has controls; the positive control was confounded (2026-10-06, corrected 2026-10-14)
+
+> **Read [`oxytocin_median_defence.md`](oxytocin_median_defence.md) with this section.**
+>
+> **The negative control (30 scrambles) stands unchanged** — parents and
+> scrambles share pose provenance, so that comparison is sound.
+>
+> **The positive control's reading does not.** Oxytocin was scored on its
+> **2.90 Å cryo-EM** coordinates while all 6,000 candidates were scored on
+> **AlphaFold-generated** poses. That is not "identical treatment", and the
+> difference is worth **0.405** `dG_per_dSASAx100` units on the same molecule —
+> **~1.4× the shortlist's entire selection margin**. Measured 2026-10-14 by
+> scoring oxytocin on a v4-templated pose just 1.09 Å away, **n = 20
+> trajectories per arm**:
+>
+> | oxytocin | cryo-EM pose | v4-templated pose | Δ |
+> |---|---:|---:|---:|
+> | `hbonds_int` | 4.30 | **8.00** | +3.70 |
+> | `sc_value` | 0.641 | 0.633 | −0.009 |
+> | `delta_unsatHbonds` | 16.40 | 20.35 | +3.95 |
+> | `dG_separated` | −44.28 | **−52.40** | −8.12 |
+> | `dG_per_dSASAx100` | −2.617 | **−3.022** | **−0.405** |
+> | rank in 6,000 | **2,876** (CI 2,069–3,691) | **425** (CI 189–830) | top 47.9% → **top 7.1%** |
+>
+> Shift 95% CI [−0.552, −0.258]; Welch t = −5.60, df 36; permutation
+> p = 1 × 10⁻⁵. Rank CIs do not overlap.
+>
+> So **"oxytocin sits exactly where it should" and "the median is where a real
+> binder carrying no design optimisation belongs" are withdrawn.** The
+> *measurement* is vindicated — at n = 20 the cryo-EM pose is still top 47.9% —
+> but it is a fact about 2.90 Å coordinates, not about oxytocin or the metric.
+>
+> **The gain is H-bond count and nothing else:** `hbonds_int` nearly doubles
+> while `sc_value` stays flat and both `delta_unsatHbonds` and `dslf` get *worse*.
+> A genuine resolution gain should improve packing too. This leans towards
+> AlphaFold/Rosetta **idealisation** rather than recovered geometry, so the
+> rank-425 figure is **not** a clean rehabilitation. Irreducible circularity: the
+> v4 template *is* the crystal backbone. **The control that would separate them —
+> restrained relaxation of the crystal pose — is not yet run.**
+>
+> **Statistics note.** The first pass at NSTRUCT=5 overestimated the shift (0.502
+> vs 0.405) and the rank (240 vs 425), and was not significant by Mann-Whitney
+> (p = 0.056). NSTRUCT=5 was validated by an ICC of 0.873 for *ranking many
+> candidates*, where errors average across the list — **not** for locating one
+> molecule in the distribution or comparing two conditions. Future
+> single-molecule controls: **n ≥ 20**.
+>
+> Carries an irreducible circularity — the v4 template *is* the crystal backbone,
+> so removed cryo-EM error and AlphaFold/Rosetta idealisation gain are **not
+> separated**. Never quote the rank-240 figure without that caveat.
+>
+> **Standing rule from this:** a control must share pose provenance with whatever
+> it is compared against, or state that it cannot.
+
+#### Original entry (2026-10-06), measurements unchanged
 
 **The gap.** Stage 4 had scored 3,000 candidates (6,000 with batch 2) and had
 never been shown a molecule known to bind, or one known not to. Stage 3 has the
@@ -658,7 +713,7 @@ explain why the scramble *mean*, −2.064, is so much worse than its median: the
 ratio is undefined at zero dSASA and reads as 0.) Among the 26 that kept an
 interface the median is −2.461, against their parents' −3.345.
 
-#### Positive control: oxytocin sits exactly where it should
+#### Positive control: oxytocin ~~sits exactly where it should~~ — WITHDRAWN, see the banner above
 
 | | oxytocin | filtered top 1,000 |
 |---|---:|---|
