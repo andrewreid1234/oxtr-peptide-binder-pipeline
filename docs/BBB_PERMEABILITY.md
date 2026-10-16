@@ -16,13 +16,13 @@ outlive any one production run.
 | axis | candidates | cyclosporin A | status |
 |---|---:|---:|---|
 | MW | 1,137 | 1,203 | **never was the problem** — we are smaller |
-| TPSA (Å²) | 431 median, **241 best** | 278.8 | **solved for a subset** — 11 of 1,000 already clear it |
+| TPSA (Å²) | 431 median, **241 best** | 278.8 | **solved for a subset** — 11 of 1,000 clear it on 2D TPSA, **33 on 3D PSA** |
 | cLogP | −4.41 median, **−1.06 best** | +3.27 | **open** — ~2 log units short even at the canonical ceiling |
 | HBD | 14 median, **7 best** | 5 | tracks TPSA |
 
 Three rescue routes have been measured and **closed**: N-methylation (geometry),
-chameleonic polarity collapse (this document), and the B3BPFN classifier as a
-decision tool (controls). One molecular route remains open — **non-canonical
+chameleonic polarity collapse (this document — closed at population level, with
+one genuine outlier), and the B3BPFN classifier as a decision tool (controls). One molecular route remains open — **non-canonical
 lipophilic residues** — and the non-molecular routes (intranasal, transporter
 shuttles) have never been assessed.
 
@@ -120,24 +120,55 @@ method, the method is broken and the candidate numbers mean nothing:
 The method separates CsA from the non-permeant peptides, and CsA's closed-state
 245 Å² agrees with published values for its folded conformer. The method works.
 
-**The result.** The designed macrocycles behave like oxytocin, not like CsA —
-collapse of roughly 2–6%, against CsA's 12.1%. A representative sample:
+**The result** (all 1,000 shortlisted candidates, 1000/1000 converged):
 
-| candidate | TPSA | 3D PSA min | % drop |
+| | median | 90th pct | best |
 |---|---:|---:|---:|
-| `shard3_out_44_u65` | 284.2 | 271.7 | 4.4% |
-| `shard3_out_350_u15` | 313.3 | 304.3 | 2.9% |
-| `shard0_out_235_u27` | 388.5 | 374.1 | 3.7% |
-| `shard2_out_75_u121` | 470.7 | 458.5 | 2.6% |
+| TPSA (2D) | 431.4 | — | 241.2 |
+| 3D PSA, min over ensemble | 407.8 | — | **223.4** |
+| collapse | 21.5 Å² (**5.0%**) | 7.5% | 56.0 Å² (12.7%) |
 
-**Conclusion: the 431 Å² is real.** These molecules do not hide their polarity.
-TPSA is not flattering or punishing them unfairly, and no descriptor correction
-is going to rescue the series. This closes the chameleonicity route.
+**The series is not chameleonic.** Median collapse 5.0% against CsA's 12.1%;
+only **1 of 1,000** exceeds CsA's collapse. The 431 Å² is real — these molecules
+do not hide their polarity, and no descriptor correction rescues the series.
+This closes chameleonicity as a *population-level* rescue route.
 
-*(A full 1,000-candidate run is in flight; it will add the distribution and let
-us ask whether any individual candidate is unusually chameleonic. The controls
-and the sample above already establish the conclusion. Output will land at
-`analysis/permeability/chameleonicity_top1000.csv`.)*
+**But the mechanism is not what it looks like, and the tail matters.**
+
+*Why they don't collapse.* It is not that they cannot fold. They form **more**
+intramolecular H-bonds than cyclosporin A — median maximum **9**, against CsA's
+5. The problem is that they have **more donors than folding can satisfy**: HBD 14
+against CsA's 5. Nine satisfied bonds out of fourteen donors still leaves five
+exposed; CsA's five out of five satisfies everything. **Chameleonicity is capped
+by donor count, which is capped by backbone length** — the same constraint as §3,
+arriving by a different route.
+
+*The tail is more favourable than the 2D measure suggested.* On 3D PSA:
+
+| | n of 1,000 |
+|---|---:|
+| 3D PSA min ≤ 278.8 (CsA's static TPSA) | **33** |
+| 3D PSA min ≤ 245.2 (CsA's *closed-state* PSA) | **1** |
+
+That is 33 against the 11 that clear the bar on 2D TPSA, so the 3D measure is
+**more** generous, not less. And the single molecule reaching CsA's closed state
+is `PCLFGPCP` at **223.4 Å² — below cyclosporin A's folded conformer.**
+
+| candidate | sequence | TPSA | 3D PSA min | cLogP | rank |
+|---|---|---:|---:|---:|---:|
+| shard1_out_171_u7 | `PCLFGPCP` | 241.2 | **223.4** | −1.06 | 680 |
+| shard1_out_171_u4 | `ACLFGPCP` | 255.2 | **246.1** | −1.46 | **55** |
+| shard1_out_72_u35 | `ACLGGPCP` | 255.2 | 248.5 | −3.07 | 848 |
+| shard3_out_202_u8 | `PGCGLFPCP` | 270.3 | 250.3 | −1.94 | 699 |
+| shard0_out_278_u47 | `GCPLFGCP` | 255.2 | 251.5 | −1.85 | 160 |
+
+**`ACLFGPCP` is the lead on this evidence:** rank 55 of 6,000 on binding *and* a
+closed-state polar surface of 246 Å², within 1 Å² of cyclosporin A's. Its
+polarity problem is, on this measure, already solved. What it lacks is
+lipophilicity — see §4 and §5.
+
+Collapse correlates weakly with length (r = +0.255) and TPSA (r = +0.105), i.e.
+bigger molecules fold a little more but never enough to catch up.
 
 ### 2c. The B3BPFN classifier — closed as a decision tool
 
@@ -379,7 +410,10 @@ then every number in this document is a prediction.
 
 1. **Bias the synthesis set toward the §4 subset — costs nothing.** Being less
    polar carries no measurable affinity penalty, so there is no reason not to.
-   `ACLFGPCP` (rank 55, TPSA 255) is the obvious lead.
+   **`ACLFGPCP` is the lead**: rank 55 of 6,000, TPSA 255, and a closed-state 3D
+   PSA of 246 Å² — within 1 Å² of cyclosporin A's folded conformer. `PCLFGPCP`
+   (3D PSA 223, the only candidate below CsA's closed state) is the backup if
+   rank 680 is acceptable.
 2. **Shorten and enrich proline at Stage 2.** Push the contig to 8–9 residues and
    up-weight Pro. Both are one-line changes and both are measured to be
    affinity-neutral in the existing pool.
@@ -428,4 +462,5 @@ unblocks everything and is the only step requiring outside resource.
 
 | version | date | summary |
 |---|---|---|
+| v1.0.1 | 2026-10-16 | Full 1,000-candidate chameleonicity run completed (1000/1000). Median collapse 5.0%, only 1 of 1,000 exceeding CsA's 12.1% — the population conclusion stands. Two refinements: the mechanism is donor count, not folding ability (these form *more* intramolecular H-bonds than CsA, median max 9 vs 5, but carry 14 donors against CsA's 5); and the 3D measure is **more** generous than 2D, with 33 candidates under CsA's static TPSA and `PCLFGPCP` at 223 Å², below CsA's closed-state 245. `ACLFGPCP` identified as the lead on combined binding + polarity evidence. |
 | v1.0.0 | 2026-10-16 | Opened. Chameleonicity measured and closed as a rescue route, with CsA as positive control. TPSA decomposed: 81% backbone, 19% side chains, which makes the polarity and lipophilicity axes orthogonal. 11 candidates already clear CsA on TPSA with no affinity penalty; the canonical cLogP ceiling is ~2 log units short; non-canonical lipophiles (Cha/Nal/Bip) identified as the one molecular route that clears both axes. Intranasal and shuttle routes recorded as unassessed. |
