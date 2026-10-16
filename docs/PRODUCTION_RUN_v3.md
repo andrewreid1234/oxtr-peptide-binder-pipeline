@@ -1282,6 +1282,11 @@ Survivors ranked by binding efficiency:
 
 # 5f. Stage 6 — the N-methylation scan, and why it cannot rescue this series
 
+> **Permeability now has its own document: [`BBB_PERMEABILITY.md`](BBB_PERMEABILITY.md).**
+> It carries this scan plus the chameleonicity measurement, the backbone/side-chain
+> decomposition, and the routes that remain open. This section is kept as the
+> record of the Stage 6 run itself.
+
 Run 2026-10-08 over **all 481** efficiency passers, not just the 267 that also
 pass selectivity, so the selectivity-strictness decision stays open. All 481
 scanned, zero missing structures.

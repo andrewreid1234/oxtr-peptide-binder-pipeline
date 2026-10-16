@@ -187,7 +187,7 @@ Each stage, and why it sits where it does.
 | **4c. Controls** | 30 composition-matched scrambles + oxytocin | Without them the Stage 4 metric is uncalibrated | **done** — 30/30, p = 1.9e-09 |
 | **5a. B3BPFN** | Predict BBB permeability | **Annotation, not a gate** — see below | **done, and shown unusable** — see §7 |
 | ~~5b. MD~~ | *dropped* | The negative control was more stable than five candidates that passed every gate | removed from the pipeline |
-| **6. N-methylation** | Identify sites where methylation is structurally tolerated | Was the route to rescue a strong binder with poor permeability | **done — insufficient alone.** Median 1 adoptable site against 16 needed to reach cyclosporin A's TPSA; the real deficit is lipophilicity, not size |
+| **6. N-methylation** | Identify sites where methylation is structurally tolerated | Was the route to rescue a strong binder with poor permeability | **done — insufficient alone.** Median 1 adoptable site against 16 needed to reach cyclosporin A's TPSA; the real deficit is lipophilicity, not size. **See [`BBB_PERMEABILITY.md`](BBB_PERMEABILITY.md)** |
 | **7. Selectivity** | Cofold against AVPR1A/1B/2 | Informational; no control yet, so not gating | **done** — all **481** efficiency passers; **44.5% prefer an off-target**, AVPR2 worst for 61% |
 | **8. Shortlist** | Select the synthesis wave | Top ~25-50 on diversity, *not* top 5 on score | **the next decision** |
 

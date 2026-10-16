@@ -1,0 +1,5 @@
+sequence_id,status,n_conf,tpsa_2d,psa3d_min,psa3d_median,psa3d_min_lowE,hb_at_min_psa,hb_max,hb_median,note,collapse_A2,collapse_pct
+cyclosporin_A,ok,60,278.8,245.2,260.8,247.5,4,5,2.0,permeant (chameleon),33.6,12.1
+oxytocin,ok,60,399.5,385.3,408.6,391.3,7,8,5.0,"NON-permeant, same chemotype",14.2,3.6
+desmopressin,ok,60,437.9,412.6,450.8,412.6,8,10,5.0,NON-permeant,25.3,5.8
+leu_enkephalin,ok,60,199.9,196.3,213.5,196.3,5,5,2.0,NON-permeant,3.6,1.8
